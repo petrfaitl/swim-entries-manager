@@ -6,21 +6,123 @@ function onOpen(e) {
   if (e && e.authMode === ScriptApp.AuthMode.NONE) {
     Logger.log("Not enough permissions to create menu yet.");
     menu.addItem('Start Add-on', 'showSidebar');
-  }else{
+  } else {
     menu.addItem('Create Sheets from Template', 'showCreateSheetsDialog')
+      .addItem('Create Core Tables', 'showCreateTablesDialog')
       .addSeparator()
-      .addItem('Export to CSV', 'exportEntriesToCSV')
+      .addItem('Export to CSV', 'exportEntriesToCSV');
   }
   menu.addToUi();
-
-  
 }
 
 function onHomepage(e) {
   onOpen(e);
   return buildAdminSidebarCard();
-  
-  
+}
+
+// Alias for manifest homepageTrigger if needed
+function showHomepage(e) {
+  return onHomepage(e);
+}
+
+function showCreateTablesDialog() {
+  const html = HtmlService.createHtmlOutput(
+    `
+    <style>
+      body {font-family: Arial, sans-serif; padding: 14px;}
+      h2 {margin: 0 0 8px;}
+      fieldset {border: 1px solid #ddd; padding: 10px; margin-bottom: 12px;}
+      legend {font-weight: bold;}
+      label {display:block; margin: 4px 0;}
+      .row {display:flex; gap:8px;}
+      .row > div {flex:1;}
+      button {margin-top: 10px; padding: 8px 14px;}
+      .small {font-size: 12px; color: #666}
+      #status {margin-top:8px; white-space: pre-wrap;}
+    </style>
+    <h2>Create Core Tables</h2>
+    <div class="small">Select one or more table types to create or rebuild. You can override dropdown values (e.g., school years) below.</div>
+
+    <fieldset>
+      <legend>Tables</legend>
+      <div id="tableList">Loading…</div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Dropdown values (optional)</legend>
+      <div class="row">
+        <div>
+          <label>School Years (comma-separated)</label>
+          <input type="text" id="years" value="Y5,Y6,Y7,Y8,Y9,Y10,Y11,Y12,Y13" />
+        </div>
+        <div>
+          <label>Genders (comma-separated)</label>
+          <input type="text" id="genders" value="Female,Male" />
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Placement (optional overrides for all selected)</legend>
+      <div class="row">
+        <div>
+          <label>Override Sheet Name</label>
+          <input type="text" id="sheetName" placeholder="Leave blank to use default" />
+        </div>
+        <div>
+          <label>Start Cell (A1)</label>
+          <input type="text" id="startCell" placeholder="A1" />
+        </div>
+      </div>
+    </fieldset>
+
+    <button onclick="create()">Create Tables</button>
+    <div id="status"></div>
+
+    <script>
+      function loadTables() {
+        google.script.run.withSuccessHandler(function(names){
+          const container = document.getElementById('tableList');
+          container.innerHTML = names.map(function(n){ return '<label><input type="checkbox" value="' + n + '"> ' + n + '</label>'; }).join('');
+        }).withFailureHandler(function(err){
+          document.getElementById('tableList').textContent = 'Error: ' + err.message;
+        }).getTableNamesForDialog();
+      }
+      function create(){
+        const names = Array.from(document.querySelectorAll('#tableList input[type=checkbox]:checked')).map(cb=>cb.value);
+        if (!names.length) { alert('Select at least one table.'); return; }
+        const years = document.getElementById('years').value.split(',').map(s=>s.trim()).filter(Boolean);
+        const genders = document.getElementById('genders').value.split(',').map(s=>s.trim()).filter(Boolean);
+        const sheetName = document.getElementById('sheetName').value.trim();
+        const startCell = document.getElementById('startCell').value.trim();
+        const opts = { schoolYears: years, genders: genders };
+        if (sheetName) opts.sheetName = sheetName;
+        if (startCell) opts.startCell = startCell;
+        document.getElementById('status').textContent = 'Working…';
+        google.script.run
+          .withSuccessHandler(function(res){
+            const lines = res.map(function(r){ return r.tableName + ': ' + r.sheetName + ' ' + r.headerA1 + ' / ' + r.dataA1; }).join('\n');
+            document.getElementById('status').textContent = 'Done.\n' + lines;
+          })
+          .withFailureHandler(function(err){
+            document.getElementById('status').textContent = 'Error: ' + err.message;
+          })
+          .createTablesFromDialog(names, opts);
+      }
+      loadTables();
+    </script>
+    `
+  ).setWidth(520).setHeight(600);
+
+  SpreadsheetApp.getUi().showModalDialog(html, 'Create Core Tables');
+}
+
+function getTableNamesForDialog() {
+  return listAvailableTables();
+}
+
+function createTablesFromDialog(tableNames, options) {
+  return createConfiguredTables(tableNames, options || {});
 }
 
 function buildAdminSidebarCard() {
@@ -36,10 +138,10 @@ function buildAdminSidebarCard() {
   // ── Section 1: Create Sheets from Template ─────────────────────────────
   const createSection = CardService.newCardSection()
     .setHeader('Create School Entry Sheets')
-    .setCollapsible(true) // Optional: collapses if not needed
+    .setCollapsible(true)
     .addWidget(
       CardService.newTextParagraph()
-        .setText('Duplicate a template sheet for each school/cluster from a list in your spreadsheet.')
+        .setText('Duplicate a template sheet for each school/cluster from a list in your spreadsheet, or generate core tables.')
     )
     .addWidget(
       CardService.newButtonSet()
@@ -47,11 +149,18 @@ function buildAdminSidebarCard() {
           CardService.newTextButton()
             .setText('Create Sheets from List')
             .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
-            .setBackgroundColor('#4285F4') // Google blue
+            .setBackgroundColor('#4285F4')
             .setOnClickAction(CardService.newAction().setFunctionName('showCreateSheetsDialog'))
         )
+        .addButton(
+          CardService.newTextButton()
+            .setText('Create Core Tables')
+            .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+            .setBackgroundColor('#F4B400')
+            .setOnClickAction(CardService.newAction().setFunctionName('showCreateTablesDialog'))
+        )
     )
-    .addWidget(CardService.newDivider()); // Horizontal separator
+    .addWidget(CardService.newDivider());
 
   // ── Section 2: Export Entries ──────────────────────────────────────────
   const exportSection = CardService.newCardSection()

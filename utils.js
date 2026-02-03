@@ -33,12 +33,12 @@ function formatDob(dob) {
     const parts = cleaned.split(/[-\/.]/); // split on -, /, .
     if (parts.length === 3) {
       let [d, m, y] = parts.map(p => p.trim());
-      
+
       // Handle short year (e.g. 25 → 2025)
       if (y.length === 2) {
         y = (parseInt(y, 10) < 50 ? "20" : "19") + y;
       }
-      
+
       // Try to make valid numbers
       const day   = parseInt(d, 10);
       const month = parseInt(m, 10);
@@ -76,7 +76,7 @@ function formatAsMmSsSs(input) {
     const minutes = input.getMinutes();
     const seconds = input.getSeconds();
     const ms      = input.getMilliseconds();
-    // Note: This resets every 24h. For strict durations > 24h, 
+    // Note: This resets every 24h. For strict durations > 24h,
     // you would need the raw cell value, but this works for time-of-day.
     totalSeconds = (hours * 3600) + (minutes * 60) + seconds + (ms / 1000);
   }
@@ -97,15 +97,15 @@ function formatAsMmSsSs(input) {
     // Case A: Contains colon → parse as mm:ss[.sss]
     if (clean.includes(':')) {
       const parts = clean.split(':');
-      
+
       // Safety: If structure isn't x:y, return original
-      if (parts.length < 2) return clean; 
+      if (parts.length < 2) return clean;
 
       const minStr = parts[0];
       const secStr = parts[1];
 
       const minutes = parseInt(minStr, 10) || 0;
-      
+
       // Simplify logic: Let parseFloat handle "02.3", "2.300", etc.
       const secondsRaw = parseFloat(secStr) || 0;
 
@@ -123,7 +123,7 @@ function formatAsMmSsSs(input) {
       return clean;
     }
   }
-  
+
   // Fallback for objects/arrays that aren't Dates
   else {
     return String(input);
@@ -140,15 +140,33 @@ function formatAsMmSsSs(input) {
   return `${minutes.toString().padStart(2, '0')}:${secFormatted}`;
 }
 
-function testFlexibleTimeParsing() {
-  const tests = [
-    "1:02.3", "01:02.30", "1:2.3", "01:02.300", "1:2", "01:2.3",
-    "0:59.99", "59.99", "123.45", "2:3", "2:03", "2:3.0",
-    "10:5.678", "0:0.05", "", "NT already"
-  ];
-
-  tests.forEach(t => {
-    const result = formatAsMmSsSs(t);
-    Logger.log(`"${t}" → "${result}"`);
+function getSchoolCode(data, schoolName) {
+  // 1. We skip the header row (index 0) using slice(1) to avoid false matches
+  // 2. We search the remaining rows
+  const foundRow = data.slice(1).find(row => {
+    // Compare the school name (Index 1)
+    // We use trim() to handle the leading space seen in your example data
+    return row[1].trim() === schoolName.trim();
   });
+
+  // Return the code (Index 3) if a row was found, otherwise return null
+  return foundRow ? foundRow[3] : "UNS";
 }
+
+
+function getNamedTableData(spreadsheetId,tableName) {
+  // const ss = SpreadsheetApp.getActiveSpreadsheet();
+  // const spreadsheetId = ss.getId();
+  const tableApp = TableApp.openById(spreadsheetId);
+  const table = tableApp.getTableByName(tableName);
+  const data = table.getValues();
+
+  Logger.log(`Table "${table}" Data:`);
+  Logger.log(data);
+
+  return data;
+}
+
+
+
+

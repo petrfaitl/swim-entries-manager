@@ -1,7 +1,14 @@
 {
   "timeZone": "Pacific/Auckland",
   "dependencies": {
-    "enabledAdvancedServices": []
+    "enabledAdvancedServices": [],
+    "libraries": [
+      {
+        "userSymbol": "TableApp",
+        "version": "1",
+        "libraryId": "1G4RVvyLtwPjQl6x_p8j3X65-yYVU3w2dMXxHDuzCgorucjs8P3Clv5Qt"
+      }
+    ]
   },
   "exceptionLogging": "STACKDRIVER",
   "runtimeVersion": "V8",
@@ -22,6 +29,7 @@
   },
   "oauthScopes": [
     "https://www.googleapis.com/auth/spreadsheets.currentonly",
+    "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive.file",
     "https://www.googleapis.com/auth/drive",
     "https://www.googleapis.com/auth/userinfo.email",

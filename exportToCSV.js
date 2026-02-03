@@ -8,14 +8,14 @@ function exportEntriesToCSV() {
 
   // Get all sheets that are NOT hidden
   const visibleSheets = ss.getSheets().filter(sheet => !sheet.isSheetHidden());
-  
+
   if (visibleSheets.length === 0) {
     ui.alert("No visible sheets found in this spreadsheet.");
     return;
   }
 
   // Build HTML for dropdown
-  let optionsHtml = visibleSheets.map(sheet => 
+  let optionsHtml = visibleSheets.map(sheet =>
     `<option value="${sheet.getSheetId()}">${sheet.getName()}</option>`
   ).join('');
 
@@ -80,14 +80,15 @@ function exportEntriesToCSV() {
 function processSheetToCSV(sheetId) {
   const ss = SpreadsheetApp.getActive(); //SpreadsheetApp.getActiveSpreadsheet()
   const sheet = ss.getSheetById(sheetId);
-  
+  const spreadsheetId = ss.getId();
+
   if (!sheet) {
     throw new Error(`Sheet with ID ${sheetId} not found`);
   }
 
   const sheetName = sheet.getName();
   const data = sheet.getDataRange().getValues();
-  
+
   Logger.log(`Processing sheet: ${sheetName} with ${data.length} rows`);
 
   if (data.length <= 1) {
@@ -97,7 +98,7 @@ function processSheetToCSV(sheetId) {
   // ── AUTO-DETECT Event/Time columns from HEADER ROW ───────────────────
   const headerRow = data[0];
   const eventTimePairs = detectEventTimeColumns(headerRow);
-  
+
   Logger.log(`Detected ${eventTimePairs.length} event/time pairs at columns: ${eventTimePairs.map(p => `(${p.eventCol}, ${p.timeCol || 'N/A'})`).join(', ')}`);
 
   const headers = [
@@ -112,19 +113,29 @@ function processSheetToCSV(sheetId) {
     const row = data[i];
 
     // Skip empty rows (no first name)
-    const firstName = getSafeValue(row, 3);  // Column D (index 3)
+    const firstName = getSafeValue(row, 1);  // Zero indexed
     if (firstName === "" || firstName == null) {
       continue;
     }
 
     // Fixed columns (updated to match your indices)
-    const teamCode   = getSafeValue(row, 1);   // B (1)
-    const lastName   = getSafeValue(row, 4);   // E (4)
-    const dobRaw     = getSafeValue(row, 5);   // F (5)
-    const gender     = getSafeValue(row, 6);   // G (6)
-    const schoolYear = getSafeValue(row, 7);   // H (7)
+     let teamCode = "UNS";
+    const lastName   = getSafeValue(row, 2);
+    const dobRaw     = getSafeValue(row, 3);
+    const gender     = getSafeValue(row, 4);
+    const schoolYear = getSafeValue(row, 5);
+    const schoolName = getSafeValue(row, 6);
 
     const dobFormatted = formatDob(dobRaw);
+
+
+    // --- FIND TEAM CODE from TEAMS table
+    const teamsTableName = "Teams";
+    const tableApp = TableApp.openById(spreadsheetId);
+    const table = tableApp.getTableByName(teamsTableName);
+    const teamData = table.getValues();
+    teamCode = getSchoolCode(teamData,schoolName);
+
 
     // ── EXTRACT EVENTS & TIMES using detected columns ───────────────────
     const eventEntries = [];
@@ -133,16 +144,16 @@ function processSheetToCSV(sheetId) {
     eventTimePairs.forEach(pair => {
       const event = getSafeValue(row, pair.eventCol);
       const eventStr = String(event || "").trim();
-      
+
       if (eventStr !== "") {
         eventEntries.push(eventStr);
-        
+
         // Time handling based on column format
         if (pair.timeCol !== null) {
           // Standard format: Event | Time pair
           const timeRaw = getSafeValue(row, pair.timeCol);
-          const timeStr = (timeRaw === "" || timeRaw == null) 
-            ? "NT" 
+          const timeStr = (timeRaw === "" || timeRaw == null)
+            ? "NT"
             : formatAsMmSsSs(timeRaw);
           entryTimes.push(timeStr);
         } else {
@@ -162,7 +173,7 @@ function processSheetToCSV(sheetId) {
   }
 
   // ── CREATE & RETURN CSV ──────────────────────────────────────────────
-  const csvContent = outputRows.map(row => 
+  const csvContent = outputRows.map(row =>
     row.map(cell => `"${(cell || "").toString().replace(/"/g, '""')}"`).join(",")
   ).join("\n");
 
@@ -182,30 +193,30 @@ function processSheetToCSV(sheetId) {
  */
 function detectEventTimeColumns(headerRow) {
   const pairs = [];
-  
+
   // Scan from column I (index 8) onwards - earlier columns are unlikely to be events
   for (let col = 8; col < headerRow.length; col++) {
     const header = String(headerRow[col] || "").trim();
-    
+
     // Skip if header is empty or obviously not an event
     if (!header) continue;
-    
+
     // Strict Event detection:
     // 1. Contains "Event" (case-insensitive)
     // 2. Or starts with number + "m" (e.g. "25m Butterfly", "100m IM")
     // 3. Or matches known event patterns (very strict)
-    const isLikelyEvent = 
+    const isLikelyEvent =
       /event/i.test(header) ||
       /^\d+m/i.test(header) ||
       /(backstroke|breaststroke|butterfly|freestyle|im|medley|relay|back|free|breast|fly)/i.test(header) &&
       !/time|m:s|\(m:s\.s\)/i.test(header);  // explicitly exclude Time headers
-    
+
     if (!isLikelyEvent) continue;
-    
+
     // Found a probable Event column
     const eventCol = col;
     let timeCol = null;
-    
+
     // Check if NEXT column looks like a Time header
     if (col + 1 < headerRow.length) {
       const nextHeader = String(headerRow[col + 1] || "").trim().toLowerCase();
@@ -218,13 +229,13 @@ function detectEventTimeColumns(headerRow) {
       ) {
         timeCol = col + 1;
         // Skip the next column in the loop (we've consumed it as Time)
-        col++;  
+        col++;
       }
     }
-    
+
     pairs.push({ eventCol, timeCol });
   }
-  
+
   // Fallback: if nothing detected, assume standard J:AA (9 pairs)
   if (pairs.length === 0) {
     Logger.log("No Event columns detected → using fallback J:AA (indices 9-26)");
@@ -232,7 +243,7 @@ function detectEventTimeColumns(headerRow) {
       pairs.push({ eventCol: col, timeCol: col + 1 });
     }
   }
-  
+
   return pairs;
 }
 
