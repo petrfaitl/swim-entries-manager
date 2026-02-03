@@ -28,7 +28,7 @@ function test_getNamedTableData() {
   // Process or manipulate table data as needed
   Logger.log(`First cell of the table: ${data[0][0]}`);
 }
-test_getNamedTableData();
+//test_getNamedTableData();
 
 
 

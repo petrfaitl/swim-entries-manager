@@ -195,7 +195,7 @@ function detectEventTimeColumns(headerRow) {
   const pairs = [];
 
   // Scan from column I (index 8) onwards - earlier columns are unlikely to be events
-  for (let col = 8; col < headerRow.length; col++) {
+  for (let col = 5; col < headerRow.length; col++) {
     const header = String(headerRow[col] || "").trim();
 
     // Skip if header is empty or obviously not an event
