@@ -101,6 +101,8 @@ function processSheetToCSV(sheetId) {
 
   Logger.log(`Detected ${eventTimePairs.length} event/time pairs at columns: ${eventTimePairs.map(p => `(${p.eventCol}, ${p.timeCol || 'N/A'})`).join(', ')}`);
 
+  const convertColumnIndex = findConvertColumnIndex(headerRow);
+
   const headers = [
     "Team Code", "First Name", "Last Name", "Date of Birth", "Gender",
     "Event Entries", "Entry Times", "School Year"
@@ -127,6 +129,11 @@ function processSheetToCSV(sheetId) {
     const schoolName = getSafeValue(row, 6);
 
     const dobFormatted = formatDob(dobRaw);
+    let convertTimes = false;
+
+    if (convertColumnIndex !== -1) {
+      convertTimes = getSafeValue(row, convertColumnIndex); // "Yes" or empty
+    }
 
 
     // --- FIND TEAM CODE from TEAMS table
@@ -152,9 +159,31 @@ function processSheetToCSV(sheetId) {
         if (pair.timeCol !== null) {
           // Standard format: Event | Time pair
           const timeRaw = getSafeValue(row, pair.timeCol);
-          const timeStr = (timeRaw === "" || timeRaw == null)
+          let timeStr = (timeRaw === "" || timeRaw == null)
             ? "NT"
             : formatAsMmSsSs(timeRaw);
+
+          // Convert times from 33.3m pool to standard 25m pool timing when requested.
+          // Applies only to 25m and 50m events, assuming swims occurred in a 33.3m pool.
+          //  - For 25m events: treat recorded time as 33.3m → convert using RESIZESWIM(33.3, 25, time)
+          //  - For 50m events: treat recorded time as 66.6m → convert using RESIZESWIM(66.6, 50, time)
+          if (timeStr !== "NT") {
+            const convertFlag = String(convertTimes || "").trim().toLowerCase();
+            if (convertFlag === "yes") {
+              const dist = parseEventDistance(eventStr);
+              try {
+                if (dist === 25) {
+                  timeStr = RESIZESWIM(33.3, 25, timeStr);
+                } else if (dist === 50) {
+                  timeStr = RESIZESWIM(66.6, 50, timeStr);
+                }
+              } catch (e) {
+                // If anything goes wrong during conversion, keep original timeStr
+                Logger.log(`Conversion skipped due to error for event "${eventStr}": ${e && e.message ? e.message : e}`);
+              }
+            }
+          }
+
           entryTimes.push(timeStr);
         } else {
           // Events-only format: default "NT"
@@ -262,9 +291,60 @@ function isEventName(header) {
 }
 
 /**
+ * Helper: Detects if header is a convert utility column
+ * Matches labels like: "Convert times from 33m pool", "Convert 33m to 25m", etc.
+ * Loosely requires the presence of words "convert" and "33m" (or variants) in any order.
+ * @param {string} header
+ * @return {boolean}
+ */
+function isConvertColumn(header) {
+  const h = String(header || "").trim().toLowerCase();
+  if (!h) return false;
+
+  const hasConvertWord = /(convert|conversion|converted)/.test(h);
+  const has33mWord = /(\b33\s*m\b|\b33m\b|33\s*met(er|re)s?)/.test(h);
+
+  // Optional helpers
+  // const mentionsPool = /pool/.test(h);
+
+  return hasConvertWord && has33mWord;
+}
+
+/**
+ * Finds the index (zero-based) of the column with a header like
+ * "Convert times from 33m pool" or similar. Returns -1 if not found.
+ * Relies on {@link isConvertColumn} for matching variations.
+ * @param {Array<string>} headerRow
+ * @return {number}
+ */
+function findConvertColumnIndex(headerRow) {
+  if (!Array.isArray(headerRow)) return -1;
+  for (let i = 0; i < headerRow.length; i++) {
+    if (isConvertColumn(headerRow[i])) return i;
+  }
+  return -1;
+}
+
+/**
  * Safe way to get cell value (handles undefined/null)
  */
 function getSafeValue(row, index) {
   return (index < row.length && row[index] != null) ? row[index] : "";
 }
 
+
+/**
+ * Parses the event distance from an event string.
+ * Supports formats like "25m Freestyle", "50 m Backstroke" (case-insensitive).
+ * Only 25m and 50m are recognized for conversion; others return null.
+ * @param {string} eventStr
+ * @return {number|null} 25, 50, or null if not recognized
+ */
+function parseEventDistance(eventStr) {
+  const s = String(eventStr || "").trim();
+  // Match distance at the start: 25m or 50m (allow space before 'm')
+  const m = /^\s*(25|50)\s*m\b/i.exec(s);
+  if (!m) return null;
+  const dist = parseInt(m[1], 10);
+  return (dist === 25 || dist === 50) ? dist : null;
+}
