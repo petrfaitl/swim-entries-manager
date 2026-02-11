@@ -54,6 +54,13 @@ function duplicateTemplateForNames(templateSheetName, sheetName,namesRange) {
   );
 }
 
+function getTemplateSheetNames() {
+  const ss = SpreadsheetApp.getActive();
+  return ss.getSheets()
+    .map(sheet => sheet.getName())
+    .filter(name => name.toUpperCase().includes("TEMPLATE"));
+}
+
 
 /**
  * Shows a dialog to let user select template name and range
@@ -70,7 +77,7 @@ function showCreateSheetsDialog() {
     </style>
     
     <label>Template Sheet Name:</label>
-    <input type="text" id="templateName" value="INDIVIDUAL_EVENTS_TEMPLATE" placeholder="e.g. INDIVIDUAL_EVENTS_TEMPLATE">
+    <select id="templateName"></select>
 
     <label>Sheet name with names of Teams (e.g. Team Officials):</label>
     <input type="text" id="sheet" value="Team Officials" placeholder="Team Officials">
@@ -81,6 +88,28 @@ function showCreateSheetsDialog() {
     <button onclick="run()">Create Sheets</button>
     
     <script>
+      function loadTemplates() {
+        google.script.run
+          .withSuccessHandler(names => {
+            const select = document.getElementById('templateName');
+            select.innerHTML = '';
+
+            if (!names || names.length === 0) {
+              select.innerHTML = '<option value="">No template sheets found</option>';
+              return;
+            }
+
+            names.forEach(name => {
+              const option = document.createElement('option');
+              option.value = name;
+              option.textContent = name;
+              select.appendChild(option);
+            });
+          })
+          .withFailureHandler(err => alert('Error loading templates: ' + err.message))
+          .getTemplateSheetNames();
+      }
+
       function run() {
         const template = document.getElementById('templateName').value.trim();
         const sheetStr = document.getElementById('sheet').value.trim();
@@ -96,6 +125,8 @@ function showCreateSheetsDialog() {
           .withFailureHandler(err => alert('Error: ' + err.message))
           .duplicateTemplateForNames(template, sheetStr, rangeStr);
       }
+
+      loadTemplates();
     </script>
   `)
   .setWidth(380)
