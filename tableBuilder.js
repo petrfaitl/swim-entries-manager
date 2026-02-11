@@ -3,6 +3,59 @@
  * Depends on getTableConfig() from tableConfig.js
  */
 
+function getTableAppClient_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const spreadsheetId = ss.getId();
+
+  if (typeof TableApp !== 'undefined' && TableApp && typeof TableApp.openById === 'function') {
+    return TableApp.openById(spreadsheetId);
+  }
+  if (typeof openById === 'function') {
+    return openById(spreadsheetId);
+  }
+
+  throw new Error('TableApp library is not available. Ensure the TableApp library is configured.');
+}
+
+function toQuotedSheetA1_(sheetName, a1Range) {
+  const escapedSheetName = String(sheetName).replace(/'/g, "''");
+  return "'" + escapedSheetName + "'!" + a1Range;
+}
+
+function getStructuredTableName_(tableName, tableCfg) {
+  if (tableCfg && tableCfg.options && tableCfg.options.structuredTableName) {
+    return tableCfg.options.structuredTableName;
+  }
+  return tableName;
+}
+
+function ensureStructuredTable_(sheet, tableName, tableCfg, headerRange, dataRange) {
+  const tableApp = getTableAppClient_();
+  const structuredTableName = getStructuredTableName_(tableName, tableCfg);
+  const startA1 = headerRange.getA1Notation().split(':')[0];
+  const endA1 = dataRange.getA1Notation().split(':')[1];
+  const fullTableRangeA1 = toQuotedSheetA1_(sheet.getName(), startA1 + ':' + endA1);
+
+  const existing = tableApp.getTableByName(structuredTableName);
+  if (existing) {
+    existing.setRange(fullTableRangeA1);
+    return {
+      tableName: structuredTableName,
+      tableId: existing.getId(),
+      action: 'updated',
+      rangeA1: fullTableRangeA1
+    };
+  }
+
+  const created = tableApp.getRange(fullTableRangeA1).create(structuredTableName);
+  return {
+    tableName: structuredTableName,
+    tableId: created.getId(),
+    action: 'created',
+    rangeA1: fullTableRangeA1
+  };
+}
+
 /**
  * Create or place a configured table.
  * @param {string} tableName - Key from configuration (e.g., 'TeamOfficials')
@@ -164,13 +217,16 @@ function createConfiguredTable(tableName, options) {
     ss.setNamedRange(tableCfg.options.namedRange, sheet.getRange(headerA1 + ':' + dataRange.getA1Notation().split('!').pop().split(':').pop()));
   }
 
+  const structuredTable = ensureStructuredTable_(sheet, tableName, tableCfg, headerRange, dataRange);
+
   return {
     tableName: tableName,
     sheetName: sheetName,
     headerA1: headerRange.getA1Notation(),
     dataA1: dataRange.getA1Notation(),
     rows: numRows,
-    cols: headers.length
+    cols: headers.length,
+    structuredTable: structuredTable
   };
 }
 
@@ -186,4 +242,12 @@ function createConfiguredTables(tableNames, options) {
     results.push(createConfiguredTable(name, options));
   });
   return results;
+}
+
+function getTableNamesForDialog() {
+  return listAvailableTables();
+}
+
+function createTablesFromDialog(tableNames, options) {
+  return createConfiguredTables(tableNames, options || {});
 }

@@ -61,6 +61,13 @@ function getTemplateSheetNames() {
     .filter(name => name.toUpperCase().includes("TEMPLATE"));
 }
 
+function getNonTemplateSheetNames() {
+  const ss = SpreadsheetApp.getActive();
+  return ss.getSheets()
+    .map(sheet => sheet.getName())
+    .filter(name => !name.toUpperCase().includes("TEMPLATE"));
+}
+
 
 /**
  * Shows a dialog to let user select template name and range
@@ -80,7 +87,7 @@ function showCreateSheetsDialog() {
     <select id="templateName"></select>
 
     <label>Sheet name with names of Teams (e.g. Team Officials):</label>
-    <input type="text" id="sheet" value="Team Officials" placeholder="Team Officials">
+    <select id="sheet"></select>
     
     <label>Range with names (e.g. A2:A8):</label>
     <input type="text" id="range" value="A2:A8" placeholder="A2:A8">
@@ -110,6 +117,28 @@ function showCreateSheetsDialog() {
           .getTemplateSheetNames();
       }
 
+      function loadSourceSheets() {
+        google.script.run
+          .withSuccessHandler(names => {
+            const select = document.getElementById('sheet');
+            select.innerHTML = '';
+
+            if (!names || names.length === 0) {
+              select.innerHTML = '<option value="">No source sheets found</option>';
+              return;
+            }
+
+            names.forEach(name => {
+              const option = document.createElement('option');
+              option.value = name;
+              option.textContent = name;
+              select.appendChild(option);
+            });
+          })
+          .withFailureHandler(err => alert('Error loading source sheets: ' + err.message))
+          .getNonTemplateSheetNames();
+      }
+
       function run() {
         const template = document.getElementById('templateName').value.trim();
         const sheetStr = document.getElementById('sheet').value.trim();
@@ -127,6 +156,7 @@ function showCreateSheetsDialog() {
       }
 
       loadTemplates();
+      loadSourceSheets();
     </script>
   `)
   .setWidth(380)

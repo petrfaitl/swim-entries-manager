@@ -83,7 +83,17 @@ function showCreateTablesDialog() {
       function loadTables() {
         google.script.run.withSuccessHandler(function(names){
           const container = document.getElementById('tableList');
-          container.innerHTML = names.map(function(n){ return '<label><input type="checkbox" value="' + n + '"> ' + n + '</label>'; }).join('');
+          if (!Array.isArray(names)) {
+            container.textContent = 'No table configuration found.';
+            return;
+          }
+          if (names.length === 0) {
+            container.textContent = 'No tables available.';
+            return;
+          }
+          container.innerHTML = names.map(function(n){
+            return '<label><input type="checkbox" value="' + n + '"> ' + n + '</label>';
+          }).join('');
         }).withFailureHandler(function(err){
           document.getElementById('tableList').textContent = 'Error: ' + err.message;
         }).getTableNamesForDialog();
@@ -101,7 +111,12 @@ function showCreateTablesDialog() {
         document.getElementById('status').textContent = 'Working…';
         google.script.run
           .withSuccessHandler(function(res){
-            const lines = res.map(function(r){ return r.tableName + ': ' + r.sheetName + ' ' + r.headerA1 + ' / ' + r.dataA1; }).join('\n');
+            const lines = res.map(function(r){
+              const tableMeta = r.structuredTable
+                ? (' [' + r.structuredTable.action + ' structured: ' + r.structuredTable.tableName + ']')
+                : '';
+              return r.tableName + ': ' + r.sheetName + ' ' + r.headerA1 + ' / ' + r.dataA1 + tableMeta;
+            }).join('\n');
             document.getElementById('status').textContent = 'Done.\n' + lines;
           })
           .withFailureHandler(function(err){
@@ -115,14 +130,6 @@ function showCreateTablesDialog() {
   ).setWidth(520).setHeight(600);
 
   SpreadsheetApp.getUi().showModalDialog(html, 'Create Core Tables');
-}
-
-function getTableNamesForDialog() {
-  return listAvailableTables();
-}
-
-function createTablesFromDialog(tableNames, options) {
-  return createConfiguredTables(tableNames, options || {});
 }
 
 function buildAdminSidebarCard() {
