@@ -26,11 +26,11 @@ function showHomepage(e) {
 }
 
 function showCreateTablesDialog() {
-  const tableNames = listAvailableTables();
-  Logger.log('[showCreateTablesDialog] tableNames payload: %s', JSON.stringify(tableNames));
-  const tableListHtml = tableNames.length
-    ? tableNames.map(function(name) {
-      return '<label><input type="checkbox" value="' + name + '"> ' + name + '</label>';
+  const tables = listAvailableTables();
+  Logger.log('[showCreateTablesDialog] tables payload: %s', JSON.stringify(tables));
+  const tableListHtml = tables.length
+    ? tables.map(function(table) {
+      return '<label><input type="checkbox" value="' + table.name + '"> ' + table.title + '</label>';
     }).join('')
     : 'No tables available.';
   const html = HtmlService.createHtmlOutput(
@@ -40,14 +40,14 @@ function showCreateTablesDialog() {
       h2 {margin: 0 0 8px;}
       fieldset {border: 1px solid #ddd; padding: 10px; margin-bottom: 12px;}
       legend {font-weight: bold;}
-      label {display:block; margin: 4px 0;}
+      label {display:block; margin: 4px 0; font-size:smaller;}
       .row {display:flex; gap:8px;}
       .row > div {flex:1;}
       select, button { padding: 8px; margin: 10px 0; width: 100%; font-size: 16px; }
       button { background: #4285f4; color: white; border: none; cursor: pointer; }
       button:hover { background: #3267d6; }
       .small {font-size: 12px; color: #666}
-      #status {margin-top:8px; white-space: pre-wrap;}
+      #status {margin-top:8px; white-space: pre-wrap; font-size: smaller;}
     </style>
     <h2>Create Core Tables</h2>
     <div class="small">Select one or more table types to create or rebuild. You can override dropdown values (e.g., school years) below.</div>
@@ -55,7 +55,7 @@ function showCreateTablesDialog() {
     <fieldset>
       <legend>Tables</legend>
       <div id="tableList">${tableListHtml}</div>
-      <div id="tableListDebug" class="small">Rendered server-side: ${tableNames.length} table option(s).</div>
+      <div id="tableListDebug" class="small">Rendered server-side: ${tables.length} table option(s).</div>
     </fieldset>
 
     <fieldset>
@@ -128,9 +128,9 @@ function showCreateTablesDialog() {
                 return r.tableName + ': ERROR - ' + r.error;
               }
               const tableMeta = r.structuredTable
-                ? (' [' + r.structuredTable.action + ' structured: ' + r.structuredTable.tableName + ']')
+                ? (' [' + r.structuredTable.action + ' table name: ' + r.structuredTable.tableName + ']')
                 : '';
-              return r.tableName + ': ' + r.sheetName + ' ' + r.headerA1 + ' / ' + r.dataA1 + tableMeta;
+              return 'Created table at sheet: ' + r.sheetName + ', cell reference: ' + r.headerA1 + ' / ' + r.dataA1 + tableMeta;
             }).join('\\n');
             document.getElementById('status').textContent = 'Done.\\n' + lines;
           })
@@ -163,14 +163,20 @@ function showCreateTablesDialog() {
 }
 
 function buildAdminSidebarCard() {
+
+
+  const imageBytes = DriveApp.getFileById('1PT-hMqaBpVTNpkN3KiocfgNa7QRWfmXw').getBlob().getBytes();
+  const encodedImageURL =
+    `data:image/jpeg;base64,${Utilities.base64Encode(imageBytes)}`;
   const cardBuilder = CardService.newCardBuilder()
     .setHeader(
       CardService.newCardHeader()
         .setTitle('Swim Entries Admin Tools')
-        .setSubtitle('Register swimmers to swim events, export entries for swim meets')
-        .setImageUrl('https://www.gstatic.com/images/branding/product/1x/admin_48dp.png') // optional icon
-        .setImageStyle(CardService.ImageStyle.CIRCLE)
+        .setSubtitle('Creates essential tables for swim entries.')
+        .setImageUrl(encodedImageURL)
     );
+
+
 
   // ── Section 1: Create Sheets from Template ─────────────────────────────
   const createSection = CardService.newCardSection()
@@ -182,6 +188,14 @@ function buildAdminSidebarCard() {
     )
     .addWidget(
       CardService.newButtonSet()
+         .addButton(
+           CardService.newTextButton()
+                      .setText('Create Core Tables')
+                      .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+                      .setBackgroundColor('#c23433')
+                      .setOnClickAction(CardService.newAction()
+                                                   .setFunctionName('showCreateTablesDialog'))
+         )
         .addButton(
           CardService.newTextButton()
             .setText('Create Sheets from List')
@@ -189,13 +203,7 @@ function buildAdminSidebarCard() {
             .setBackgroundColor('#34A853')
             .setOnClickAction(CardService.newAction().setFunctionName('showCreateSheetsDialog'))
         )
-        .addButton(
-          CardService.newTextButton()
-            .setText('Create Core Tables')
-            .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
-            .setBackgroundColor('#c23433')
-            .setOnClickAction(CardService.newAction().setFunctionName('showCreateTablesDialog'))
-        )
+
     )
     .addWidget(CardService.newDivider());
 
