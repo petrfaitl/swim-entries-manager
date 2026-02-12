@@ -36,6 +36,7 @@ function ensureStructuredTable_(sheet, tableName, tableCfg, headerRange, dataRan
   const existing = tableApp.getTableByName(structuredTableName);
   if (existing) {
     existing.setRange(fullTableRangeA1);
+    configureTableColumns_(existing, tableCfg);
     return {
       tableName: structuredTableName,
       tableId: existing.getId(),
@@ -45,12 +46,79 @@ function ensureStructuredTable_(sheet, tableName, tableCfg, headerRange, dataRan
   }
 
   const created = tableApp.getRange(fullTableRangeA1).create(structuredTableName);
+  configureTableColumns_(created, tableCfg);
   return {
     tableName: structuredTableName,
     tableId: created.getId(),
     action: 'created',
     rangeA1: fullTableRangeA1
   };
+}
+
+function configureTableColumns_(table, tableCfg) {
+  if (!tableCfg || !tableCfg.headers || !tableCfg.columns) return;
+
+  const columnProperties = [];
+
+  for (let i = 0; i < tableCfg.headers.length; i++) {
+    const headerName = tableCfg.headers[i];
+    const meta = tableCfg.columns[headerName];
+    if (!meta) continue;
+
+    const colProp = {
+      columnIndex: i,
+      columnName: headerName
+    };
+
+    // Set column type and validation based on metadata
+    if (meta.validation && meta.validation.type === 'list') {
+      // Dropdown column with static list
+      const values = meta.validation.args && meta.validation.args.values;
+      if (values && values.length > 0) {
+        colProp.columnType = 'DROPDOWN';
+        colProp.dataValidationRule = {
+          condition: {
+            type: 'ONE_OF_LIST',
+            values: values.map(function(v) {
+              return { userEnteredValue: String(v) };
+            })
+          }
+        };
+      }
+    } else if (meta.validation && meta.validation.type === 'range') {
+      // Dropdown column with range reference
+      const rangeA1 = meta.validation.args && meta.validation.args.rangeA1;
+      if (rangeA1) {
+        colProp.columnType = 'DROPDOWN';
+        colProp.dataValidationRule = {
+          condition: {
+            type: 'ONE_OF_RANGE',
+            values: [{ userEnteredValue: rangeA1 }]
+          }
+        };
+      }
+    } else if (meta.validation && meta.validation.type === 'checkbox') {
+      // Checkbox column
+      colProp.columnType = 'CHECKBOX';
+    } else if (meta.type === 'number') {
+      // Number column
+      colProp.columnType = 'DOUBLE';
+    } else if (meta.type === 'date') {
+      // Date column
+      colProp.columnType = 'DATE';
+    }
+    // If no specific type is set, it defaults to TEXT
+
+    columnProperties.push(colProp);
+  }
+
+  // Apply column properties to the table
+  try {
+    table.setColumnProperties(columnProperties, 'columnProperties');
+    Logger.log('[configureTableColumns_] Successfully configured %s columns for table "%s"', columnProperties.length, table.getName());
+  } catch (e) {
+    Logger.log('[configureTableColumns_] Failed to configure columns for table "%s": %s', table.getName(), e.message);
+  }
 }
 
 /**
@@ -99,9 +167,7 @@ function createConfiguredTable(tableName, options) {
     // Clear the target area (headers + data columns for a reasonable number of rows)
     const clearRange = sheet.getRange(startRow, startCol, numRows + 50, headers.length);
     clearRange.clear({ contentsOnly: true });
-    // Also reset validations and formats for this block
-    clearRange.clearDataValidations();
-    clearRange.setNumberFormat('@'); // default to plain text; specific columns will override
+    // Note: Do NOT clear validations or set number formats here - TableApp manages these
   }
 
   // Write headers
@@ -109,7 +175,6 @@ function createConfiguredTable(tableName, options) {
 
   // Apply header formatting
   if (tableCfg.options) {
-    if (tableCfg.options.boldHeader) headerRange.setFontWeight('bold');
     if (tableCfg.options.headerBg) headerRange.setBackground(tableCfg.options.headerBg);
     if (typeof tableCfg.options.freezeHeader === 'number') {
       // Freeze the header row relative to sheet
@@ -117,101 +182,24 @@ function createConfiguredTable(tableName, options) {
     }
   }
 
-  // Add alternating colors (basic: apply to a banded range covering a reasonable block)
-  if (tableCfg.options && tableCfg.options.alternatingColors) {
-    const bandRange = sheet.getRange(startRow, startCol, Math.max(2, Math.min(numRows + 1, sheet.getMaxRows() - startRow + 1)), headers.length);
-    const banding = bandRange.applyRowBanding(SpreadsheetApp.BandingTheme.LIGHT_GREY);
-    // Ensure header styled distinctively
-    banding.setFirstRowColor(headerRange.getBackground());
-  }
-
   // Data range (below header)
   const dataStartRow = startRow + 1;
   const dataRange = sheet.getRange(dataStartRow, startCol, numRows, headers.length);
 
-  // Apply per-column types and validations
+  // Note: Column types and validations are managed by TableApp via configureTableColumns_
+  // We only set default values or formulas here if specified
   for (let c = 0; c < headers.length; c++) {
     const header = headers[c];
     const meta = (tableCfg.columns && tableCfg.columns[header]) || {};
-    const colRange = sheet.getRange(dataStartRow, startCol + c, numRows, 1);
 
-    // Clear existing validation for safety if not rebuild
-    colRange.clearDataValidations();
-
-    // Set number formats for some known types
-    if (meta.type === 'number') {
-      colRange.setNumberFormat('0');
-    } else if (meta.type === 'date') {
-      colRange.setNumberFormat('dd/mm/yyyy');
-    } else if (meta.type === 'checkbox' && meta.validation && meta.validation.type === 'checkbox') {
-      const args = meta.validation.args || {};
-      colRange.insertCheckboxes(args.checkedValue || 'TRUE', args.uncheckedValue || 'FALSE');
-    } else {
-      // default plain text
-      colRange.setNumberFormat('@');
+    // Apply formula if defined (will be copied down to all rows)
+    if (meta.formula) {
+      sheet.getRange(dataStartRow, startCol + c, numRows, 1).setFormula(meta.formula);
     }
-
-    // Validation rules
-    if (meta.validation) {
-      const v = meta.validation;
-      if (v.type === 'list') {
-        const args = v.args || {};
-        if (args.values && args.values.length) {
-          const rule = SpreadsheetApp.newDataValidation()
-            .requireValueInList(args.values, true)
-            .setAllowInvalid(false)
-            .build();
-          colRange.setDataValidation(rule);
-        } else if (args.rangeA1) {
-          const rule = SpreadsheetApp.newDataValidation()
-            .requireValueInRange(sheet.getRange(args.rangeA1), true)
-            .setAllowInvalid(false)
-            .build();
-          colRange.setDataValidation(rule);
-        }
-      } else if (v.type === 'numberRange') {
-        const args = v.args || {};
-        const builder = SpreadsheetApp.newDataValidation().setAllowInvalid(!!args.allowInvalid);
-        if (typeof args.min === 'number' && typeof args.max === 'number') {
-          builder.requireNumberBetween(args.min, args.max);
-        } else if (typeof args.min === 'number') {
-          builder.requireNumberGreaterThanOrEqualTo(args.min);
-        } else if (typeof args.max === 'number') {
-          builder.requireNumberLessThanOrEqualTo(args.max);
-        } else {
-          builder.requireNumber();
-        }
-        colRange.setDataValidation(builder.build());
-      } else if (v.type === 'date') {
-        const args = v.args || {};
-        const builder = SpreadsheetApp.newDataValidation();
-        if (args.condition === 'DATE_BEFORE' && args.value) {
-          builder.requireDateBefore(args.value);
-        } else if (args.condition === 'DATE_AFTER' && args.value) {
-          builder.requireDateAfter(args.value);
-        } else {
-          builder.requireDate();
-        }
-        colRange.setDataValidation(builder.setAllowInvalid(false).build());
-      } else if (v.type === 'checkbox') {
-        // handled above by insertCheckboxes
-      }
-    }
-
     // Default values on first row (optional): if defined, pre-fill first row only
-    if (meta.default != null) {
+    else if (meta.default != null) {
       sheet.getRange(dataStartRow, startCol + c).setValue(meta.default);
     }
-  }
-
-  // Named range (optional)
-  if (tableCfg.options && tableCfg.options.namedRange) {
-    const existing = ss.getRangeByName(tableCfg.options.namedRange);
-    const headerStartA1 = headerRange.getA1Notation().split(':')[0];
-    const dataEndA1 = dataRange.getA1Notation().split(':')[1];
-    const namedRangeA1 = headerStartA1 + ':' + dataEndA1;
-    if (existing) ss.removeNamedRange(tableCfg.options.namedRange);
-    ss.setNamedRange(tableCfg.options.namedRange, sheet.getRange(namedRangeA1));
   }
 
   const structuredTable = ensureStructuredTable_(sheet, tableName, tableCfg, headerRange, dataRange);

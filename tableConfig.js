@@ -4,7 +4,7 @@
  *  - headers: ordered array of column display names
  *  - columns: object keyed by header with metadata:
  *      { required, type, default, validation: { type, args } }
- *  - options: table-level options { freezeHeader, boldHeader, headerBg, alternatingColors, namedRange, placement, clearMode }
+ *  - options: table-level options { freezeHeader, headerBg, placement, clearMode }
  *  - notes: optional description
  *
  * Validation types supported by the builder:
@@ -25,13 +25,13 @@
 
 function getTableConfig(overrides) {
   const DEFAULT_CLUSTERS = [
-    'School One',
-    'School Two',
-    'School Three',
-    'School Four',
-    'School Five',
-    'School Six',
-    'School Seven'
+    'Cluster One',
+    'Cluster Two',
+    'Cluster Three',
+    'Cluster Four',
+    'Cluster Five',
+    'Cluster Six',
+    'Cluster Seven'
   ];
 
   const WBOP_CLUSTERS = [
@@ -53,14 +53,14 @@ function getTableConfig(overrides) {
   const config = {
     TeamOfficials: {
       headers: [
-        'Cluster/School','Sport Coordinator','Email','Contact Phone','School/Organisation',
+        'Cluster or School','Sport Coordinator','Email','Contact Phone','School/Organisation',
         'Team Manager Name','Team Manager Contact','Team Manager Email',
         'Qualified Officials Name','Qualified Officials Email',
-        'Timekeeper 1 Name','Timekeeper 2 Name','Timekeeper 3 Name','Timekeeper 4 Name'
+        'Timekeeper 1 Name','Timekeeper 2 Name','Timekeeper 3 Name','Other Helpers'
       ],
       columns: toCols({
-        'Cluster/School': { required: true, type: 'text', default: DEFAULT_CLUSTERS[0], validation: { type: 'list', args: { values: DEFAULT_CLUSTERS } } },
-        'Sport Coordinator': { type: 'text', required: false },
+        'Cluster or School': { type: 'text' },
+        'Sport Coordinator': { type: 'text' },
         'Email': { type: 'text' },
         'Contact Phone': { type: 'text' },
         'School/Organisation': { type: 'text' },
@@ -72,15 +72,12 @@ function getTableConfig(overrides) {
         'Timekeeper 1 Name': { type: 'text' },
         'Timekeeper 2 Name': { type: 'text' },
         'Timekeeper 3 Name': { type: 'text' },
-        'Timekeeper 4 Name': { type: 'text' }
+        'Other Helpers': { type: 'text' }
       }),
       options: {
         freezeHeader: 1,
-        boldHeader: true,
         headerBg: '#e3f2fd',
-        alternatingColors: true,
-        namedRange: 'AllEventsWithDetailsTable',
-        placement: { targetSheet: null, startCell: 'A1' },
+        placement: { targetSheet: "Team Officials", startCell: 'A1' },
         clearMode: 'rebuild'
       },
       notes: 'All events with detailed information.'
@@ -89,8 +86,8 @@ function getTableConfig(overrides) {
     DetailedEvents: {
       headers: ['Events','Gender','Min Age','Max Age','Discipline','Distance','Event Type','Event No.'],
       columns: toCols({
-        'Events': { type: 'text', required: true },
-        'Gender': { type: 'text', required: true, validation: { type: 'list', args: { values: GENDERS } } },
+        'Events': { type: 'text' },
+        'Gender': { type: 'text',  validation: { type: 'list', args: { values: GENDERS } } },
         'Min Age': { type: 'number', validation: { type: 'numberRange', args: { min: 5, max: 18 } } },
         'Max Age': { type: 'number', validation: { type: 'numberRange', args: { min: 5, max: 18 } } },
         'Discipline': { type: 'text', validation: { type: 'list', args: { values: ['Freestyle','Backstroke','Breaststroke','Butterfly','Individual Medley', 'Relay Medley'] } } },
@@ -99,8 +96,8 @@ function getTableConfig(overrides) {
         'Event No.': { type: 'number' }
       }),
       options: {
-        freezeHeader: 1, boldHeader: true, headerBg: '#fff3e0', alternatingColors: true,
-        namedRange: 'EventsTable', placement: { targetSheet: null, startCell: 'A1' }, clearMode: 'rebuild'
+        freezeHeader: 1, headerBg: '#fff3e0',
+        placement: { targetSheet: "Events", startCell: 'A1' }, clearMode: 'rebuild'
       },
       notes: 'Full events list for Meet Manager alignment.'
     },
@@ -108,13 +105,13 @@ function getTableConfig(overrides) {
     EventsForTemplate: {
       headers: ['Events','Discipline','Distance'],
       columns: toCols({
-        'Events': { type: 'text', required: true },
-        'Discipline': { type: 'text' },
-        'Distance': { type: 'number' }
+        'Events': { type: 'text', formula: '=IF(AND(B2<>"",C2<>""),C2&" "&B2,"")' },
+        'Discipline': { type: 'text', validation: { type: 'list', args: { values: ['Freestyle','Backstroke','Breaststroke','Butterfly','Individual Medley'] } } },
+        'Distance': { type: 'text',validation: { type: 'list', args: { values: ['25m','50m','100m','200m','400m'] } } }
       }),
       options: {
-        freezeHeader: 1, boldHeader: true, headerBg: '#ede7f6', alternatingColors: true,
-        namedRange: 'EventsForTemplateTable', placement: { targetSheet: null, startCell: 'A1' }, clearMode: 'rebuild'
+        freezeHeader: 1, headerBg: '#ede7f6',
+        placement: { targetSheet: "EventsForTemplate", startCell: 'A1' }, clearMode: 'rebuild'
       },
       notes: 'Simplified event names used for dropdown validation in individual entries.'
     },
@@ -122,14 +119,14 @@ function getTableConfig(overrides) {
     Schools: {
       headers: ['Team Name','School','Cluster','Code'],
       columns: toCols({
-        'Team Name': { type: 'text', required: true },
-        'School': { type: 'text', required: true },
+        'Team Name': { type: 'text' },
+        'School': { type: 'text' },
         'Cluster': { type: 'text', validation: { type: 'list', args: { values: DEFAULT_CLUSTERS } } },
         'Code': { type: 'text' }
       }),
       options: {
-        freezeHeader: 1, boldHeader: true, headerBg: '#e8f5e9', alternatingColors: true,
-        namedRange: 'Teams', placement: { targetSheet: null, startCell: 'A1' }, clearMode: 'rebuild'
+        freezeHeader: 1, headerBg: '#e8f5e9',
+        placement: { targetSheet: "SchoolsForTemplate", startCell: 'A1' }, clearMode: 'rebuild'
       }
     },
 
@@ -139,27 +136,26 @@ function getTableConfig(overrides) {
       ],
       columns: toCols({
         '#': { type: 'number' },
-        'Team Code': { type: 'text' },
-        'First Name': { type: 'text', required: true },
-        'Last Name': { type: 'text', required: true },
+        'First Name': { type: 'text' },
+        'Last Name': { type: 'text' },
         'Date of Birth': { type: 'date', validation: { type: 'date', args: { condition: 'DATE_IS_VALID' } } },
         'Gender': { type: 'text', validation: { type: 'list', args: { values: GENDERS } } },
         'School Year': { type: 'text', validation: { type: 'list', args: { values: YEARS } } },
-        'School': { type: 'text' },
-        'Event 1': { type: 'text' }, 'Time 1 (m:s.S)': { type: 'text' },
-        'Event 2': { type: 'text' }, 'Time 2 (m:s.S)': { type: 'text' },
-        'Event 3': { type: 'text' }, 'Time 3 (m:s.S)': { type: 'text' },
-        'Event 4': { type: 'text' }, 'Time 4 (m:s.S)': { type: 'text' },
-        'Event 5': { type: 'text' }, 'Time 5 (m:s.S)': { type: 'text' },
-        'Event 6': { type: 'text' }, 'Time 6 (m:s.S)': { type: 'text' },
-        'Event 7': { type: 'text' }, 'Time 7 (m:s.S)': { type: 'text' },
-        'Event 8': { type: 'text' }, 'Time 8 (m:s.S)': { type: 'text' },
-        'Event 9': { type: 'text' }, 'Time 9 (m:s.S)': { type: 'text' },
+        'School': { type: 'text', validation: { type: 'range', args: { rangeA1: 'Schools!A2:A' } }  },
+        'Event 1': { type: 'text', validation: { type: 'range', args: { rangeA1: 'EventsForTemplate!A2:A' } } }, 'Time 1 (m:s.S)': { type: 'text' },
+        'Event 2': { type: 'text', validation: { type: 'range', args: { rangeA1: 'EventsForTemplate!A2:A' } } }, 'Time 2 (m:s.S)': { type: 'text' },
+        'Event 3': { type: 'text', validation: { type: 'range', args: { rangeA1: 'EventsForTemplate!A2:A' } } }, 'Time 3 (m:s.S)': { type: 'text' },
+        'Event 4': { type: 'text', validation: { type: 'range', args: { rangeA1: 'EventsForTemplate!A2:A' } } }, 'Time 4 (m:s.S)': { type: 'text' },
+        'Event 5': { type: 'text', validation: { type: 'range', args: { rangeA1: 'EventsForTemplate!A2:A' } } }, 'Time 5 (m:s.S)': { type: 'text' },
+        'Event 6': { type: 'text', validation: { type: 'range', args: { rangeA1: 'EventsForTemplate!A2:A' } } }, 'Time 6 (m:s.S)': { type: 'text' },
+        'Event 7': { type: 'text', validation: { type: 'range', args: { rangeA1: 'EventsForTemplate!A2:A' } } }, 'Time 7 (m:s.S)': { type: 'text' },
+        'Event 8': { type: 'text', validation: { type: 'range', args: { rangeA1: 'EventsForTemplate!A2:A' } } }, 'Time 8 (m:s.S)': { type: 'text' },
+        'Event 9': { type: 'text', validation: { type: 'range', args: { rangeA1: 'EventsForTemplate!A2:A' } } }, 'Time 9 (m:s.S)': { type: 'text' },
         'Convert times from 33m pool': { type: 'checkbox', validation: { type: 'checkbox', args: { checkedValue: 'TRUE', uncheckedValue: 'FALSE' } }, default: 'FALSE' }
       }),
       options: {
-        freezeHeader: 1, boldHeader: true, headerBg: '#f3e5f5', alternatingColors: true,
-        namedRange: 'IndividualEventsTemplate', placement: { targetSheet: 'INDIVIDUAL_EVENTS_TEMPLATE', startCell: 'A1' }, clearMode: 'rebuild'
+        freezeHeader: 1, headerBg: '#f3e5f5',
+        placement: { targetSheet: 'INDIVIDUAL_EVENTS_TEMPLATE', startCell: 'A1' }, clearMode: 'rebuild'
       },
       notes: 'Template for duplication into per-cluster sheets.'
     },
@@ -169,14 +165,13 @@ function getTableConfig(overrides) {
     RelayEntryBlock: {
       headers: ['Order','School Year','Gender'].concat(DEFAULT_CLUSTERS),
       columns: toCols({
-        'Order': { type: 'text', required: true, validation: { type: 'list', args: { values: ['1st Swimmer','2nd Swimmer','3rd Swimmer','4th Swimmer'] } } },
+        'Order': { type: 'text',  validation: { type: 'list', args: { values: ['1st Swimmer','2nd Swimmer','3rd Swimmer','4th Swimmer'] } } },
         'School Year': { type: 'text', validation: { type: 'list', args: { values: YEARS } } },
         'Gender': { type: 'text', validation: { type: 'list', args: { values: ['Boys','Girls'] } } }
         // Cluster columns are free-text to type swimmer names or can later be validated to Schools list
       }),
       options: {
-        freezeHeader: 1, boldHeader: true, headerBg: '#e1f5fe', alternatingColors: true,
-        namedRange: null,
+        freezeHeader: 1, headerBg: '#e1f5fe',
         placement: { targetSheet: 'Relays', startCell: 'A1' },
         clearMode: 'rebuild'
       }

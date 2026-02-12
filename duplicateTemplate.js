@@ -79,8 +79,10 @@ function showCreateSheetsDialog() {
     <style>
       body {font-family: Arial; padding: 15px;}
       label {display: block; margin: 10px 0 5px;}
-      input, select {width: 100%; padding: 6px;}
-      button {margin-top: 15px; padding: 8px 16px;}
+      input, select {width: 100%; padding: 6px; margin: 10px 0;}
+      button { padding: 8px; margin: 10px 0; width: 100%; font-size: 16px; }
+      button { background: #4285f4; color: white; border: none; cursor: pointer; }
+      button:hover { background: #3267d6; }
     </style>
     
     <label>Template Sheet Name:</label>

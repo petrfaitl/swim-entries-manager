@@ -43,7 +43,9 @@ function showCreateTablesDialog() {
       label {display:block; margin: 4px 0;}
       .row {display:flex; gap:8px;}
       .row > div {flex:1;}
-      button {margin-top: 10px; padding: 8px 14px;}
+      select, button { padding: 8px; margin: 10px 0; width: 100%; font-size: 16px; }
+      button { background: #4285f4; color: white; border: none; cursor: pointer; }
+      button:hover { background: #3267d6; }
       .small {font-size: 12px; color: #666}
       #status {margin-top:8px; white-space: pre-wrap;}
     </style>
@@ -88,20 +90,40 @@ function showCreateTablesDialog() {
     <div id="status"></div>
 
     <script>
-      function create(){
-        const names = Array.from(document.querySelectorAll('#tableList input[type=checkbox]:checked')).map(cb=>cb.value);
-        if (!names.length) { alert('Select at least one table.'); return; }
-        const years = document.getElementById('years').value.split(',').map(s=>s.trim()).filter(Boolean);
-        const genders = document.getElementById('genders').value.split(',').map(s=>s.trim()).filter(Boolean);
+      function createTables() {
+        const names = Array.from(document.querySelectorAll('#tableList input[type=checkbox]:checked')).map(function(cb) {
+          return cb.value;
+        });
+
+        if (!names.length) {
+          alert('Please select at least one table.');
+          return;
+        }
+
+        const years = document.getElementById('years').value.split(',').map(function(s) {
+          return s.trim();
+        }).filter(Boolean);
+
+        const genders = document.getElementById('genders').value.split(',').map(function(s) {
+          return s.trim();
+        }).filter(Boolean);
+
         const sheetName = document.getElementById('sheetName').value.trim();
         const startCell = document.getElementById('startCell').value.trim();
-        const opts = { schoolYears: years, genders: genders };
+
+        const opts = {
+          schoolYears: years,
+          genders: genders
+        };
+
         if (sheetName) opts.sheetName = sheetName;
         if (startCell) opts.startCell = startCell;
+
         document.getElementById('status').textContent = 'Working…';
+
         google.script.run
-          .withSuccessHandler(function(res){
-            const lines = res.map(function(r){
+          .withSuccessHandler(function(res) {
+            const lines = res.map(function(r) {
               if (r.error) {
                 return r.tableName + ': ERROR - ' + r.error;
               }
@@ -109,10 +131,10 @@ function showCreateTablesDialog() {
                 ? (' [' + r.structuredTable.action + ' structured: ' + r.structuredTable.tableName + ']')
                 : '';
               return r.tableName + ': ' + r.sheetName + ' ' + r.headerA1 + ' / ' + r.dataA1 + tableMeta;
-            }).join('\n');
-            document.getElementById('status').textContent = 'Done.\n' + lines;
+            }).join('\\n');
+            document.getElementById('status').textContent = 'Done.\\n' + lines;
           })
-          .withFailureHandler(function(err){
+          .withFailureHandler(function(err) {
             document.getElementById('status').textContent = 'Error: ' + err.message;
           })
           .createTablesFromDialog(names, opts);
@@ -124,7 +146,7 @@ function showCreateTablesDialog() {
           document.getElementById('status').textContent = 'Error: Create button not found.';
           return;
         }
-        btn.addEventListener('click', create);
+        btn.addEventListener('click', createTables);
         document.getElementById('status').textContent = 'Ready.';
       }
 
