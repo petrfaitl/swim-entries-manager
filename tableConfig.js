@@ -34,15 +34,6 @@ function getTableConfig(overrides) {
     'Cluster Seven'
   ];
 
-  const WBOP_CLUSTERS = [
-    'WBOP - East Cluster',
-    'WBOP - Mount Cluster',
-    'WBOP - North Cluster',
-    'WBOP - Papamoa Cluster',
-    'WBOP - South Cluster',
-    'WBOP - Te Puke Cluster',
-    'WBOP - West Cluster'
-  ];
 
   const YEARS = (overrides && overrides.schoolYears) || ['Y5','Y6','Y7','Y8','Y9','Y10','Y11','Y12','Y13'];
   const GENDERS = (overrides && overrides.genders) || ['Female','Male'];
