@@ -163,28 +163,32 @@ function showCreateTablesDialog() {
 }
 
 function buildAdminSidebarCard() {
-
-
   const imageBytes = DriveApp.getFileById('1PT-hMqaBpVTNpkN3KiocfgNa7QRWfmXw').getBlob().getBytes();
-  const encodedImageURL =
-    `data:image/jpeg;base64,${Utilities.base64Encode(imageBytes)}`;
-  const cardBuilder = CardService.newCardBuilder()
+  const encodedImageURL = `data:image/jpeg;base64,${Utilities.base64Encode(imageBytes)}`;
+
+  // ── Card 1: Templates ──────────────────────────────────────────────────
+  const templatesCard = CardService.newCardBuilder()
     .setHeader(
       CardService.newCardHeader()
-        .setTitle('Swim Entries Admin Tools')
-        .setSubtitle('Creates essential tables for swim entries.')
+        .setTitle('Swim Meet Templates')
+        .setSubtitle('Creates essential template tables for managing a meet.')
         .setImageUrl(encodedImageURL)
     );
 
-
-
-  // ── Section 1: Create Sheets from Template ─────────────────────────────
-  const createSection = CardService.newCardSection()
-    .setHeader('Create School Entry Sheets')
+  // Section 1: Create Core Tables
+  const createTablesSection = CardService.newCardSection()
+    .setHeader('Create Core Tables')
     .setCollapsible(true)
     .addWidget(
+      CardService.newDecoratedText()
+        .setText('<b>STEP 1</b>')
+        .setStartIcon(CardService.newIconImage().setMaterialIcon(
+          CardService.newMaterialIcon().setName('looks_one')
+        ))
+    )
+    .addWidget(
       CardService.newTextParagraph()
-        .setText('Duplicate a template sheet for each school/cluster from a list in your spreadsheet, or generate core tables.')
+        .setText('Generate core tables from a list of tables.')
     )
     .addWidget(
       CardService.newButtonSet()
@@ -196,22 +200,93 @@ function buildAdminSidebarCard() {
                       .setOnClickAction(CardService.newAction()
                                                    .setFunctionName('showCreateTablesDialog'))
          )
+    );
+
+  // Section 2: Create Sheets from Templates
+  const createSheetsSection = CardService.newCardSection()
+    .setHeader('Create Sheets from Templates')
+    .setCollapsible(true)
+    .addWidget(
+      CardService.newDecoratedText()
+        .setText('<b>STEP 2</b>')
+        .setStartIcon(CardService.newIconImage().setMaterialIcon(
+          CardService.newMaterialIcon().setName('looks_two')
+        ))
+    )
+    .addWidget(
+      CardService.newTextParagraph()
+        .setText('After populating core tables, duplicate the Individual Entry template sheet for each school or cluster from a list of schools/clusters in your spreadsheet.')
+    )
+    .addWidget(
+      CardService.newButtonSet()
         .addButton(
           CardService.newTextButton()
-            .setText('Create Sheets from List')
+            .setText('Create Sheets from Templates')
             .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
             .setBackgroundColor('#34A853')
             .setOnClickAction(CardService.newAction().setFunctionName('showCreateSheetsDialog'))
         )
+    );
 
+  // Navigation to Export Card
+  const navToExportSection = CardService.newCardSection()
+
+    .addWidget(
+      CardService.newTextParagraph()
+        .setText('<b>Next:</b> Export entries to CSV')
     )
-    .addWidget(CardService.newDivider());
+    .addWidget(
+      CardService.newButtonSet()
+        .addButton(
+          CardService.newTextButton()
+            .setText('Go to Export →')
+            .setTextButtonStyle(CardService.TextButtonStyle.TEXT)
+            .setOnClickAction(CardService.newAction().setFunctionName('buildExportCard'))
+        )
+    );
 
+  templatesCard
+    .addSection(createTablesSection)
+    .addSection(createSheetsSection)
+    .addSection(navToExportSection)
+    .setFixedFooter(
+      CardService.newFixedFooter()
+        .setPrimaryButton(
+          CardService.newTextButton()
+            .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+            .setBackgroundColor('#FFDD00')
+            .setText('Buy me a coffee.')
+            .setIcon(CardService.Icon.STORE)
+            .setOpenLink(CardService.newOpenLink().setUrl('https://buymeacoffee.com/pfaitl'))
+        )
+    );
 
-  // ── Section 2: Export Entries ──────────────────────────────────────────
+  return templatesCard.build();
+}
+
+function buildExportCard() {
+  const imageBytes = DriveApp.getFileById('1DQZoQh-ya7I-rVsED3HJjVdobkEFwlvZ').getBlob().getBytes();
+  const encodedImageURL = `data:image/jpeg;base64,${Utilities.base64Encode(imageBytes)}`;
+
+  // ── Card 2: Export ─────────────────────────────────────────────────────
+  const exportCard = CardService.newCardBuilder()
+    .setHeader(
+      CardService.newCardHeader()
+        .setTitle('Export Entries')
+        .setSubtitle('Generate CSV files for meet management software.')
+        .setImageUrl(encodedImageURL)
+    );
+
   const exportSection = CardService.newCardSection()
     .setHeader('Export Entries to CSV')
     .setCollapsible(true)
+    .addWidget(
+      CardService.newDecoratedText()
+        .setText('<b>STEP 3</b>')
+        .setStartIcon(CardService.newIconImage().setMaterialIcon(
+          CardService.newMaterialIcon().setName('looks_3')
+        ))
+    )
     .addWidget(
       CardService.newTextParagraph()
         .setText('Process the current sheet and generate a clean CSV file with formatted entries and times.')
@@ -222,33 +297,70 @@ function buildAdminSidebarCard() {
           CardService.newTextButton()
             .setText('Export to CSV')
             .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
-            .setBackgroundColor('#34A853') // Google green
+            .setBackgroundColor('#34A853')
             .setOnClickAction(CardService.newAction().setFunctionName('exportEntriesToCSV'))
         )
     );
 
-  // ── Assemble the card ──────────────────────────────────────────────────
-  cardBuilder
-    .addSection(createSection)
-    .addSection(exportSection);
+  const csvConverterSection = CardService.newCardSection()
+   .setHeader('Convert CSV to SDIF')
+   .setCollapsible(true)
+   .addWidget(
+     CardService.newDecoratedText()
+                .setText('<b>STEP 4</b>')
+                .setStartIcon(CardService.newIconImage().setMaterialIcon(
+                  CardService.newMaterialIcon().setName('looks_4')
+                ))
+   )
+   .addWidget(
+     CardService.newTextParagraph()
+                .setText('After exporting your CSV, go to the CSV to SDIF Converter to prepare entries for the Hy-tek Meet Manager.')
+   )
 
-  // Optional: Add a footer with version or help link
-  cardBuilder.setFixedFooter(
-    CardService.newFixedFooter()
-      .setSecondaryButton(
-        CardService.newTextButton()
-        .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
-        .setBackgroundColor('#FFDD00')
-        .setText('Buy me a coffee.')
-        .setIcon(CardService.Icon.STORE)
-        .setOpenLink(
-        CardService.newOpenLink().setUrl('https://buymeacoffee.com/pfaitl')),
-      )
-      .setPrimaryButton(
-        CardService.newTextButton().setText('CSV to SDIF Converter').setOpenLink(
-        CardService.newOpenLink().setUrl('https://csv-sdif-converter.netlify.app/')),
-      )
-  );
+   .addWidget(
+     CardService.newButtonSet()
+                .addButton(
+                  CardService.newTextButton()
+                             .setText('Convert to SDIF')
+                             .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+                             .setBackgroundColor('#34A853')
+                             .setOpenLink(CardService.newOpenLink().setUrl('https://csv-sdif-converter.netlify.app/'))
+                )
+   )
+   .addWidget(
+     CardService.newTextParagraph()
+                .setText('(Opens in a new window.)')
+   );
 
-  return cardBuilder.build();
+  // Navigation back to Templates
+  const navBackSection = CardService.newCardSection()
+
+    .addWidget(
+      CardService.newButtonSet()
+        .addButton(
+          CardService.newTextButton()
+            .setText('← Back to Templates')
+            .setTextButtonStyle(CardService.TextButtonStyle.TEXT)
+            .setOnClickAction(CardService.newAction().setFunctionName('buildAdminSidebarCard'))
+        )
+    );
+
+  exportCard
+    .addSection(exportSection)
+    .addSection(csvConverterSection)
+    .addSection(navBackSection)
+    .setFixedFooter(
+      CardService.newFixedFooter()
+        .setPrimaryButton(
+          CardService.newTextButton()
+            .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+            .setBackgroundColor('#FFDD00')
+            .setText('Buy me a coffee.')
+            .setIcon(CardService.Icon.STORE)
+            .setOpenLink(CardService.newOpenLink().setUrl('https://buymeacoffee.com/pfaitl'))
+        )
+
+    );
+
+  return CardService.newNavigation().pushCard(exportCard.build());
 }
