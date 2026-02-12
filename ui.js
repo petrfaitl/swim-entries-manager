@@ -84,7 +84,7 @@ function showCreateTablesDialog() {
       </div>
     </fieldset>
 
-    <button onclick="create()">Create Tables</button>
+    <button id="createTablesBtn" type="button">Create Tables</button>
     <div id="status"></div>
 
     <script>
@@ -116,6 +116,22 @@ function showCreateTablesDialog() {
             document.getElementById('status').textContent = 'Error: ' + err.message;
           })
           .createTablesFromDialog(names, opts);
+      }
+
+      function bindEvents() {
+        const btn = document.getElementById('createTablesBtn');
+        if (!btn) {
+          document.getElementById('status').textContent = 'Error: Create button not found.';
+          return;
+        }
+        btn.addEventListener('click', create);
+        document.getElementById('status').textContent = 'Ready.';
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bindEvents);
+      } else {
+        bindEvents();
       }
     </script>
     `
