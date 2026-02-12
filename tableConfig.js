@@ -108,16 +108,17 @@ function getTableConfig(overrides) {
 
     EventsForTemplate: {
       title: 'Events for Individual Entries Template',
-      headers: ['Discipline','Distance','Events'],
+      headers: ['Distance','Discipline','Events'],
       columns: toCols({
-        'Discipline': { type: 'text', validation: { type: 'list', args: { values: ['Freestyle','Backstroke','Breaststroke','Butterfly','Individual Medley'] } } },
         'Distance': { type: 'text',validation: { type: 'list', args: { values: ['25m','50m','100m','200m','400m'] } } },
+        'Discipline': { type: 'text', validation: { type: 'list', args: { values: ['Freestyle','Backstroke','Breaststroke','Butterfly','Individual Medley'] } } },
         'Events': { type: 'text', formula: '=IF(AND(B2<>"",A2<>""),A2&" "&B2,"")' }
       }),
       options: {
         freezeHeader: 1, headerBg: '#356853',
         rows:10,
-        placement: { targetSheet: "EventsForTemplate", startCell: 'A1' }, clearMode: 'rebuild'
+        placement: { targetSheet: "EventsForTemplate", startCell: 'A1' }, clearMode: 'rebuild',
+        namedRange: { name: 'EventsList', columnName: 'Events' }
       },
       notes: 'Simplified event names used for dropdown validation in individual entries.'
     },
@@ -133,7 +134,8 @@ function getTableConfig(overrides) {
       }),
       options: {
         freezeHeader: 1, headerBg: '#356853', rows:20,
-        placement: { targetSheet: "SchoolsForTemplate", startCell: 'A1' }, clearMode: 'rebuild'
+        placement: { targetSheet: "SchoolsForTemplate", startCell: 'A1' }, clearMode: 'rebuild',
+        namedRange: { name: 'SchoolsList', columnName: 'School' }
       }
     },
 
@@ -149,16 +151,16 @@ function getTableConfig(overrides) {
         'Date of Birth': { type: 'date', validation: { type: 'date', args: { condition: 'DATE_IS_VALID' } } },
         'Gender': { type: 'text', validation: { type: 'list', args: { values: GENDERS } } },
         'School Year': { type: 'text', validation: { type: 'list', args: { values: YEARS } } },
-        'School': { type: 'text', validation: { type: 'range', args: { rangeA1: 'SchoolsForTemplate!B2:B' } }  },
-        'Event 1': { type: 'text', validation: { type: 'range', args: { rangeA1: 'EventsForTemplate!C2:C' } } }, 'Time 1 (m:s.S)': { type: 'text' },
-        'Event 2': { type: 'text', validation: { type: 'range', args: { rangeA1: 'EventsForTemplate!C2:C' } } }, 'Time 2 (m:s.S)': { type: 'text' },
-        'Event 3': { type: 'text', validation: { type: 'range', args: { rangeA1: 'EventsForTemplate!C2:C' } } }, 'Time 3 (m:s.S)': { type: 'text' },
-        'Event 4': { type: 'text', validation: { type: 'range', args: { rangeA1: 'EventsForTemplate!C2:C' } } }, 'Time 4 (m:s.S)': { type: 'text' },
-        'Event 5': { type: 'text', validation: { type: 'range', args: { rangeA1: 'EventsForTemplate!C2:C' } } }, 'Time 5 (m:s.S)': { type: 'text' },
-        'Event 6': { type: 'text', validation: { type: 'range', args: { rangeA1: 'EventsForTemplate!C2:C' } } }, 'Time 6 (m:s.S)': { type: 'text' },
-        'Event 7': { type: 'text', validation: { type: 'range', args: { rangeA1: 'EventsForTemplate!C2:C' } } }, 'Time 7 (m:s.S)': { type: 'text' },
-        'Event 8': { type: 'text', validation: { type: 'range', args: { rangeA1: 'EventsForTemplate!C2:C' } } }, 'Time 8 (m:s.S)': { type: 'text' },
-        'Event 9': { type: 'text', validation: { type: 'range', args: { rangeA1: 'EventsForTemplate!C2:C' } } }, 'Time 9 (m:s.S)': { type: 'text' },
+        'School': { type: 'text', validation: { type: 'range', args: { rangeA1: '=SchoolsList' } }  },
+        'Event 1': { type: 'text', validation: { type: 'range', args: { rangeA1: '=EventsList' } } }, 'Time 1 (m:s.S)': { type: 'text' },
+        'Event 2': { type: 'text', validation: { type: 'range', args: { rangeA1: '=EventsList' } } }, 'Time 2 (m:s.S)': { type: 'text' },
+        'Event 3': { type: 'text', validation: { type: 'range', args: { rangeA1: '=EventsList' } } }, 'Time 3 (m:s.S)': { type: 'text' },
+        'Event 4': { type: 'text', validation: { type: 'range', args: { rangeA1: '=EventsList' } } }, 'Time 4 (m:s.S)': { type: 'text' },
+        'Event 5': { type: 'text', validation: { type: 'range', args: { rangeA1: '=EventsList' } } }, 'Time 5 (m:s.S)': { type: 'text' },
+        'Event 6': { type: 'text', validation: { type: 'range', args: { rangeA1: '=EventsList' } } }, 'Time 6 (m:s.S)': { type: 'text' },
+        'Event 7': { type: 'text', validation: { type: 'range', args: { rangeA1: '=EventsList' } } }, 'Time 7 (m:s.S)': { type: 'text' },
+        'Event 8': { type: 'text', validation: { type: 'range', args: { rangeA1: '=EventsList' } } }, 'Time 8 (m:s.S)': { type: 'text' },
+        'Event 9': { type: 'text', validation: { type: 'range', args: { rangeA1: '=EventsList' } } }, 'Time 9 (m:s.S)': { type: 'text' },
         'Convert times from 33m pool': { type: 'text', validation: { type: 'list', args: { values: ['Yes', ''] } }, default: '' }
       }),
       options: {

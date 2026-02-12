@@ -19,6 +19,33 @@ function toQuotedSheetA1_(sheetName, a1Range) {
   return "'" + escapedSheetName + "'!" + a1Range;
 }
 
+/**
+ * Creates a named range for a specific column in a table.
+ * @param {string} namedRangeName - Name for the named range
+ * @param {Sheet} sheet - The sheet containing the table
+ * @param {number} startRow - Starting row (data row, not header)
+ * @param {number} columnIndex - Column index (1-based)
+ * @param {number} numRows - Number of data rows
+ */
+function createNamedRangeForColumn_(namedRangeName, sheet, startRow, columnIndex, numRows) {
+  const ss = SpreadsheetApp.getActive();
+
+  // Remove existing named range if it exists
+  const existingRanges = ss.getNamedRanges();
+  for (let i = 0; i < existingRanges.length; i++) {
+    if (existingRanges[i].getName() === namedRangeName) {
+      existingRanges[i].remove();
+      Logger.log('[createNamedRangeForColumn_] Removed existing named range: %s', namedRangeName);
+      break;
+    }
+  }
+
+  // Create the range for the column (excluding header)
+  const range = sheet.getRange(startRow, columnIndex, numRows, 1);
+  ss.setNamedRange(namedRangeName, range);
+  Logger.log('[createNamedRangeForColumn_] Created named range "%s" for %s', namedRangeName, range.getA1Notation());
+}
+
 function getStructuredTableName_(tableName, tableCfg) {
   if (tableCfg && tableCfg.options && tableCfg.options.structuredTableName) {
     return tableCfg.options.structuredTableName;
@@ -106,9 +133,10 @@ function configureTableColumns_(table, tableCfg) {
     } else if (meta.type === 'date') {
       // Date column
       colProp.columnType = 'DATE';
+    } else {
+      // If no specific type is set, it defaults to TEXT
+      colProp.columnType = 'TEXT';
     }
-    // If no specific type is set, it defaults to TEXT
-
     columnProperties.push(colProp);
   }
 
@@ -118,6 +146,7 @@ function configureTableColumns_(table, tableCfg) {
     Logger.log('[configureTableColumns_] Successfully configured %s columns for table "%s"', columnProperties.length, table.getName());
   } catch (e) {
     Logger.log('[configureTableColumns_] Failed to configure columns for table "%s": %s', table.getName(), e.message);
+    // Logger.log('[column properties] %s', e);
   }
 }
 
@@ -129,7 +158,7 @@ function configureTableColumns_(table, tableCfg) {
  *  - startCell: override start cell (A1)
  *  - clearMode: 'rebuild' | 'append'
  *  - schoolYears, genders: optional arrays to override validation lists
- *  - rows: approximate number of rows to pre-prepare for validation (default 500)
+ *  - rows: approximate number of rows to pre-prepare for validation (default 50)
  * @return {{tableName:string, sheetName:string, headerA1:string, dataA1:string, rows:number, cols:number}}
  */
 function createConfiguredTable(tableName, options) {
@@ -204,6 +233,19 @@ function createConfiguredTable(tableName, options) {
   }
 
   const structuredTable = ensureStructuredTable_(sheet, tableName, tableCfg, headerRange, dataRange);
+
+  // Create named ranges if configured in options
+  if (tableCfg.options && tableCfg.options.namedRange) {
+    const namedRangeConfig = tableCfg.options.namedRange;
+    const columnIndex = headers.indexOf(namedRangeConfig.columnName);
+
+    if (columnIndex !== -1) {
+      createNamedRangeForColumn_(namedRangeConfig.name, sheet, dataStartRow, startCol + columnIndex, numRows);
+    } else {
+      Logger.log('[createConfiguredTable] Warning: Column "%s" not found in table "%s" for named range "%s"',
+        namedRangeConfig.columnName, tableName, namedRangeConfig.name);
+    }
+  }
 
   return {
     tableName: tableName,
