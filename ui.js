@@ -26,6 +26,8 @@ function showHomepage(e) {
 }
 
 function showCreateTablesDialog() {
+  const tableNames = listAvailableTables();
+  Logger.log('[showCreateTablesDialog] tableNames payload: %s', JSON.stringify(tableNames));
   const html = HtmlService.createHtmlOutput(
     `
     <style>
@@ -46,6 +48,7 @@ function showCreateTablesDialog() {
     <fieldset>
       <legend>Tables</legend>
       <div id="tableList">Loading…</div>
+      <div id="tableListDebug" class="small"></div>
     </fieldset>
 
     <fieldset>
@@ -80,23 +83,26 @@ function showCreateTablesDialog() {
     <div id="status"></div>
 
     <script>
-      function loadTables() {
-        google.script.run.withSuccessHandler(function(names){
-          const container = document.getElementById('tableList');
-          if (!Array.isArray(names)) {
-            container.textContent = 'No table configuration found.';
-            return;
-          }
-          if (names.length === 0) {
-            container.textContent = 'No tables available.';
-            return;
-          }
-          container.innerHTML = names.map(function(n){
-            return '<label><input type="checkbox" value="' + n + '"> ' + n + '</label>';
-          }).join('');
-        }).withFailureHandler(function(err){
-          document.getElementById('tableList').textContent = 'Error: ' + err.message;
-        }).getTableNamesForDialog();
+      const initialTableNames = ${JSON.stringify(tableNames)};
+
+      function renderTables(names) {
+        const container = document.getElementById('tableList');
+        const debug = document.getElementById('tableListDebug');
+        debug.textContent = 'renderTables called. payload type=' + (Array.isArray(names) ? 'array' : typeof names);
+        if (!Array.isArray(names)) {
+          container.textContent = 'No table configuration found.';
+          debug.textContent += ', not an array';
+          return;
+        }
+        if (names.length === 0) {
+          container.textContent = 'No tables available.';
+          debug.textContent += ', 0 names';
+          return;
+        }
+        container.innerHTML = names.map(function(n){
+          return '<label><input type="checkbox" value="' + n + '"> ' + n + '</label>';
+        }).join('');
+        debug.textContent += ', rendered ' + names.length + ' table checkboxes';
       }
       function create(){
         const names = Array.from(document.querySelectorAll('#tableList input[type=checkbox]:checked')).map(cb=>cb.value);
@@ -124,7 +130,7 @@ function showCreateTablesDialog() {
           })
           .createTablesFromDialog(names, opts);
       }
-      loadTables();
+      renderTables(initialTableNames);
     </script>
     `
   ).setWidth(520).setHeight(600);

@@ -191,5 +191,7 @@ function getTableConfig(overrides) {
  */
 function listAvailableTables(overrides) {
   const cfg = getTableConfig(overrides);
-  return Object.keys(cfg);
+  const names = Object.keys(cfg);
+  Logger.log('[listAvailableTables] Found %s tables: %s', names.length, JSON.stringify(names));
+  return names;
 }

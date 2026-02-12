@@ -10,11 +10,8 @@ function getTableAppClient_() {
   if (typeof TableApp !== 'undefined' && TableApp && typeof TableApp.openById === 'function') {
     return TableApp.openById(spreadsheetId);
   }
-  if (typeof openById === 'function') {
-    return openById(spreadsheetId);
-  }
 
-  throw new Error('TableApp library is not available. Ensure the TableApp library is configured.');
+  throw new Error('TableApp library is not available. Ensure the TableApp library is imported in appsscript.json with userSymbol "TableApp".');
 }
 
 function toQuotedSheetA1_(sheetName, a1Range) {
