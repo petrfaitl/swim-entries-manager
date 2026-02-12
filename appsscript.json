@@ -1,7 +1,13 @@
 {
   "timeZone": "Pacific/Auckland",
   "dependencies": {
-    "enabledAdvancedServices": [],
+    "enabledAdvancedServices": [
+      {
+        "userSymbol": "Sheets",
+        "serviceId": "sheets",
+        "version": "v4"
+      }
+    ],
     "libraries": [
       {
         "userSymbol": "TableApp",

@@ -28,6 +28,11 @@ function showHomepage(e) {
 function showCreateTablesDialog() {
   const tableNames = listAvailableTables();
   Logger.log('[showCreateTablesDialog] tableNames payload: %s', JSON.stringify(tableNames));
+  const tableListHtml = tableNames.length
+    ? tableNames.map(function(name) {
+      return '<label><input type="checkbox" value="' + name + '"> ' + name + '</label>';
+    }).join('')
+    : 'No tables available.';
   const html = HtmlService.createHtmlOutput(
     `
     <style>
@@ -47,8 +52,8 @@ function showCreateTablesDialog() {
 
     <fieldset>
       <legend>Tables</legend>
-      <div id="tableList">Loading…</div>
-      <div id="tableListDebug" class="small"></div>
+      <div id="tableList">${tableListHtml}</div>
+      <div id="tableListDebug" class="small">Rendered server-side: ${tableNames.length} table option(s).</div>
     </fieldset>
 
     <fieldset>
@@ -83,27 +88,6 @@ function showCreateTablesDialog() {
     <div id="status"></div>
 
     <script>
-      const initialTableNames = ${JSON.stringify(tableNames)};
-
-      function renderTables(names) {
-        const container = document.getElementById('tableList');
-        const debug = document.getElementById('tableListDebug');
-        debug.textContent = 'renderTables called. payload type=' + (Array.isArray(names) ? 'array' : typeof names);
-        if (!Array.isArray(names)) {
-          container.textContent = 'No table configuration found.';
-          debug.textContent += ', not an array';
-          return;
-        }
-        if (names.length === 0) {
-          container.textContent = 'No tables available.';
-          debug.textContent += ', 0 names';
-          return;
-        }
-        container.innerHTML = names.map(function(n){
-          return '<label><input type="checkbox" value="' + n + '"> ' + n + '</label>';
-        }).join('');
-        debug.textContent += ', rendered ' + names.length + ' table checkboxes';
-      }
       function create(){
         const names = Array.from(document.querySelectorAll('#tableList input[type=checkbox]:checked')).map(cb=>cb.value);
         if (!names.length) { alert('Select at least one table.'); return; }
@@ -118,6 +102,9 @@ function showCreateTablesDialog() {
         google.script.run
           .withSuccessHandler(function(res){
             const lines = res.map(function(r){
+              if (r.error) {
+                return r.tableName + ': ERROR - ' + r.error;
+              }
               const tableMeta = r.structuredTable
                 ? (' [' + r.structuredTable.action + ' structured: ' + r.structuredTable.tableName + ']')
                 : '';
@@ -130,7 +117,6 @@ function showCreateTablesDialog() {
           })
           .createTablesFromDialog(names, opts);
       }
-      renderTables(initialTableNames);
     </script>
     `
   ).setWidth(520).setHeight(600);

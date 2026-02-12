@@ -79,14 +79,14 @@ function getTableConfig(overrides) {
         boldHeader: true,
         headerBg: '#e3f2fd',
         alternatingColors: true,
-        namedRange: 'TeamOfficialsTable',
+        namedRange: 'AllEventsWithDetailsTable',
         placement: { targetSheet: null, startCell: 'A1' },
         clearMode: 'rebuild'
       },
-      notes: 'Support personnel per school/cluster.'
+      notes: 'All events with detailed information.'
     },
 
-    Events: {
+    DetailedEvents: {
       headers: ['Events','Gender','Min Age','Max Age','Discipline','Distance','Event Type','Event No.'],
       columns: toCols({
         'Events': { type: 'text', required: true },
@@ -105,7 +105,7 @@ function getTableConfig(overrides) {
       notes: 'Full events list for Meet Manager alignment.'
     },
 
-    SimpleEvents: {
+    EventsForTemplate: {
       headers: ['Events','Discipline','Distance'],
       columns: toCols({
         'Events': { type: 'text', required: true },
@@ -114,7 +114,7 @@ function getTableConfig(overrides) {
       }),
       options: {
         freezeHeader: 1, boldHeader: true, headerBg: '#ede7f6', alternatingColors: true,
-        namedRange: 'SimpleEventsTable', placement: { targetSheet: null, startCell: 'A1' }, clearMode: 'rebuild'
+        namedRange: 'EventsForTemplateTable', placement: { targetSheet: null, startCell: 'A1' }, clearMode: 'rebuild'
       },
       notes: 'Simplified event names used for dropdown validation in individual entries.'
     },

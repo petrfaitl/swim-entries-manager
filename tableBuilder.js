@@ -207,11 +207,11 @@ function createConfiguredTable(tableName, options) {
   // Named range (optional)
   if (tableCfg.options && tableCfg.options.namedRange) {
     const existing = ss.getRangeByName(tableCfg.options.namedRange);
-    const headerA1 = headerRange.getA1Notation();
-    const dataA1 = dataRange.getA1Notation();
-    const a1 = sheet.getName() + '!' + headerA1.replace(/:.+$/, '') + ':' + dataA1.split('!').pop().split(':').pop();
+    const headerStartA1 = headerRange.getA1Notation().split(':')[0];
+    const dataEndA1 = dataRange.getA1Notation().split(':')[1];
+    const namedRangeA1 = headerStartA1 + ':' + dataEndA1;
     if (existing) ss.removeNamedRange(tableCfg.options.namedRange);
-    ss.setNamedRange(tableCfg.options.namedRange, sheet.getRange(headerA1 + ':' + dataRange.getA1Notation().split('!').pop().split(':').pop()));
+    ss.setNamedRange(tableCfg.options.namedRange, sheet.getRange(namedRangeA1));
   }
 
   const structuredTable = ensureStructuredTable_(sheet, tableName, tableCfg, headerRange, dataRange);
@@ -235,8 +235,19 @@ function createConfiguredTable(tableName, options) {
  */
 function createConfiguredTables(tableNames, options) {
   const results = [];
-  tableNames.forEach(name => {
-    results.push(createConfiguredTable(name, options));
+  tableNames.forEach(function(name) {
+    try {
+      const result = createConfiguredTable(name, options);
+      Logger.log('[createConfiguredTables] Created table "%s" on sheet "%s".', name, result.sheetName);
+      results.push(result);
+    } catch (err) {
+      const message = err && err.message ? err.message : String(err);
+      Logger.log('[createConfiguredTables] Failed for "%s": %s', name, message);
+      results.push({
+        tableName: name,
+        error: message
+      });
+    }
   });
   return results;
 }
@@ -246,5 +257,6 @@ function getTableNamesForDialog() {
 }
 
 function createTablesFromDialog(tableNames, options) {
+  Logger.log('[createTablesFromDialog] Requested tables: %s, options: %s', JSON.stringify(tableNames), JSON.stringify(options || {}));
   return createConfiguredTables(tableNames, options || {});
 }
