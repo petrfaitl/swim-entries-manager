@@ -198,8 +198,8 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for det
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/swim-entries-manager/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/swim-entries-manager/discussions)
+- **Issues**: [GitHub Issues](https://github.com/petrfaitl/swim-entries-manager/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/petrfaitl/swim-entries-manager/discussions)
 - **Email**: recorder@lvwasc.co.nz
 
 ## Acknowledgments
