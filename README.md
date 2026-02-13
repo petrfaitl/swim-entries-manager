@@ -159,7 +159,7 @@ The add-on requires the following OAuth scopes:
    ```bash
    clasp create --type sheets --title "Swim Entries Manager"
    # or
-   clasp clone <your-script-id>
+   clasp clone 1sLvLkVjHiO44jf7iKPi3S0FTgA8GLVlCSiGJMlW6eh2PPCDymltl-JoQ
    ```
 
 5. Push changes:
@@ -192,17 +192,15 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for det
 ## Roadmap
 
 - [ ] Google Workspace Marketplace listing
-- [ ] Multi-language support
+- [ ] Advanced export options (SDIF format)
 - [ ] Custom event type configurations
-- [ ] Advanced CSV export options (SDIF format)
-- [ ] Integration with popular meet management software
-- [ ] Automated time conversion (short course to long course)
+
 
 ## Support
 
 - **Issues**: [GitHub Issues](https://github.com/yourusername/swim-entries-manager/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/yourusername/swim-entries-manager/discussions)
-- **Email**: pfaitl+swimentriesmanager@gmail.com
+- **Email**: recorder@lvwasc.co.nz
 
 ## Acknowledgments
 
