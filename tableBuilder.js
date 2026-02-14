@@ -176,7 +176,7 @@ function createConfiguredTable(tableName, options) {
   const sheetName = placement.targetSheet || tableName;
   const startCell = placement.startCell || 'A1';
   const clearMode = options.clearMode || (tableCfg.options && tableCfg.options.clearMode) || 'rebuild';
-  const numRows = options.rows || 50;
+  const numRows = options.rows || (tableCfg.options && tableCfg.options.rows) || 50;
   const title = options.title ? options.title : tableName;
 
   const ss = SpreadsheetApp.getActive();

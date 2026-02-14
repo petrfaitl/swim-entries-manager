@@ -124,7 +124,7 @@ function getTableConfig(overrides) {
         'Code': { type: 'text' }
       }),
       options: {
-        freezeHeader: 1, headerBg: '#356853', rows:20,
+        freezeHeader: 1, headerBg: '#356853', rows:30,
         placement: { targetSheet: "SchoolsForTemplate", startCell: 'A1' }, clearMode: 'rebuild',
         namedRange: { name: 'SchoolsList', columnName: 'School' }
       }
