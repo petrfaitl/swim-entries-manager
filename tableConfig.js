@@ -71,6 +71,7 @@ function getTableConfig(overrides) {
         rows:15,
         headerBg: '#356853',
         title: 'Team Officials',
+        required: true,
         placement: { targetSheet: "Team Officials", startCell: 'A1' },
         clearMode: 'rebuild'
       },
@@ -91,7 +92,7 @@ function getTableConfig(overrides) {
         'Event No.': { type: 'number' }
       }),
       options: {
-        freezeHeader: 1, headerBg: '#356853',title: 'Events for Meet Manager',
+        freezeHeader: 1, headerBg: '#356853',title: 'Events for Meet Manager',required:false,
         placement: { targetSheet: "Events", startCell: 'A1' }, clearMode: 'rebuild'
       },
       notes: 'Full events list for Meet Manager alignment.'
@@ -107,7 +108,7 @@ function getTableConfig(overrides) {
       }),
       options: {
         freezeHeader: 1, headerBg: '#356853',
-        rows:10,
+        rows:10,required:true,
         placement: { targetSheet: "EventsForTemplate", startCell: 'A1' }, clearMode: 'rebuild',
         namedRange: { name: 'EventsList', columnName: 'Events' }
       },
@@ -124,7 +125,7 @@ function getTableConfig(overrides) {
         'Code': { type: 'text' }
       }),
       options: {
-        freezeHeader: 1, headerBg: '#356853', rows:30,
+        freezeHeader: 1, headerBg: '#356853', rows:30, required:true,
         placement: { targetSheet: "SchoolsForTemplate", startCell: 'A1' }, clearMode: 'rebuild',
         namedRange: { name: 'SchoolsList', columnName: 'School' }
       }
@@ -155,7 +156,7 @@ function getTableConfig(overrides) {
         'Convert times from 33m pool': { type: 'text', validation: { type: 'list', args: { values: ['Yes', ''] } }, default: '' }
       }),
       options: {
-        freezeHeader: 1, headerBg: '#356853', title: "Individual Entries Template", rows:30,
+        freezeHeader: 1, headerBg: '#356853', title: "Individual Entries Template", rows:30,required, true,
         placement: { targetSheet: 'INDIVIDUAL_EVENTS_TEMPLATE', startCell: 'A1' }, clearMode: 'rebuild'
       },
       notes: 'Template for duplication into per-cluster sheets.'
@@ -173,7 +174,7 @@ function getTableConfig(overrides) {
         // Cluster columns are free-text to type swimmer names or can later be validated to Schools list
       }),
       options: {
-        freezeHeader: 1, headerBg: '#356853',rows:4,
+        freezeHeader: 1, headerBg: '#356853',rows:4, required: false,
         placement: { targetSheet: 'Relays', startCell: 'A1' },
         clearMode: 'rebuild'
       }

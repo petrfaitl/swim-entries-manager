@@ -48,18 +48,24 @@ A Google Workspace Add-on for managing swim meet entries efficiently. This tool 
 
 ### First Use
 
-1. **Open the Add-on**: Click on **Extensions** > **Swim Entries Manager**
-2. **Create Core Tables** (STEP 1):
-   - Select tables to create (Schools, Events, Team Officials, etc.)
-   - Customize school years and gender options if needed
-   - Click "Create Tables"
-3. **Populate Data**: Fill in your schools and events in the generated tables
-4. **Create Entry Sheets** (STEP 2):
-   - Duplicate the template for each school/cluster
-   - Named ranges ensure dropdowns stay synchronized
-5. **Export to CSV** (STEP 3):
-   - Select the sheet to export
-   - Download the formatted CSV file
+1. **Open the add-on**: Find it in the right sidebar (you may need to unhide the sidebar first).
+2. **Create Core Tables (STEP 1)**:
+   - Create all tables marked as required in `tableConfig.js` (`options.required: true`).
+   - At minimum, include `Team Officials`, `Events for Individual Entries Template`, and `Schools for Individual Entries Template`.
+   - If you are using the Individual Entries Template, set your `Gender` and `School Year` values before creating tables.
+3. **Populate tables**:
+   - `Team Officials`: Enter your team, school, or cluster details (minimum required data is the first column).
+   - `Events for Template`: Enter `Distance` and `Discipline`; the last column builds the event name automatically.
+   - `Schools`: Fill `Team Name`, `School`, `Cluster`, and `Code` based on your meet setup.
+4. **Create sheets from template (STEP 2)**:
+   - Verify the dropdowns in `INDIVIDUAL_EVENTS_TEMPLATE` first.
+   - Use **Create Sheets From Template** to duplicate one entry sheet per team/school.
+5. **Fill swimmer entries**:
+   - Required: `First Name`, `Last Name`, `Gender`, `Date of Birth`, `School`, and selected events (`Event 1` to `Event 9`).
+   - Recommended: entry times and school year.
+6. **Export entries (STEP 3)**:
+   - Export to CSV for meet software workflows.
+   - CSV to SDIF conversion tool: https://www.lvwasc.co.nz/tools/csv-sdif-converter/
 
 ## Project Structure
 

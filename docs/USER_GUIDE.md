@@ -34,6 +34,30 @@ When you first open the add-on:
 2. The sidebar will open with two main cards:
    - **Swim Meet Templates**: Create tables and entry sheets
    - **Export Entries**: Export data to CSV
+3. The sidebar appears on the right side of Google Sheets. If you do not see it, unhide/reopen the sidebar.
+
+### Quick Workflow
+
+Use this sequence for a standard meet setup:
+
+1. **Create Core Tables (STEP 1)**
+   - Create all tables marked as required in `tableConfig.js` (`options.required: true`).
+   - At minimum, create `Team Officials`, `Events for Individual Entries Template`, and `Schools for Individual Entries Template`.
+   - If using the Individual Entries Template, define `Gender` and `School Year` values first.
+2. **Populate tables**
+   - `Team Officials`: Enter teams/schools/clusters (minimum required value is the first column).
+   - `EventsForTemplate`: Enter `Distance` and `Discipline`; `Events` is auto-generated.
+   - `SchoolsForTemplate`: Fill `Team Name`, `School`, `Cluster`, and `Code`.
+3. **Verify template dropdowns**
+   - Confirm that the `INDIVIDUAL_EVENTS_TEMPLATE` dropdowns are populated before duplication.
+4. **Create Sheets from Templates (STEP 2)**
+   - Duplicate the individual template for each team/school so each coordinator works in a separate sheet.
+5. **Fill swimmer entries**
+   - Required fields: `First Name`, `Last Name`, `Gender`, `Date of Birth`, `School`, and event selections.
+   - Recommended fields: entry times and `School Year`.
+6. **Export entries (STEP 3)**
+   - Export CSV from the sheet.
+   - If SDIF is needed, convert CSV using: https://www.lvwasc.co.nz/tools/csv-sdif-converter/
 
 ## Creating Core Tables
 
@@ -103,8 +127,10 @@ Located in the **SchoolsForTemplate** sheet:
 
 **Tips:**
 - The **School** column is used for the named range
-- Keep school names consistent
-- Use short codes for quick identification
+- Use short codes for quick identification in exports
+- For cluster meets, values should be unique across the four fields where possible
+- Repeated values can still be used when needed to distinguish entries from different schools in cluster competitions
+- For single-school meets, the **School** column can be used for houses; **Cluster** can be left blank
 
 ### Events for Template Table
 
@@ -228,6 +254,7 @@ Once entries are complete, export sheets to CSV format for import into meet mana
 5. **Save the CSV**
    - Choose a location to save the file
    - Name it descriptively (e.g., "Hamilton_East_Entries.csv")
+   - If your meet software needs SDIF, convert your CSV using https://www.lvwasc.co.nz/tools/csv-sdif-converter/
 
 ### CSV Format
 
