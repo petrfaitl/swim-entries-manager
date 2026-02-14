@@ -6,7 +6,7 @@
 
 A Google Workspace Add-on for managing swim meet entries efficiently. This tool helps swim meet organizers create structured entry templates, manage school/cluster registrations, and export data in CSV format compatible with meet management software.
 
-![Swim Entries Manager](https://www.lvwasc.co.nz/wp-content/uploads/2025/07/swim_entries_export_logo.png)
+![Swim Entries Manager](https://www.lvwasc.co.nz/wp-content/uploads/2025/07/Swim-Entries-Manager.png)
 
 ## Features
 
