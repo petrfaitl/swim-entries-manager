@@ -196,7 +196,7 @@ function buildAdminSidebarCard() {
            CardService.newTextButton()
                       .setText('Create Core Tables')
                       .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
-                      .setBackgroundColor('#c23433')
+                      .setBackgroundColor('#0397B3')
                       .setOnClickAction(CardService.newAction()
                                                    .setFunctionName('showCreateTablesDialog'))
          )
@@ -223,7 +223,7 @@ function buildAdminSidebarCard() {
           CardService.newTextButton()
             .setText('Create Sheets from Templates')
             .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
-            .setBackgroundColor('#34A853')
+            .setBackgroundColor('#0397B3')
             .setOnClickAction(CardService.newAction().setFunctionName('showCreateSheetsDialog'))
         )
     );
@@ -240,7 +240,7 @@ function buildAdminSidebarCard() {
         .addButton(
           CardService.newTextButton()
             .setText('Go to Export →')
-            .setTextButtonStyle(CardService.TextButtonStyle.TEXT)
+            .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
             .setOnClickAction(CardService.newAction().setFunctionName('buildExportCard'))
         )
     );
@@ -297,7 +297,7 @@ function buildExportCard() {
           CardService.newTextButton()
             .setText('Export to CSV')
             .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
-            .setBackgroundColor('#34A853')
+            .setBackgroundColor('#0397B3')
             .setOnClickAction(CardService.newAction().setFunctionName('exportEntriesToCSV'))
         )
     );
@@ -323,7 +323,7 @@ function buildExportCard() {
                   CardService.newTextButton()
                              .setText('Convert to SDIF')
                              .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
-                             .setBackgroundColor('#34A853')
+                             .setBackgroundColor('#0397B3')
                              .setOpenLink(CardService.newOpenLink().setUrl('https://csv-sdif-converter.netlify.app/'))
                 )
    )
@@ -340,7 +340,7 @@ function buildExportCard() {
         .addButton(
           CardService.newTextButton()
             .setText('← Back to Templates')
-            .setTextButtonStyle(CardService.TextButtonStyle.TEXT)
+            .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
             .setOnClickAction(CardService.newAction().setFunctionName('buildAdminSidebarCard'))
         )
     );

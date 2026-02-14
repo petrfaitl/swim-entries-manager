@@ -21,7 +21,7 @@
   "addOns": {
     "common": {
       "name": "Swim Entries Manager",
-      "logoUrl": "https://www.lvwasc.co.nz/wp-content/uploads/2025/07/swim_entries_export_logo.png",
+      "logoUrl": "https://www.lvwasc.co.nz/wp-content/uploads/2025/07/icon_swim-entries-manager-128px.png",
       "useLocaleFromApp": true,
       "homepageTrigger": {
         "runFunction": "showHomepage"
