@@ -26,24 +26,27 @@ The add-on is currently available as a test deployment. To use it:
 5. Refresh your spreadsheet
 6. Access the add-on from **Extensions** > **Swim Entries Manager**
 
+**Alternative Installation**
+Get an email invite as a tester.
+
 ### First Launch
 
 When you first open the add-on:
 
-1. Click **Extensions** > **Swim Entries Manager** in the menu
+1. Click on the sidebar and find the icon, as one of the installed apps. If you do not see the sidebar, unhide/reopen it, 
 2. The sidebar will open with two main cards:
    - **Swim Meet Templates**: Create tables and entry sheets
    - **Export Entries**: Export data to CSV
-3. The sidebar appears on the right side of Google Sheets. If you do not see it, unhide/reopen the sidebar.
+3. Upon further use, click on **Extensions** > **Swim Entries Manager** in the menu.
 
 ### Quick Workflow
 
 Use this sequence for a standard meet setup:
 
 1. **Create Core Tables (STEP 1)**
-   - Create all tables marked as required in `tableConfig.js` (`options.required: true`).
+   - Create all tables marked as required.
    - At minimum, create `Team Officials`, `Events for Individual Entries Template`, and `Schools for Individual Entries Template`.
-   - If using the Individual Entries Template, define `Gender` and `School Year` values first.
+   - If using the Individual Entries Template, define `Gender` and `School Year` values.
 2. **Populate tables**
    - `Team Officials`: Enter teams/schools/clusters (minimum required value is the first column).
    - `EventsForTemplate`: Enter `Distance` and `Discipline`; `Events` is auto-generated.
@@ -66,9 +69,9 @@ Use this sequence for a standard meet setup:
 The core tables form the foundation of your swim meet management system. These include:
 
 - **Team Officials**: Contact information for team managers and officials
-- **Detailed Events**: Complete event list for Meet Manager alignment
+- **Detailed Events**: Complete event list for Meet Manager alignment and participating schools info.
 - **Events for Template**: Simplified event names for dropdown validation
-- **Schools**: School information with clusters
+- **Schools**: School information with clusters for dropdown validation
 - **Individual Events Template**: Template for per-school entry sheets
 - **Relay Entry**: Relay team configuration
 
@@ -120,13 +123,15 @@ These allow the Individual Events Template to always reference current school an
 
 Located in the **SchoolsForTemplate** sheet:
 
-| Team Name | School | Cluster | Code |
-|-----------|--------|---------|------|
-| Hamilton East | Hamilton East School | Cluster One | HAM_E |
-| Cambridge | Cambridge Primary | Cluster Two | CAM_P |
+| Team Name | School | Cluster | Code  |
+|-----------|--------|---------|-------|
+| Hamilton East | Hamilton East School | Cluster One | HAMES |
+| Cambridge | Cambridge Primary | Cluster Two | CAMPS |
 
 **Tips:**
 - The **School** column is used for the named range
+- Codes for Secondary schools are predefined. For other grades it is advisable to seek confirmation from regional leads.
+- Codes are 4-5 letters
 - Use short codes for quick identification in exports
 - For cluster meets, values should be unique across the four fields where possible
 - Repeated values can still be used when needed to distinguish entries from different schools in cluster competitions
@@ -213,7 +218,7 @@ Each entry sheet contains:
 
 **Features:**
 - **Dropdowns**: School, School Year, Gender, and all Event columns have dropdown validation
-- **Time Format**: Use m:s.S format (e.g., 0:35.2 for 35.2 seconds)
+- **Time Format**: Use m:s.S format (e.g., 0:35.2 for 35.2 seconds, 1:32.12 for 1 minute and 32.12 seconds)
 - **33m Pool Conversion**: Optional checkbox to indicate times from 33m pool
 
 **Tips:**
@@ -222,6 +227,7 @@ Each entry sheet contains:
 - Choose events from validated dropdowns
 - Enter times in the correct format
 - Leave time cells blank if no entry time available
+- 33m conversion uses simple distance truncation. Provides approximate conversion for schools qualifying for 25m pool competitions, when coming from 33m pool.
 
 ## Exporting to CSV
 
@@ -261,15 +267,16 @@ Once entries are complete, export sheets to CSV format for import into meet mana
 The exported CSV includes:
 
 ```csv
-#,First Name,Last Name,Date of Birth,Gender,School Year,School,Event 1,Time 1,Event 2,Time 2,...
-1,Sarah,Johnson,01/15/2012,Female,Y8,Hamilton East,50m Freestyle,35.2,100m Backstroke,75.8,...
+code,First Name,Last Name,Date of Birth,Gender,Events,Times,School Year
+HAMES,Sarah,Johnson,01/15/2012,Female,"50m Freestyle, 100m Backstroke","35.2, 1:12.8",Y8
 ```
 
 **Features:**
 - Auto-detects event/time column pairs
-- Times are converted to decimal seconds
 - Handles missing times gracefully
 - Compatible with most meet management software
+- Provides approximate conversion for schools qualifying for 25m pool competitions, when coming from 33m pool.
+- Codes are 4-5 letters
 
 ## Advanced Configuration
 
@@ -452,7 +459,7 @@ Need help? Here are your options:
 - **Documentation**: You're reading it! Check other sections for specific topics
 - **GitHub Issues**: [Report bugs or request features](https://github.com/yourusername/swim-entries-manager/issues)
 - **GitHub Discussions**: [Ask questions or discuss usage](https://github.com/yourusername/swim-entries-manager/discussions)
-- **Email Support**: support@example.com
+- **Email Support**: recorder@lvwasc.co.nz
 
 ## Tips for Success
 
@@ -460,9 +467,7 @@ Need help? Here are your options:
 2. **Populate Data First**: Fill in your schools and events before creating entry sheets
 3. **Use Consistent Naming**: Keep school names and event names consistent
 4. **Test Export Early**: Export a test sheet early to verify format compatibility
-5. **Regular Backups**: Make copies of your spreadsheet at key milestones
-6. **Train Your Team**: Share this guide with others who will use the system
-7. **Leverage Named Ranges**: Understanding how named ranges work helps troubleshoot issues
+5. **Train Your Team**: Share this guide with others who will use the system
 
 ## Next Steps
 

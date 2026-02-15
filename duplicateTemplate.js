@@ -79,10 +79,16 @@ function showCreateSheetsDialog() {
     <style>
       body {font-family: Arial; padding: 15px;}
       label {display: block; margin: 10px 0 5px;}
-      input, select {width: 100%; padding: 6px; margin: 10px 0;}
-      button { padding: 8px; margin: 10px 0; width: 100%; font-size: 16px; }
-      button { background: #4285f4; color: white; border: none; cursor: pointer; }
-      button:hover { background: #3267d6; }
+      input, select {width: 100%; padding: 8px; margin: 10px 0;}
+      button { padding: 8px; margin: 10px 0; font-size: 16px; }
+      button {  background: #0397B3; color: white; border: none; cursor: pointer; border-end-end-radius: 14px;
+              border-start-end-radius: 14px;
+              border-start-start-radius: 14px;
+              border-end-start-radius: 14px;
+              padding-inline-start: 24px;
+              padding-inline-end: 24px;
+              min-inline-size: 200px;}
+      button:hover { box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.4);}
     </style>
     
     <label>Template Sheet Name:</label>
@@ -162,7 +168,7 @@ function showCreateSheetsDialog() {
     </script>
   `)
   .setWidth(380)
-  .setHeight(280);
+  .setHeight(380);
 
   ui.showModalDialog(html, 'Create Sheets from List');
 }

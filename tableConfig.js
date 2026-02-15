@@ -43,7 +43,7 @@ function getTableConfig(overrides) {
 
   const config = {
     TeamOfficials: {
-      title: 'Team Officials',
+      title: 'Team Officials*',
       headers: [
         'Cluster or School','Sport Coordinator','Email','Contact Phone','School/Organisation',
         'Team Manager Name','Team Manager Contact','Team Manager Email',
@@ -99,7 +99,7 @@ function getTableConfig(overrides) {
     },
 
     EventsForTemplate: {
-      title: 'Events for Individual Entries Template',
+      title: 'Events for Individual Entries Template*',
       headers: ['Distance','Discipline','Events'],
       columns: toCols({
         'Distance': { type: 'text',validation: { type: 'list', args: { values: ['25m','50m','100m','200m','400m'] } } },
@@ -132,7 +132,7 @@ function getTableConfig(overrides) {
     },
 
     IndividualEventsTemplate: {
-      title: 'Individual Events Template',
+      title: 'Individual Events Template*',
       headers: ['#','First Name','Last Name','Date of Birth','Gender','School Year','School',
         'Event 1','Time 1 (m:s.S)','Event 2','Time 2 (m:s.S)','Event 3','Time 3 (m:s.S)','Event 4','Time 4 (m:s.S)','Event 5','Time 5 (m:s.S)','Event 6','Time 6 (m:s.S)','Event 7','Time 7 (m:s.S)','Event 8','Time 8 (m:s.S)','Event 9','Time 9 (m:s.S)','Convert times from 33m pool'
       ],
@@ -156,7 +156,7 @@ function getTableConfig(overrides) {
         'Convert times from 33m pool': { type: 'text', validation: { type: 'list', args: { values: ['Yes', ''] } }, default: '' }
       }),
       options: {
-        freezeHeader: 1, headerBg: '#356853', title: "Individual Entries Template", rows:30,required, true,
+        freezeHeader: 1, headerBg: '#356853', title: "Individual Entries Template", rows:30,required: true,
         placement: { targetSheet: 'INDIVIDUAL_EVENTS_TEMPLATE', startCell: 'A1' }, clearMode: 'rebuild'
       },
       notes: 'Template for duplication into per-cluster sheets.'
