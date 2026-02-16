@@ -214,7 +214,7 @@ Each entry sheet contains:
 
 | # | First Name | Last Name | Date of Birth | Gender | School Year | School | Event 1 | Time 1 | Event 2 | Time 2 | ... |
 |---|------------|-----------|---------------|--------|-------------|--------|---------|--------|---------|--------|-----|
-| 1 | Sarah | Johnson | 01/15/2012 | Female | Y8 | Hamilton East | 50m Freestyle | 0:35.2 | 100m Backstroke | 1:15.8 | ... |
+| 1 | Sarah | Johnson | 15/01/2012    | Female | Y8 | Hamilton East | 50m Freestyle | 0:35.2 | 100m Backstroke | 1:15.8 | ... |
 
 **Features:**
 - **Dropdowns**: School, School Year, Gender, and all Event columns have dropdown validation
