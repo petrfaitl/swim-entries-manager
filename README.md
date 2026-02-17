@@ -208,6 +208,11 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for det
 - **Discussions**: [GitHub Discussions](https://github.com/petrfaitl/swim-entries-manager/discussions)
 - **Email**: recorder@lvwasc.co.nz
 
+## Legal
+
+- **Privacy Policy**: [docs/PRIVACY_POLICY.md](docs/PRIVACY_POLICY.md)
+- **Terms of Service**: [docs/TERMS_OF_SERVICE.md](docs/TERMS_OF_SERVICE.md)
+
 ## Acknowledgments
 
 - Built with [Google Apps Script](https://developers.google.com/apps-script)
