@@ -164,7 +164,7 @@ function configureTableColumns_(table, tableCfg) {
 function createConfiguredTable(tableName, options) {
   options = options || {};
   const cfg = getTableConfig({ schoolYears: options.schoolYears, genders: options.genders });
-  const tableCfg = cfg[tableName];
+  const tableCfg = cfg.tables[tableName];
   if (!tableCfg) {
     throw new Error('Unknown table name: ' + tableName);
   }
@@ -290,4 +290,291 @@ function getTableNamesForDialog() {
 function createTablesFromDialog(tableNames, options) {
   Logger.log('[createTablesFromDialog] Requested tables: %s, options: %s', JSON.stringify(tableNames), JSON.stringify(options || {}));
   return createConfiguredTables(tableNames, options || {});
+}
+
+/**
+ * Reads team names from a specified range in a given sheet.
+ * @param {string} sheetName - Name of the sheet to read from
+ * @param {string} rangeA1 - A1 notation range (e.g. "A2:A8")
+ * @return {string[]} Array of team names (filters blanks)
+ */
+function getTeamNamesFromSheet(sheetName, rangeA1) {
+  Logger.log('[getTeamNamesFromSheet] Reading from sheet "%s", range %s', sheetName, rangeA1);
+
+  const ss = SpreadsheetApp.getActive();
+  const sheet = ss.getSheetByName(sheetName);
+
+  if (!sheet) {
+    throw new Error('Sheet "' + sheetName + '" does not exist');
+  }
+
+  // Get values from the specified range
+  const values = sheet.getRange(rangeA1).getValues();
+  const teamNames = values
+    .flat()
+    .map(function(name) { return String(name).trim(); })
+    .filter(function(name) { return name !== ''; });
+
+  Logger.log('[getTeamNamesFromSheet] Found %s team names: %s', teamNames.length, JSON.stringify(teamNames));
+  return teamNames;
+}
+
+/**
+ * Sanitizes a string for use as a structured table name.
+ * Strips characters not allowed: keeps only A-Z a-z 0-9 _ -
+ * Replaces spaces with underscores, truncates to 50 chars.
+ * @param {string} label - Raw event label
+ * @return {string} Sanitized table name
+ */
+function sanitizeTableName_(label) {
+  let sanitized = String(label)
+    .replace(/[^A-Za-z0-9_ -]/g, '')  // Remove invalid chars
+    .replace(/\s+/g, '_')              // Replace spaces with underscores
+    .substring(0, 50);                 // Truncate to 50 chars
+
+  // Table names cannot start with a number - prefix with letter if needed
+  if (sanitized && /^\d/.test(sanitized)) {
+    sanitized = 'R_' + sanitized;
+  }
+
+  return sanitized;
+}
+
+/**
+ * Creates a single relay table with label row, header, and data rows.
+ * @param {Object} eventConfig - { label: string }
+ * @param {Sheet} sheetTarget - Target sheet object
+ * @param {number} startRow - Row to start the label (1-based)
+ * @param {number} startCol - Column to start (1-based)
+ * @param {string[]} teamNames - Array of team names to use as columns
+ * @param {Object} relayTableCfg - The relay table config from getTableConfig
+ * @param {Object} relayDefaults - The relayDefaults config
+ * @return {Object} { labelRow, headerRow, dataEndRow, cols, structuredTable }
+ */
+function createRelayTable_(eventConfig, sheetTarget, startRow, startCol, teamNames, relayTableCfg, relayDefaults) {
+  Logger.log('[createRelayTable_] Creating relay table "%s" at row %s, col %s', eventConfig.label, startRow, startCol);
+
+  const labelRow = startRow;
+  const headerRow = startRow + 1;
+  const dataStartRow = headerRow + 1;
+  const rowsPerTable = relayDefaults.defaultRowsPerTable;
+  const dataEndRow = dataStartRow + rowsPerTable - 1;
+
+  // Build full header: fixed columns + team names
+  const fullHeaders = relayTableCfg.headers.slice().concat(teamNames);
+  const totalCols = fullHeaders.length;
+
+  // 1. Write label row (merged cell with event name)
+  const labelRange = sheetTarget.getRange(labelRow, startCol, 1, totalCols);
+  labelRange.merge();
+  labelRange.setValue(eventConfig.label);
+  labelRange.setBackground('#1c4587');
+  labelRange.setFontColor('#ffffff');
+  labelRange.setFontWeight('bold');
+  labelRange.setHorizontalAlignment('center');
+
+  // 2. Write header row
+  const headerRange = sheetTarget.getRange(headerRow, startCol, 1, totalCols);
+  headerRange.setValues([fullHeaders]);
+  if (relayTableCfg.options && relayTableCfg.options.headerBg) {
+    headerRange.setBackground(relayTableCfg.options.headerBg);
+  }
+  headerRange.setFontWeight('bold');
+  headerRange.setFontColor('#ffffff');
+
+  // 3. Write data rows for fixed columns only (Order, School Year, Gender)
+  const dataRange = sheetTarget.getRange(dataStartRow, startCol, rowsPerTable, totalCols);
+
+  // Pre-fill fixed column data with validation (Order, School Year, Gender)
+  for (let c = 0; c < relayTableCfg.headers.length; c++) {
+    const header = relayTableCfg.headers[c];
+    const meta = relayTableCfg.columns[header];
+
+    if (meta && meta.default != null) {
+      // Set default value in first row if defined
+      sheetTarget.getRange(dataStartRow, startCol + c).setValue(meta.default);
+    }
+  }
+
+  // 4. Create structured table
+  const sanitizedName = sanitizeTableName_(eventConfig.label);
+  const structuredTable = ensureStructuredTable_(sheetTarget, sanitizedName, relayTableCfg, headerRange, dataRange);
+
+  Logger.log('[createRelayTable_] Created relay table "%s" (structured name: "%s")', eventConfig.label, sanitizedName);
+
+  return {
+    labelRow: labelRow,
+    headerRow: headerRow,
+    dataEndRow: dataEndRow,
+    cols: totalCols,
+    structuredTable: structuredTable
+  };
+}
+
+/**
+ * Creates multiple relay tables based on configuration.
+ * @param {Object} config - {
+ *   sourceSheet: string,
+ *   sourceRange: string (A1 notation, e.g. "A2:A8"),
+ *   events: [{ label: string }],
+ *   years: [string] (optional, e.g. ['Y5', 'Y6', ...]),
+ *   placement: {
+ *     sameSheet: boolean,
+ *     sheetName: string,
+ *     startCell: string (A1 notation)
+ *   }
+ * }
+ * @return {Array} Results for each relay table created
+ */
+function createRelayTables(config) {
+  Logger.log('[createRelayTables] Starting relay table creation with config: %s', JSON.stringify(config));
+
+  try {
+    // 1. Get team names from source sheet
+    const teamNames = getTeamNamesFromSheet(config.sourceSheet, config.sourceRange);
+
+    if (teamNames.length === 0) {
+      // Fallback to DEFAULT_CLUSTERS
+      const cfg = getTableConfig();
+      Logger.log('[createRelayTables] No team names found, using default clusters');
+      teamNames.push.apply(teamNames, cfg.defaultClusters);
+    }
+
+    // 2. Get relay table config with custom years if provided
+    const overrides = {};
+    if (config.years && config.years.length > 0) {
+      overrides.schoolYears = config.years;
+    }
+    const cfg = getTableConfig(overrides);
+    let relayTableCfg = null;
+
+    // Find the table with tableType === 'relay'
+    for (let tableName in cfg.tables) {
+      if (cfg.tables[tableName].tableType === 'relay') {
+        relayTableCfg = cfg.tables[tableName];
+        break;
+      }
+    }
+
+    if (!relayTableCfg) {
+      throw new Error('No relay table configuration found (tableType: relay)');
+    }
+
+    const relayDefaults = cfg.relayDefaults;
+    const ss = SpreadsheetApp.getActive();
+    const results = [];
+
+    // 3. Process each event
+    if (config.placement.sameSheet) {
+      // All tables on one sheet
+      const sheetName = config.placement.sheetName || 'Relays';
+      let sheet = ss.getSheetByName(sheetName);
+
+      if (!sheet) {
+        sheet = ss.insertSheet(sheetName);
+        Logger.log('[createRelayTables] Created new sheet "%s"', sheetName);
+      }
+
+      // Parse start cell
+      const startRange = sheet.getRange(config.placement.startCell || 'A1');
+      let currentRow = startRange.getRow();
+      const startCol = startRange.getColumn();
+
+      for (let i = 0; i < config.events.length; i++) {
+        const event = config.events[i];
+
+        try {
+          const tableResult = createRelayTable_(
+            event,
+            sheet,
+            currentRow,
+            startCol,
+            teamNames,
+            relayTableCfg,
+            relayDefaults
+          );
+
+          results.push({
+            eventLabel: event.label,
+            sanitisedTableName: sanitizeTableName_(event.label),
+            sheetName: sheetName,
+            labelRow: tableResult.labelRow,
+            headerRow: tableResult.headerRow,
+            dataRange: sheet.getRange(tableResult.headerRow + 1, startCol, relayDefaults.defaultRowsPerTable, tableResult.cols).getA1Notation(),
+            structuredTable: tableResult.structuredTable
+          });
+
+          // Advance currentRow: label + header + data rows + gap
+          currentRow = tableResult.dataEndRow + 1 + relayDefaults.gapBetweenTables;
+
+        } catch (err) {
+          Logger.log('[createRelayTables] Failed to create table for event "%s": %s', event.label, err.message);
+          results.push({
+            eventLabel: event.label,
+            error: err.message
+          });
+        }
+      }
+
+    } else {
+      // Separate sheet per event
+      for (let i = 0; i < config.events.length; i++) {
+        const event = config.events[i];
+        const sheetName = sanitizeTableName_(event.label);
+
+        try {
+          let sheet = ss.getSheetByName(sheetName);
+
+          if (!sheet) {
+            sheet = ss.insertSheet(sheetName);
+            Logger.log('[createRelayTables] Created new sheet "%s"', sheetName);
+          }
+
+          const tableResult = createRelayTable_(
+            event,
+            sheet,
+            1,  // Start at A1
+            1,
+            teamNames,
+            relayTableCfg,
+            relayDefaults
+          );
+
+          results.push({
+            eventLabel: event.label,
+            sanitisedTableName: sanitizeTableName_(event.label),
+            sheetName: sheetName,
+            labelRow: tableResult.labelRow,
+            headerRow: tableResult.headerRow,
+            dataRange: sheet.getRange(tableResult.headerRow + 1, 1, relayDefaults.defaultRowsPerTable, tableResult.cols).getA1Notation(),
+            structuredTable: tableResult.structuredTable
+          });
+
+        } catch (err) {
+          Logger.log('[createRelayTables] Failed to create table for event "%s": %s', event.label, err.message);
+          results.push({
+            eventLabel: event.label,
+            error: err.message
+          });
+        }
+      }
+    }
+
+    Logger.log('[createRelayTables] Completed: %s tables created', results.length);
+    return results;
+
+  } catch (err) {
+    Logger.log('[createRelayTables] Fatal error: %s', err.message);
+    throw err;
+  }
+}
+
+/**
+ * Wrapper function called from the dialog.
+ * @param {Object} config - Same as createRelayTables
+ * @return {Array} Results
+ */
+function createRelayTablesFromDialog(config) {
+  Logger.log('[createRelayTablesFromDialog] Called with config: %s', JSON.stringify(config));
+  return createRelayTables(config);
 }

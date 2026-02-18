@@ -25,15 +25,21 @@
 
 function getTableConfig(overrides) {
   const DEFAULT_CLUSTERS = [
-    'Cluster One',
-    'Cluster Two',
-    'Cluster Three',
-    'Cluster Four',
-    'Cluster Five',
-    'Cluster Six',
-    'Cluster Seven'
+    'Team One',
+    'Team Two',
+    'Team Three',
+    'Team Four',
+    'Team Five',
+    'Team Six',
+    'Team Seven'
   ];
 
+
+  const relayDefaults = {
+    suggestedEventNames: ['4x25m Girls Freestyle Relay', '4x25m Boys Freestyle Relay', '4x25m Freestyle Grand Relay'],
+    defaultRowsPerTable: 4,   // fixed swimmer rows per relay table
+    gapBetweenTables: 3       // blank rows between tables when on same sheet
+  };
 
   const YEARS = (overrides && overrides.schoolYears) || ['Y5','Y6','Y7','Y8','Y9','Y10','Y11','Y12','Y13'];
   const GENDERS = (overrides && overrides.genders) || ['Female','Male'];
@@ -43,6 +49,7 @@ function getTableConfig(overrides) {
 
   const config = {
     TeamOfficials: {
+      tableType: 'core',
       title: 'Team Officials*',
       headers: [
         'Cluster or School','Sport Coordinator','Email','Contact Phone','School/Organisation',
@@ -79,6 +86,7 @@ function getTableConfig(overrides) {
     },
 
     DetailedEvents: {
+      tableType: 'core',
       title: 'Detailed Events',
       headers: ['Events','Gender','Min Age','Max Age','Discipline','Distance','Event Type','Event No.'],
       columns: toCols({
@@ -99,6 +107,7 @@ function getTableConfig(overrides) {
     },
 
     EventsForTemplate: {
+      tableType: 'core',
       title: 'Events for Individual Entries Template*',
       headers: ['Distance','Discipline','Events'],
       columns: toCols({
@@ -116,6 +125,7 @@ function getTableConfig(overrides) {
     },
 
     Schools: {
+      tableType: 'core',
       title: 'Schools for Individual Entries Template',
       headers: ['Team Name','School','Cluster','Code'],
       columns: toCols({
@@ -132,6 +142,7 @@ function getTableConfig(overrides) {
     },
 
     IndividualEventsTemplate: {
+      tableType: 'core',
       title: 'Individual Events Template*',
       headers: ['#','First Name','Last Name','Date of Birth','Gender','School Year','School',
         'Event 1','Time 1 (m:s.S)','Event 2','Time 2 (m:s.S)','Event 3','Time 3 (m:s.S)','Event 4','Time 4 (m:s.S)','Event 5','Time 5 (m:s.S)','Event 6','Time 6 (m:s.S)','Event 7','Time 7 (m:s.S)','Event 8','Time 8 (m:s.S)','Event 9','Time 9 (m:s.S)','Convert times from 33m pool'
@@ -164,24 +175,31 @@ function getTableConfig(overrides) {
 
     // Relay sheet consists of multiple small tables on one sheet.
     // The builder can place individual sections; here we define a single 4x swimmers block header set.
+    // NOTE: Team name columns are NOT included in headers — they are dynamically appended at runtime
+    // from actual team names provided via the relay table creation dialog.
     RelayEntry: {
+      tableType: 'relay',
       title: 'Relays',
-      headers: ['Order','School Year','Gender'].concat(DEFAULT_CLUSTERS),
+      headers: ['Order','School Year','Gender'],  // Team columns appended dynamically at build time
       columns: toCols({
         'Order': { type: 'text',  validation: { type: 'list', args: { values: ['1st Swimmer','2nd Swimmer','3rd Swimmer','4th Swimmer'] } } },
         'School Year': { type: 'text', validation: { type: 'list', args: { values: YEARS } } },
         'Gender': { type: 'text', validation: { type: 'list', args: { values: GENDERS } } }
-        // Cluster columns are free-text to type swimmer names or can later be validated to Schools list
+        // Team name columns are free-text for swimmer names, added dynamically
       }),
       options: {
-        freezeHeader: 1, headerBg: '#356853',rows:4, required: false,
+        freezeHeader: 0, headerBg: '#356853',rows:4, required: false,
         placement: { targetSheet: 'Relays', startCell: 'A1' },
         clearMode: 'rebuild'
       }
     }
   };
 
-  return config;
+  return {
+    tables: config,
+    relayDefaults: relayDefaults,
+    defaultClusters: DEFAULT_CLUSTERS  // Fallback if no team names available
+  };
 }
 
 /**
@@ -189,10 +207,10 @@ function getTableConfig(overrides) {
  */
 function listAvailableTables(overrides) {
   const cfg = getTableConfig(overrides);
-  const tables = Object.keys(cfg).map(function(name) {
+  const tables = Object.keys(cfg.tables).map(function(name) {
     return {
       name: name,
-      title: cfg[name].title || name
+      title: cfg.tables[name].title || name
     };
   });
   Logger.log('[listAvailableTables] Found %s tables: %s', tables.length, JSON.stringify(tables));
