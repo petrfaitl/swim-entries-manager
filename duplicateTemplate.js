@@ -82,9 +82,10 @@ function showCreateSheetsDialog() {
 
   const html = HtmlService.createHtmlOutput(`
     <style>
-      body {font-family: Arial; padding: 15px;}
-      label {display: block; margin: 10px 0 5px;}
-      input, select {width: 100%; padding: 8px; margin: 10px 0;}
+      body {font-family: Arial; padding: 14px;}
+      label {display: block; margin: 10px 0 5px;font-size:smaller;}
+      input {padding: 8px; margin: 10px 0;width: calc(100% - 20px);}
+      select {width: 100%; padding: 8px; margin: 10px 0;}
       button { padding: 8px; margin: 10px 0; font-size: 16px; }
       button {  background: #0397B3; color: white; border: none; cursor: pointer; border-end-end-radius: 14px;
               border-start-end-radius: 14px;
