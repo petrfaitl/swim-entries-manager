@@ -190,12 +190,15 @@ function showCreateRelayTablesDialog() {
       label {display:block; margin: 4px 0; font-size:smaller;}
       .row {display:flex; gap:8px;}
       .row > div {flex:1;}
-      select, button, input { padding: 8px; margin: 10px 0; font-size: 16px; }
+      select {padding: 8px; margin: 10px 0; width:100%;}
+      input {padding: 8px; margin: 10px 0;width: calc(100% - 20px);}
+      input[type="radio"] {margin:10px; width: auto;}
       button { background: #0397B3; color: white; border: none; cursor: pointer;
                border-radius: 14px;
                padding-inline-start: 24px;
                padding-inline-end: 24px;
                min-inline-size: 250px;
+               padding: 8px; margin: 10px 0; font-size: 16px;
              }
       button:hover { box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.4); }
       .small {font-size: 12px; color: #666}
@@ -210,7 +213,7 @@ function showCreateRelayTablesDialog() {
     <div class="small subtitle">Tables can be placed on one sheet or separate sheets.</div>
 
     <fieldset>
-      <legend>Source Data</legend>
+      <legend>Team Data</legend>
       <div>
         <label>Sheet with team names</label>
         <select id="sourceSheet"></select>
@@ -225,7 +228,7 @@ function showCreateRelayTablesDialog() {
       <legend>Relay Events</legend>
       <div>
         <label>Number of relay events</label>
-        <input type="number" id="eventCount" value="4" min="1" />
+        <input type="number" id="eventCount" value="3" min="1" />
       </div>
       <div id="eventNamesList"></div>
       <div>
