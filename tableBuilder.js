@@ -327,10 +327,17 @@ function getTeamNamesFromSheet(sheetName, rangeA1) {
  * @return {string} Sanitized table name
  */
 function sanitizeTableName_(label) {
-  return String(label)
+  let sanitized = String(label)
     .replace(/[^A-Za-z0-9_ -]/g, '')  // Remove invalid chars
     .replace(/\s+/g, '_')              // Replace spaces with underscores
     .substring(0, 50);                 // Truncate to 50 chars
+
+  // Table names cannot start with a number - prefix with letter if needed
+  if (sanitized && /^\d/.test(sanitized)) {
+    sanitized = 'R_' + sanitized;
+  }
+
+  return sanitized;
 }
 
 /**

@@ -253,7 +253,7 @@ function showCreateRelayTablesDialog() {
           <input type="text" id="targetSheetName" value="Relays" />
         </div>
         <div>
-          <label>Start cell (A1 notation)</label>
+          <label>Start cell <span class="small">(e.g A1)</span></label>
           <input type="text" id="startCell" value="A1" />
         </div>
       </div>
