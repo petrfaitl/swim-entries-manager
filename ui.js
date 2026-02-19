@@ -46,8 +46,7 @@ function showCreateTablesDialog() {
       label {display:block; margin: 4px 0; font-size:smaller;}
       .row {display:flex; gap:8px;}
       .row > div {flex:1;}
-      select{padding: 8px; margin: 10px 0; }
-      button { padding: 8px; margin: 10px 0; font-size: 16px; }
+      select, button { padding: 8px; margin: 10px 0; font-size: 16px; }
       input { padding: 8px; margin: 10px 0; }
       button { background: #0397B3; color: white; border: none; cursor: pointer; border-end-end-radius: 14px;
               border-start-end-radius: 14px;
@@ -69,33 +68,33 @@ function showCreateTablesDialog() {
 
     <fieldset>
       <legend>Tables</legend>
-      <div id="tableList">${tableListHtml}</div>
-      <div id="tableListDebug" class="small">Rendered server-side: ${tables.length} table option(s).</div>
+      <div id="tableList">` + tableListHtml + `</div>
+      <div id="tableListDebug" class="small">Rendered server-side: ` + tables.length + ` table option(s).</div>
     </fieldset>
 
     <fieldset>
-      <legend>Dropdown values <span class="small">(optional)</span></legend>
+      <legend>Dropdown values (optional)</legend>
       <div class="row">
         <div>
-          <label>School Years <span class="small">(comma-separated)</span></label>
+          <label>School Years (comma-separated)</label>
           <input type="text" id="years" value="Y5,Y6,Y7,Y8,Y9,Y10,Y11,Y12,Y13" />
         </div>
         <div>
-          <label>Genders <span class="small">(comma-separated)</span</label>
+          <label>Genders (comma-separated)</label>
           <input type="text" id="genders" value="Female,Male" />
         </div>
       </div>
     </fieldset>
 
     <fieldset>
-      <legend>Placement <span class="small">(e.g. A1)</span></legend>
+      <legend>Placement (optional overrides for all selected)</legend>
       <div class="row">
         <div>
           <label>Override Sheet Name</label>
           <input type="text" id="sheetName" placeholder="Leave blank to use default" />
         </div>
         <div>
-          <label>Start Cell <span class="small">(e.g. A1)</span></label>
+          <label>Start Cell (A1)</label>
           <input type="text" id="startCell" placeholder="A1" />
         </div>
       </div>
@@ -191,11 +190,7 @@ function showCreateRelayTablesDialog() {
       label {display:block; margin: 4px 0; font-size:smaller;}
       .row {display:flex; gap:8px;}
       .row > div {flex:1;}
-      select{width: 100%; padding: 8px;}
-      input{width: calc(100% - 20px); padding: 8px;}
-      input[type="radio"]{width: auto; padding: 8px; margin: 10px;}
-      input.event-name-input {margin-bottom: 10px;}
-      button{ padding: 8px; margin: 10px 0; font-size: 16px; }
+      select, button, input { padding: 8px; margin: 10px 0; font-size: 16px; }
       button { background: #0397B3; color: white; border: none; cursor: pointer;
                border-radius: 14px;
                padding-inline-start: 24px;
@@ -207,6 +202,7 @@ function showCreateRelayTablesDialog() {
       .subtitle {margin-bottom: 14px;}
       #status {margin-top:8px; white-space: pre-wrap; font-size: smaller;}
       #eventNamesList {margin-top: 10px;}
+      .event-name-input {margin: 5px 0;}
       .hidden {display: none;}
     </style>
 
@@ -214,14 +210,25 @@ function showCreateRelayTablesDialog() {
     <div class="small subtitle">Tables can be placed on one sheet or separate sheets.</div>
 
     <fieldset>
-      <legend>Team Names</legend>
+      <legend>Source Data</legend>
       <div>
         <label>Sheet with team names</label>
         <select id="sourceSheet"></select>
       </div>
       <div>
-        <label>Range with team names <span class="small">(e.g. A2:A8)</span></label>
-        <input type="text" id="sourceRange" value="A2:A8" placeholder="A2:A8" />
+        <label>Column with team names</label>
+        <select id="sourceColumn">
+          <option value="1">A (Col 1)</option>
+          <option value="2">B (Col 2)</option>
+          <option value="3">C (Col 3)</option>
+          <option value="4">D (Col 4)</option>
+          <option value="5">E (Col 5)</option>
+          <option value="6">F (Col 6)</option>
+          <option value="7">G (Col 7)</option>
+          <option value="8">H (Col 8)</option>
+          <option value="9">I (Col 9)</option>
+          <option value="10">J (Col 10)</option>
+        </select>
       </div>
     </fieldset>
 
@@ -232,10 +239,6 @@ function showCreateRelayTablesDialog() {
         <input type="number" id="eventCount" value="4" min="1" />
       </div>
       <div id="eventNamesList"></div>
-      <div>
-        <label>School Years <span class="small">(comma-separated)</span></label>
-        <input type="text" id="years" value="Y5,Y6,Y7,Y8,Y9,Y10,Y11,Y12,Y13" />
-      </div>
     </fieldset>
 
     <fieldset>
@@ -250,11 +253,11 @@ function showCreateRelayTablesDialog() {
       </div>
       <div id="sameSheetOptions" style="margin-top: 10px;">
         <div>
-          <label>Placement sheet name</label>
+          <label>Target sheet name</label>
           <input type="text" id="targetSheetName" value="Relays" />
         </div>
         <div>
-          <label for="startCel">Start cell <span class="small">(e.g. A1)</span></label>
+          <label>Start cell (A1 notation)</label>
           <input type="text" id="startCell" value="A1" />
         </div>
       </div>
@@ -322,16 +325,11 @@ function showCreateRelayTablesDialog() {
 
       function createRelayTables() {
         const sourceSheet = document.getElementById('sourceSheet').value.trim();
-        const sourceRange = document.getElementById('sourceRange').value.trim();
+        const sourceColumn = parseInt(document.getElementById('sourceColumn').value);
         const eventCount = parseInt(document.getElementById('eventCount').value);
 
         if (!sourceSheet) {
           alert('Please select a source sheet.');
-          return;
-        }
-
-        if (!sourceRange) {
-          alert('Please enter a range with team names.');
           return;
         }
 
@@ -350,16 +348,11 @@ function showCreateRelayTablesDialog() {
           return;
         }
 
-        // Get school years
-        const yearsStr = document.getElementById('years').value.trim();
-        const years = yearsStr ? yearsStr.split(',').map(function(y) { return y.trim(); }).filter(function(y) { return y !== ''; }) : [];
-
         const sameSheet = document.querySelector('input[name="placement"]:checked').value === 'sameSheet';
         const config = {
           sourceSheet: sourceSheet,
-          sourceRange: sourceRange,
+          sourceColumn: sourceColumn,
           events: events,
-          years: years,
           placement: {
             sameSheet: sameSheet,
             sheetName: sameSheet ? document.getElementById('targetSheetName').value.trim() : '',
