@@ -68,6 +68,11 @@ function getNonTemplateSheetNames() {
     .filter(name => !name.toUpperCase().includes("TEMPLATE"));
 }
 
+function getRelayDefaults() {
+  const cfg = getTableConfig();
+  return cfg.relayDefaults;
+}
+
 
 /**
  * Shows a dialog to let user select template name and range

@@ -216,19 +216,8 @@ function showCreateRelayTablesDialog() {
         <select id="sourceSheet"></select>
       </div>
       <div>
-        <label>Column with team names</label>
-        <select id="sourceColumn">
-          <option value="1">A (Col 1)</option>
-          <option value="2">B (Col 2)</option>
-          <option value="3">C (Col 3)</option>
-          <option value="4">D (Col 4)</option>
-          <option value="5">E (Col 5)</option>
-          <option value="6">F (Col 6)</option>
-          <option value="7">G (Col 7)</option>
-          <option value="8">H (Col 8)</option>
-          <option value="9">I (Col 9)</option>
-          <option value="10">J (Col 10)</option>
-        </select>
+        <label>Range with team names <span class="small">(e.g. A2:A8)</span></label>
+        <input type="text" id="sourceRange" value="A2:A8" placeholder="A2:A8" />
       </div>
     </fieldset>
 
@@ -239,6 +228,10 @@ function showCreateRelayTablesDialog() {
         <input type="number" id="eventCount" value="4" min="1" />
       </div>
       <div id="eventNamesList"></div>
+      <div>
+        <label>School Years <span class="small">(comma-separated)</span></label>
+        <input type="text" id="years" value="Y5,Y6,Y7,Y8,Y9,Y10,Y11,Y12,Y13" />
+      </div>
     </fieldset>
 
     <fieldset>
@@ -268,6 +261,7 @@ function showCreateRelayTablesDialog() {
 
     <script>
       let eventNames = [];
+      let relayDefaults = null;
 
       function loadSourceSheets() {
         google.script.run
@@ -291,9 +285,18 @@ function showCreateRelayTablesDialog() {
           .getNonTemplateSheetNames();
       }
 
-      function getRelayDefaults() {
-        // This will be populated via google.script.run
-        return ['4x25m Girls Freestyle Relay', '4x25m Boys Freestyle Relay', '4x25m Freestyle Grand Relay', '4x50m Medley Relay'];
+      function loadRelayDefaults() {
+        google.script.run
+          .withSuccessHandler(function(defaults) {
+            relayDefaults = defaults;
+            renderEventNameInputs();
+          })
+          .withFailureHandler(function(err) {
+            console.error('Error loading relay defaults:', err.message);
+            relayDefaults = { suggestedEventNames: [] };
+            renderEventNameInputs();
+          })
+          .getRelayDefaults();
       }
 
       function renderEventNameInputs() {
@@ -301,7 +304,7 @@ function showCreateRelayTablesDialog() {
         const container = document.getElementById('eventNamesList');
         container.innerHTML = '';
 
-        const defaults = getRelayDefaults();
+        const defaults = (relayDefaults && relayDefaults.suggestedEventNames) || [];
 
         for (let i = 0; i < count; i++) {
           const input = document.createElement('input');
@@ -325,11 +328,16 @@ function showCreateRelayTablesDialog() {
 
       function createRelayTables() {
         const sourceSheet = document.getElementById('sourceSheet').value.trim();
-        const sourceColumn = parseInt(document.getElementById('sourceColumn').value);
+        const sourceRange = document.getElementById('sourceRange').value.trim();
         const eventCount = parseInt(document.getElementById('eventCount').value);
 
         if (!sourceSheet) {
           alert('Please select a source sheet.');
+          return;
+        }
+
+        if (!sourceRange) {
+          alert('Please enter a range with team names.');
           return;
         }
 
@@ -348,11 +356,16 @@ function showCreateRelayTablesDialog() {
           return;
         }
 
+        // Get school years
+        const yearsStr = document.getElementById('years').value.trim();
+        const years = yearsStr ? yearsStr.split(',').map(function(y) { return y.trim(); }).filter(function(y) { return y !== ''; }) : [];
+
         const sameSheet = document.querySelector('input[name="placement"]:checked').value === 'sameSheet';
         const config = {
           sourceSheet: sourceSheet,
-          sourceColumn: sourceColumn,
+          sourceRange: sourceRange,
           events: events,
+          years: years,
           placement: {
             sameSheet: sameSheet,
             sheetName: sameSheet ? document.getElementById('targetSheetName').value.trim() : '',
@@ -399,7 +412,7 @@ function showCreateRelayTablesDialog() {
 
         // Initialize
         loadSourceSheets();
-        renderEventNameInputs();
+        loadRelayDefaults();
         updatePlacementOptions();
         document.getElementById('status').textContent = 'Ready.';
       }

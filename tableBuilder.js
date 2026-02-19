@@ -293,13 +293,13 @@ function createTablesFromDialog(tableNames, options) {
 }
 
 /**
- * Reads team names from a specific column in a given sheet.
+ * Reads team names from a specified range in a given sheet.
  * @param {string} sheetName - Name of the sheet to read from
- * @param {number} columnIndex - 1-based column index
- * @return {string[]} Array of team names (skips header and blanks)
+ * @param {string} rangeA1 - A1 notation range (e.g. "A2:A8")
+ * @return {string[]} Array of team names (filters blanks)
  */
-function getTeamNamesFromSheet(sheetName, columnIndex) {
-  Logger.log('[getTeamNamesFromSheet] Reading from sheet "%s", column %s', sheetName, columnIndex);
+function getTeamNamesFromSheet(sheetName, rangeA1) {
+  Logger.log('[getTeamNamesFromSheet] Reading from sheet "%s", range %s', sheetName, rangeA1);
 
   const ss = SpreadsheetApp.getActive();
   const sheet = ss.getSheetByName(sheetName);
@@ -308,16 +308,11 @@ function getTeamNamesFromSheet(sheetName, columnIndex) {
     throw new Error('Sheet "' + sheetName + '" does not exist');
   }
 
-  const lastRow = sheet.getLastRow();
-  if (lastRow < 2) {
-    Logger.log('[getTeamNamesFromSheet] No data rows found (only header or empty sheet)');
-    return [];
-  }
-
-  // Read from row 2 (skip header) to lastRow
-  const values = sheet.getRange(2, columnIndex, lastRow - 1, 1).getValues();
+  // Get values from the specified range
+  const values = sheet.getRange(rangeA1).getValues();
   const teamNames = values
-    .map(function(row) { return String(row[0]).trim(); })
+    .flat()
+    .map(function(name) { return String(name).trim(); })
     .filter(function(name) { return name !== ''; });
 
   Logger.log('[getTeamNamesFromSheet] Found %s team names: %s', teamNames.length, JSON.stringify(teamNames));
@@ -413,8 +408,9 @@ function createRelayTable_(eventConfig, sheetTarget, startRow, startCol, teamNam
  * Creates multiple relay tables based on configuration.
  * @param {Object} config - {
  *   sourceSheet: string,
- *   sourceColumn: number (1-based),
+ *   sourceRange: string (A1 notation, e.g. "A2:A8"),
  *   events: [{ label: string }],
+ *   years: [string] (optional, e.g. ['Y5', 'Y6', ...]),
  *   placement: {
  *     sameSheet: boolean,
  *     sheetName: string,
@@ -428,7 +424,7 @@ function createRelayTables(config) {
 
   try {
     // 1. Get team names from source sheet
-    const teamNames = getTeamNamesFromSheet(config.sourceSheet, config.sourceColumn);
+    const teamNames = getTeamNamesFromSheet(config.sourceSheet, config.sourceRange);
 
     if (teamNames.length === 0) {
       // Fallback to DEFAULT_CLUSTERS
@@ -437,8 +433,12 @@ function createRelayTables(config) {
       teamNames.push.apply(teamNames, cfg.defaultClusters);
     }
 
-    // 2. Get relay table config
-    const cfg = getTableConfig();
+    // 2. Get relay table config with custom years if provided
+    const overrides = {};
+    if (config.years && config.years.length > 0) {
+      overrides.schoolYears = config.years;
+    }
+    const cfg = getTableConfig(overrides);
     let relayTableCfg = null;
 
     // Find the table with tableType === 'relay'
