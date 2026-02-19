@@ -207,12 +207,17 @@ function getTableConfig(overrides) {
  */
 function listAvailableTables(overrides) {
   const cfg = getTableConfig(overrides);
-  const tables = Object.keys(cfg.tables).map(function(name) {
-    return {
-      name: name,
-      title: cfg.tables[name].title || name
-    };
-  });
+  const tables = Object.keys(cfg.tables)
+    .filter(function(name) {
+      // Only include core tables, exclude relay tables
+      return cfg.tables[name].tableType === 'core';
+    })
+    .map(function(name) {
+      return {
+        name: name,
+        title: cfg.tables[name].title || name
+      };
+    });
   Logger.log('[listAvailableTables] Found %s tables: %s', tables.length, JSON.stringify(tables));
   return tables;
 }
