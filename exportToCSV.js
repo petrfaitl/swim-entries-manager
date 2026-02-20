@@ -1,4 +1,81 @@
 /**
+ * Capitalizes names properly, handling all-caps and all-lowercase cases.
+ * Preserves existing mixed-case names (like McDonald, MacLeod, O'Brien, etc.)
+ * Only "fixes" names that are entirely uppercase or entirely lowercase.
+ *
+ * @param {string} name - The name to format
+ * @return {string} Properly capitalized name
+ */
+function capitalizeNameSafely(name) {
+  if (!name || typeof name !== 'string') return name;
+
+  const trimmed = name.trim();
+  if (!trimmed) return trimmed;
+
+  // Check if name is all uppercase or all lowercase
+  const isAllUpper = trimmed === trimmed.toUpperCase() && trimmed !== trimmed.toLowerCase();
+  const isAllLower = trimmed === trimmed.toLowerCase() && trimmed !== trimmed.toUpperCase();
+
+  // Only fix if entirely one case - preserve mixed case names
+  if (!isAllUpper && !isAllLower) {
+    return name; // Already has mixed case, preserve it (handles Mac/Mc, O', etc.)
+  }
+
+  // Convert to title case: capitalize first letter of each word
+  return trimmed.split(/(\s|-|')/).map(function(part) {
+    if (!part || part === ' ' || part === '-' || part === "'") {
+      return part; // Preserve separators
+    }
+    return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+  }).join('');
+}
+
+/**
+ * Normalizes school year to SDIF-compatible 2-character format.
+ * SDIF school year field is only 2 characters long.
+ *
+ * Rules:
+ * - Years 1-9: "Y1" to "Y9" (or "1" to "9")
+ * - Years 10-13: "10" to "13"
+ * - Junior/Jn: "Jn"
+ * - Intermediate/In: "In"
+ * - Senior/Sr: "Sr"
+ *
+ * @param {string|number} year - School year value (e.g., "Year 5", "Y5", "5", "Junior", "Jn", "Senior")
+ * @return {string} Normalized 2-character school year
+ */
+function normalizeSchoolYear(year) {
+  if (!year) return '';
+
+  const yearStr = String(year).trim().toUpperCase();
+  if (!yearStr) return '';
+
+  // Check for Junior/Intermediate/Senior
+  if (yearStr.includes('JUNIOR') || yearStr === 'JN') return 'Jn';
+  if (yearStr.includes('INTERMEDIATE') || yearStr === 'IN') return 'In';
+  if (yearStr.includes('SENIOR') || yearStr === 'SR') return 'Sr';
+
+  // Extract numeric part (handles "Year 5", "Y5", "5", etc.)
+  const numMatch = yearStr.match(/(\d+)/);
+  if (numMatch) {
+    const num = parseInt(numMatch[1], 10);
+    if (num >= 1 && num <= 9) {
+      return 'Y' + num;
+    } else if (num >= 10 && num <= 13) {
+      if (num === 10){
+        return 'Jn';
+      }else if (num === 11){
+        return 'In';
+      }
+      return 'Sr';
+    }
+  }
+
+  // If we can't parse it, return first 2 characters (fallback)
+  return yearStr.substring(0, 2);
+}
+
+/**
  * Shows a dialog to select a visible sheet and exports its data to CSV
  * Integrates with Custom Tools menu (only for owner)
  */
@@ -19,8 +96,27 @@ function exportEntriesToCSV() {
   let hasSchoolsTable = false;
   try {
     const tableApp = TableApp.openById(ss.getId());
-    const tables = tableApp.getAllTables();
-    tableNames = tables.map(t => t.getName());
+    const tablesObj = tableApp.getTables();
+    Logger.log('[exportEntriesToCSV] getTables() returned: %s', JSON.stringify(tablesObj));
+
+    // getTables() returns an object keyed by sheet name, each containing a tables array
+    // Structure: { sheetName: { tables: [{ table: { name: "TableName" } }] } }
+    if (tablesObj && typeof tablesObj === 'object') {
+      Object.keys(tablesObj).forEach(function(sheetName) {
+        const sheetData = tablesObj[sheetName];
+        if (sheetData && sheetData.tables && Array.isArray(sheetData.tables)) {
+          sheetData.tables.forEach(function(tableWrapper) {
+            if (tableWrapper && tableWrapper.table && tableWrapper.table.name) {
+              tableNames.push(tableWrapper.table.name);
+            }
+          });
+        }
+      });
+      Logger.log('[exportEntriesToCSV] Extracted table names: %s', tableNames.join(', '));
+    } else {
+      Logger.log('[exportEntriesToCSV] Unexpected tables structure');
+      tableNames = [];
+    }
     hasSchoolsTable = tableNames.includes('Schools');
   } catch (err) {
     Logger.log('[exportEntriesToCSV] Could not load tables: %s', err.message);
@@ -170,19 +266,25 @@ function processSheetToCSV(sheetId, teamCodeTableName) {
     const row = data[i];
 
     // Skip empty rows (no first name)
-    const firstName = getSafeValue(row, 1);  // Zero indexed
-    if (firstName === "" || firstName == null) {
+    const firstNameRaw = getSafeValue(row, 1);  // Zero indexed
+    if (firstNameRaw === "" || firstNameRaw == null) {
       continue;
     }
 
     // Fixed columns (updated to match your indices)
-     let teamCode = "UNS";
-    const lastName   = getSafeValue(row, 2);
+    let teamCode = "UNS";
+    const lastNameRaw = getSafeValue(row, 2);
+
+    // Apply safe capitalization to names (only fixes all-caps or all-lowercase)
+    const firstName = capitalizeNameSafely(firstNameRaw);
+    const lastName = capitalizeNameSafely(lastNameRaw);
     const dobRaw     = getSafeValue(row, 3);
     const gender     = getSafeValue(row, 4);
-    const schoolYear = getSafeValue(row, 5);
+    const schoolYearRaw = getSafeValue(row, 5);
     const schoolName = getSafeValue(row, 6);
 
+    // Normalize school year to SDIF 2-character format
+    const schoolYear = normalizeSchoolYear(schoolYearRaw);
     const dobFormatted = formatDob(dobRaw);
     let convertTimes = false;
 
