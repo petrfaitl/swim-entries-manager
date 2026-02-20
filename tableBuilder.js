@@ -368,7 +368,7 @@ function createRelayTable_(eventConfig, sheetTarget, startRow, startCol, teamNam
   const labelRange = sheetTarget.getRange(labelRow, startCol, 1, totalCols);
   labelRange.merge();
   labelRange.setValue(eventConfig.label);
-  labelRange.setBackground('#1c4587');
+  labelRange.setBackground('#356853');
   labelRange.setFontColor('#ffffff');
   labelRange.setFontWeight('bold');
   labelRange.setHorizontalAlignment('center');

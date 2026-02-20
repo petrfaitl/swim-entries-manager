@@ -14,14 +14,40 @@ function exportEntriesToCSV() {
     return;
   }
 
-  // Build HTML for dropdown
-  let optionsHtml = visibleSheets.map(sheet =>
+  // Get available tables for team code lookup
+  let tableNames = [];
+  let hasSchoolsTable = false;
+  try {
+    const tableApp = TableApp.openById(ss.getId());
+    const tables = tableApp.getAllTables();
+    tableNames = tables.map(t => t.getName());
+    hasSchoolsTable = tableNames.includes('Schools');
+  } catch (err) {
+    Logger.log('[exportEntriesToCSV] Could not load tables: %s', err.message);
+    tableNames = [];
+  }
+
+  // Build HTML for sheet dropdown
+  let sheetOptionsHtml = visibleSheets.map(sheet =>
     `<option value="${sheet.getSheetId()}">${sheet.getName()}</option>`
   ).join('');
+
+  // Build HTML for table dropdown
+  let tableOptionsHtml = '';
+  if (tableNames.length === 0) {
+    tableOptionsHtml = '<option value="">No tables found</option>';
+  } else {
+    tableOptionsHtml = tableNames.map(name => {
+      const selected = (name === 'Schools' && hasSchoolsTable) ? ' selected' : '';
+      return `<option value="${name}"${selected}>${name}</option>`;
+    }).join('');
+  }
 
   const html = HtmlService.createHtmlOutput(`
     <style>
       body { font-family: Arial, sans-serif; padding: 20px; }
+      label { display: block; margin-top: 15px; font-weight: bold; }
+      .small { font-size: 12px; color: #666; font-weight: normal; }
       select, button { padding: 8px; margin: 10px 0; width: 100%; font-size: 16px; }
       button { background: #4285f4; color: white; border: none; cursor: pointer; }
       button:hover { background: #3267d6; }
@@ -29,31 +55,43 @@ function exportEntriesToCSV() {
     </style>
 
     <p><strong>Auto-detects Event/Time columns</strong> (handles sheets with/without times)</p>
-    <p>Select the sheet to export:</p>
-    
+
+    <label>Select the sheet to export:</label>
     <select id="sheetId">
       <option value="">-- Select a sheet --</option>
-      ${optionsHtml}
+      ${sheetOptionsHtml}
     </select>
-    
+
+    <label>Team Code Table <span class="small">(Team code is required for export)</span></label>
+    <select id="teamCodeTable">
+      ${tableOptionsHtml}
+    </select>
+
     <button onclick="exportSheet()">Export to CSV</button>
-    
+
     <div id="status"></div>
 
     <script>
       function exportSheet() {
         const sheetId = document.getElementById('sheetId').value;
+        const teamCodeTable = document.getElementById('teamCodeTable').value;
+
         if (!sheetId) {
           alert('Please select a sheet.');
           return;
         }
-        
+
+        if (!teamCodeTable) {
+          alert('No Team Code table available. Please create a table with team codes (e.g., "Schools") before exporting.');
+          return;
+        }
+
         document.getElementById('status').innerText = 'Processing...';
         document.querySelector('button').disabled = true;
 
         google.script.run
           .withSuccessHandler(function(fileUrl) {
-            document.getElementById('status').innerHTML = 
+            document.getElementById('status').innerHTML =
               'Success! <a href="' + fileUrl + '" target="_blank">Download CSV</a>';
             document.querySelector('button').disabled = false;
           })
@@ -61,7 +99,7 @@ function exportEntriesToCSV() {
             document.getElementById('status').innerText = 'Error: ' + err.message;
             document.querySelector('button').disabled = false;
           })
-          .processSheetToCSV(sheetId);
+          .processSheetToCSV(sheetId, teamCodeTable);
       }
     </script>
   `)
@@ -75,9 +113,11 @@ function exportEntriesToCSV() {
  * Main processing function: reads the selected sheet and creates CSV
  * AUTO-DETECTS Event/Time columns from header row (J:AA or wherever they are)
  * @param {string} sheetId - ID of the sheet to process
+ * @param {string} teamCodeTableName - Name of the table to use for team code lookup (default: "Schools")
  * @return {string} URL to the created CSV file
  */
-function processSheetToCSV(sheetId) {
+function processSheetToCSV(sheetId, teamCodeTableName) {
+  teamCodeTableName = teamCodeTableName || "Schools"; // Default if not provided
   const ss = SpreadsheetApp.getActive(); //SpreadsheetApp.getActiveSpreadsheet()
   const sheet = ss.getSheetById(sheetId);
   const spreadsheetId = ss.getId();
@@ -110,6 +150,21 @@ function processSheetToCSV(sheetId) {
 
   const outputRows = [headers];
 
+  // --- FETCH TEAM CODE TABLE DATA ONCE (outside the loop to avoid rate limiting)
+  let teamCodeData = null;
+  try {
+    const tableApp = TableApp.openById(spreadsheetId);
+    const table = tableApp.getTableByName(teamCodeTableName);
+    if (table) {
+      teamCodeData = table.getValues();
+      Logger.log('[exportToCSV] Successfully loaded team code data from table "%s" (%s rows)', teamCodeTableName, teamCodeData.length);
+    } else {
+      Logger.log('[exportToCSV] Warning: Table "%s" not found. All team codes will default to "UNS"', teamCodeTableName);
+    }
+  } catch (err) {
+    Logger.log('[exportToCSV] Error loading team code table: %s. All team codes will default to "UNS"', err.message);
+  }
+
   // Process each data row (skip header)
   for (let i = 1; i < data.length; i++) {
     const row = data[i];
@@ -136,12 +191,12 @@ function processSheetToCSV(sheetId) {
     }
 
 
-    // --- FIND TEAM CODE from TEAMS table
-    const teamsTableName = "Teams";
-    const tableApp = TableApp.openById(spreadsheetId);
-    const table = tableApp.getTableByName(teamsTableName);
-    const teamData = table.getValues();
-    teamCode = getSchoolCode(teamData,schoolName);
+    // --- LOOKUP TEAM CODE from cached team data
+    if (teamCodeData) {
+      teamCode = getSchoolCode(teamCodeData, schoolName);
+    } else {
+      teamCode = 'UNS'; // Default to UNS if no team data available
+    }
 
 
     // ── EXTRACT EVENTS & TIMES using detected columns ───────────────────
