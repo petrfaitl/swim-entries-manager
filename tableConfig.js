@@ -43,6 +43,7 @@ function getTableConfig(overrides) {
 
   const YEARS = (overrides && overrides.schoolYears) || ['Y5','Y6','Y7','Y8','Y9','Y10','Y11','Y12','Y13'];
   const GENDERS = (overrides && overrides.genders) || ['Female','Male'];
+  const COUNTRIES = (overrides && overrides.country) || ['NZL','AUS','CAN','GBR','USA'];
 
   /** Utility to build a map from headers for concise config */
   const toCols = (spec) => spec; // pass-through for readability
@@ -171,6 +172,29 @@ function getTableConfig(overrides) {
         placement: { targetSheet: 'INDIVIDUAL_EVENTS_TEMPLATE', startCell: 'A1' }, clearMode: 'rebuild'
       },
       notes: 'Template for duplication into per-cluster sheets.'
+    },
+    Meet:{
+      tableType: 'core',
+      title: 'Meet Details*',
+      headers: ['Meet Name','Start Date','End Date','Course','Contact Name','Contact Phone','Venue Address1','Venue Address2','City','Region','Postcode','Country'],
+      columns: toCols({
+        'Meet Name': { type: 'text' },
+        'Start Date': { type: 'date',validation: { type: 'date', args: { condition: 'DATE_IS_VALID' } }  },
+        'End Date': { type: 'date',validation: { type: 'date', args: { condition: 'DATE_IS_VALID' } }  },
+        'Course': { type: 'text',validation: { type: 'list', args: { values: ['S', 'L'] } }, default: 'S' },
+        'Contact Name': { type: 'text' },
+        'Contact Phone': { type: 'text' },
+        'Venue Address1': { type: 'text' },
+        'Venue Address2': { type: 'text' },
+        'City': { type: 'text' },
+        'Region': { type: 'text' },
+        'Postcode': { type: 'text' },
+        'Country': { type: 'text',validation: { type: 'list', args: { values: COUNTRIES } }, default:'NZL' },
+      }),
+      options:{
+        freezeHeader: 1, headerBg: '#356853', title: "Meet Details", rows:1,required: true,
+        placement: { targetSheet: 'Meet', startCell: 'A1' }, clearMode: 'rebuild'
+      }
     },
 
     // Relay sheet consists of multiple small tables on one sheet.
