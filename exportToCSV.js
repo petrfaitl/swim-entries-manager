@@ -1,79 +1,5 @@
-/**
- * Capitalizes names properly, handling all-caps and all-lowercase cases.
- * Preserves existing mixed-case names (like McDonald, MacLeod, O'Brien, etc.)
- * Only "fixes" names that are entirely uppercase or entirely lowercase.
- *
- * @param {string} name - The name to format
- * @return {string} Properly capitalized name
- */
-function capitalizeNameSafely(name) {
-  if (!name || typeof name !== 'string') return name;
-
-  const trimmed = name.trim();
-  if (!trimmed) return trimmed;
-
-  // Check if name is all uppercase or all lowercase
-  const isAllUpper = trimmed === trimmed.toUpperCase() && trimmed !== trimmed.toLowerCase();
-  const isAllLower = trimmed === trimmed.toLowerCase() && trimmed !== trimmed.toUpperCase();
-
-  // Only fix if entirely one case - preserve mixed case names
-  if (!isAllUpper && !isAllLower) {
-    return name; // Already has mixed case, preserve it (handles Mac/Mc, O', etc.)
-  }
-
-  // Convert to title case: capitalize first letter of each word
-  return trimmed.split(/(\s|-|')/).map(function(part) {
-    if (!part || part === ' ' || part === '-' || part === "'") {
-      return part; // Preserve separators
-    }
-    return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
-  }).join('');
-}
-
-/**
- * Normalizes school year to SDIF-compatible 2-character format.
- * SDIF school year field is only 2 characters long.
- *
- * Rules:
- * - Years 1-9: "Y1" to "Y9" (or "1" to "9")
- * - Years 10-13: "10" to "13"
- * - Junior/Jn: "Jn"
- * - Intermediate/In: "In"
- * - Senior/Sr: "Sr"
- *
- * @param {string|number} year - School year value (e.g., "Year 5", "Y5", "5", "Junior", "Jn", "Senior")
- * @return {string} Normalized 2-character school year
- */
-function normalizeSchoolYear(year) {
-  if (!year) return '';
-
-  const yearStr = String(year).trim().toUpperCase();
-  if (!yearStr) return '';
-
-  // Check for Junior/Intermediate/Senior
-  if (yearStr.includes('JUNIOR') || yearStr === 'JN') return 'Jn';
-  if (yearStr.includes('INTERMEDIATE') || yearStr === 'IN') return 'In';
-  if (yearStr.includes('SENIOR') || yearStr === 'SR') return 'Sr';
-
-  // Extract numeric part (handles "Year 5", "Y5", "5", etc.)
-  const numMatch = yearStr.match(/(\d+)/);
-  if (numMatch) {
-    const num = parseInt(numMatch[1], 10);
-    if (num >= 1 && num <= 9) {
-      return 'Y' + num;
-    } else if (num >= 10 && num <= 13) {
-      if (num === 10){
-        return 'Jn';
-      }else if (num === 11){
-        return 'In';
-      }
-      return 'Sr';
-    }
-  }
-
-  // If we can't parse it, return first 2 characters (fallback)
-  return yearStr.substring(0, 2);
-}
+// Note: Shared functions (capitalizeNameSafely, normalizeSchoolYear, etc.)
+// are now in EntryDataProcessor.js
 
 /**
  * Shows a dialog to select a visible sheet and exports its data to CSV
@@ -214,7 +140,7 @@ function exportEntriesToCSV() {
  */
 function processSheetToCSV(sheetId, teamCodeTableName) {
   teamCodeTableName = teamCodeTableName || "Schools"; // Default if not provided
-  const ss = SpreadsheetApp.getActive(); //SpreadsheetApp.getActiveSpreadsheet()
+  const ss = SpreadsheetApp.getActive();
   const sheet = ss.getSheetById(sheetId);
   const spreadsheetId = ss.getId();
 
@@ -223,21 +149,10 @@ function processSheetToCSV(sheetId, teamCodeTableName) {
   }
 
   const sheetName = sheet.getName();
-  const data = sheet.getDataRange().getValues();
+  Logger.log(`[exportToCSV] Processing sheet: ${sheetName}`);
 
-  Logger.log(`Processing sheet: ${sheetName} with ${data.length} rows`);
-
-  if (data.length <= 1) {
-    throw new Error("No data found in sheet");
-  }
-
-  // ── AUTO-DETECT Event/Time columns from HEADER ROW ───────────────────
-  const headerRow = data[0];
-  const eventTimePairs = detectEventTimeColumns(headerRow);
-
-  Logger.log(`Detected ${eventTimePairs.length} event/time pairs at columns: ${eventTimePairs.map(p => `(${p.eventCol}, ${p.timeCol || 'N/A'})`).join(', ')}`);
-
-  const convertColumnIndex = findConvertColumnIndex(headerRow);
+  // Use shared processing function
+  const processedRows = processEntriesSheet(sheet, teamCodeTableName, spreadsheetId);
 
   const headers = [
     "Team Code", "First Name", "Last Name", "Date of Birth", "Gender",
@@ -246,117 +161,18 @@ function processSheetToCSV(sheetId, teamCodeTableName) {
 
   const outputRows = [headers];
 
-  // --- FETCH TEAM CODE TABLE DATA ONCE (outside the loop to avoid rate limiting)
-  let teamCodeData = null;
-  try {
-    const tableApp = TableApp.openById(spreadsheetId);
-    const table = tableApp.getTableByName(teamCodeTableName);
-    if (table) {
-      teamCodeData = table.getValues();
-      Logger.log('[exportToCSV] Successfully loaded team code data from table "%s" (%s rows)', teamCodeTableName, teamCodeData.length);
-    } else {
-      Logger.log('[exportToCSV] Warning: Table "%s" not found. All team codes will default to "UNS"', teamCodeTableName);
-    }
-  } catch (err) {
-    Logger.log('[exportToCSV] Error loading team code table: %s. All team codes will default to "UNS"', err.message);
-  }
-
-  // Process each data row (skip header)
-  for (let i = 1; i < data.length; i++) {
-    const row = data[i];
-
-    // Skip empty rows (no first name)
-    const firstNameRaw = getSafeValue(row, 1);  // Zero indexed
-    if (firstNameRaw === "" || firstNameRaw == null) {
-      continue;
-    }
-
-    // Fixed columns (updated to match your indices)
-    let teamCode = "UNS";
-    const lastNameRaw = getSafeValue(row, 2);
-
-    // Apply safe capitalization to names (only fixes all-caps or all-lowercase)
-    const firstName = capitalizeNameSafely(firstNameRaw);
-    const lastName = capitalizeNameSafely(lastNameRaw);
-    const dobRaw     = getSafeValue(row, 3);
-    const gender     = getSafeValue(row, 4);
-    const schoolYearRaw = getSafeValue(row, 5);
-    const schoolName = getSafeValue(row, 6);
-
-    // Normalize school year to SDIF 2-character format
-    const schoolYear = normalizeSchoolYear(schoolYearRaw);
-    const dobFormatted = formatDob(dobRaw);
-    let convertTimes = false;
-
-    if (convertColumnIndex !== -1) {
-      convertTimes = getSafeValue(row, convertColumnIndex); // "Yes" or empty
-    }
-
-
-    // --- LOOKUP TEAM CODE from cached team data
-    if (teamCodeData) {
-      teamCode = getSchoolCode(teamCodeData, schoolName);
-    } else {
-      teamCode = 'UNS'; // Default to UNS if no team data available
-    }
-
-
-    // ── EXTRACT EVENTS & TIMES using detected columns ───────────────────
-    const eventEntries = [];
-    const entryTimes   = [];
-
-    eventTimePairs.forEach(pair => {
-      const event = getSafeValue(row, pair.eventCol);
-      const eventStr = String(event || "").trim();
-
-      if (eventStr !== "") {
-        eventEntries.push(eventStr);
-
-        // Time handling based on column format
-        if (pair.timeCol !== null) {
-          // Standard format: Event | Time pair
-          const timeRaw = getSafeValue(row, pair.timeCol);
-          let timeStr = (timeRaw === "" || timeRaw == null)
-            ? "NT"
-            : formatAsMmSsSs(timeRaw);
-
-          // Convert times from 33.3m pool to standard 25m pool timing when requested.
-          // Applies only to 25m and 50m events, assuming swims occurred in a 33.3m pool.
-          //  - For 25m events: treat recorded time as 33.3m → convert using RESIZESWIM(33.3, 25, time)
-          //  - For 50m events: treat recorded time as 66.6m → convert using RESIZESWIM(66.6, 50, time)
-          if (timeStr !== "NT") {
-            const convertFlag = String(convertTimes || "").trim().toLowerCase();
-            if (convertFlag === "yes") {
-              const dist = parseEventDistance(eventStr);
-              try {
-                if (dist === 25) {
-                  timeStr = RESIZESWIM(33.3, 25, timeStr);
-                } else if (dist === 50) {
-                  timeStr = RESIZESWIM(66.6, 50, timeStr);
-                }
-              } catch (e) {
-                // If anything goes wrong during conversion, keep original timeStr
-                Logger.log(`Conversion skipped due to error for event "${eventStr}": ${e && e.message ? e.message : e}`);
-              }
-            }
-          }
-
-          entryTimes.push(timeStr);
-        } else {
-          // Events-only format: default "NT"
-          entryTimes.push("NT");
-        }
-      }
-    });
-
-    const eventsStr = eventEntries.join(", ");
-    const timesStr  = entryTimes.join(", ");
-
+  processedRows.forEach(swimmer => {
     outputRows.push([
-      teamCode, firstName, lastName, dobFormatted, gender,
-      eventsStr, timesStr, schoolYear
+      swimmer.teamCode,
+      swimmer.firstName,
+      swimmer.lastName,
+      swimmer.dobFormatted,
+      swimmer.gender,
+      swimmer.eventsStr,
+      swimmer.timesStr,
+      swimmer.schoolYear
     ]);
-  }
+  });
 
   // ── CREATE & RETURN CSV ──────────────────────────────────────────────
   const csvContent = outputRows.map(row =>
@@ -369,139 +185,4 @@ function processSheetToCSV(sheetId, teamCodeTableName) {
 
   Logger.log(`CSV created: ${fileName} with ${outputRows.length - 1} data rows`);
   return file.getDownloadUrl();
-}
-
-/**
- * AUTO-DETECTS Event/Time column pairs from header row
- * Only matches clear "Event X" or real event names, then checks NEXT column for Time
- * @param {array} headerRow - Header row values (e.g. data[0])
- * @return {array} Array of {eventCol: number, timeCol: number|null} pairs
- */
-function detectEventTimeColumns(headerRow) {
-  const pairs = [];
-
-  // Scan from column I (index 8) onwards - earlier columns are unlikely to be events
-  for (let col = 5; col < headerRow.length; col++) {
-    const header = String(headerRow[col] || "").trim();
-
-    // Skip if header is empty or obviously not an event
-    if (!header) continue;
-
-    // Strict Event detection:
-    // 1. Contains "Event" (case-insensitive)
-    // 2. Or starts with number + "m" (e.g. "25m Butterfly", "100m IM")
-    // 3. Or matches known event patterns (very strict)
-    const isLikelyEvent =
-      /event/i.test(header) ||
-      /^\d+m/i.test(header) ||
-      /(backstroke|breaststroke|butterfly|freestyle|im|medley|relay|back|free|breast|fly)/i.test(header) &&
-      !/time|m:s|\(m:s\.s\)/i.test(header);  // explicitly exclude Time headers
-
-    if (!isLikelyEvent) continue;
-
-    // Found a probable Event column
-    const eventCol = col;
-    let timeCol = null;
-
-    // Check if NEXT column looks like a Time header
-    if (col + 1 < headerRow.length) {
-      const nextHeader = String(headerRow[col + 1] || "").trim().toLowerCase();
-      if (
-        nextHeader.includes('time') ||
-        nextHeader.includes('m:s') ||
-        nextHeader.includes('(m:s.s)') ||
-        nextHeader.includes('m:s.s') ||
-        /^\d{1,2}:\d{2}\.\d{2}$/.test(nextHeader)  // rare: time already in header
-      ) {
-        timeCol = col + 1;
-        // Skip the next column in the loop (we've consumed it as Time)
-        col++;
-      }
-    }
-
-    pairs.push({ eventCol, timeCol });
-  }
-
-  // Fallback: if nothing detected, assume standard J:AA (9 pairs)
-  if (pairs.length === 0) {
-    Logger.log("No Event columns detected → using fallback J:AA (indices 9-26)");
-    for (let col = 9; col <= 26; col += 2) {
-      pairs.push({ eventCol: col, timeCol: col + 1 });
-    }
-  }
-
-  return pairs;
-}
-
-/**
- * Helper: Detects if header looks like an actual event name
- * e.g. "25m Backstroke", "50m Free", "100 IM", etc.
- */
-function isEventName(header) {
-  const eventPatterns = [
-    /\d+m\s*(back|breast|free|fly|im|medley)/i,
-    /\d+m\s*(freestyle|backstroke|breaststroke|butterfly)/i,
-    /(freestyle|backstroke|breaststroke|butterfly|im|medley)/i,
-    /kick|pull|choice|relay/i
-  ];
-  return eventPatterns.some(pattern => pattern.test(header));
-}
-
-/**
- * Helper: Detects if header is a convert utility column
- * Matches labels like: "Convert times from 33m pool", "Convert 33m to 25m", etc.
- * Loosely requires the presence of words "convert" and "33m" (or variants) in any order.
- * @param {string} header
- * @return {boolean}
- */
-function isConvertColumn(header) {
-  const h = String(header || "").trim().toLowerCase();
-  if (!h) return false;
-
-  const hasConvertWord = /(convert|conversion|converted)/.test(h);
-  const has33mWord = /(\b33\s*m\b|\b33m\b|33\s*met(er|re)s?)/.test(h);
-
-  // Optional helpers
-  // const mentionsPool = /pool/.test(h);
-
-  return hasConvertWord && has33mWord;
-}
-
-/**
- * Finds the index (zero-based) of the column with a header like
- * "Convert times from 33m pool" or similar. Returns -1 if not found.
- * Relies on {@link isConvertColumn} for matching variations.
- * @param {Array<string>} headerRow
- * @return {number}
- */
-function findConvertColumnIndex(headerRow) {
-  if (!Array.isArray(headerRow)) return -1;
-  for (let i = 0; i < headerRow.length; i++) {
-    if (isConvertColumn(headerRow[i])) return i;
-  }
-  return -1;
-}
-
-/**
- * Safe way to get cell value (handles undefined/null)
- */
-function getSafeValue(row, index) {
-  return (index < row.length && row[index] != null) ? row[index] : "";
-}
-
-
-/**
- * Parses the event distance from an event string.
- * Supports formats like "25m Freestyle", "50 m Backstroke" (case-insensitive).
- * Only 25m and 50m are recognized for conversion; others return null.
- * @param {string} eventStr
- * @return {number|null} 25, 50, or null if not recognized
- */
-function parseEventDistance(eventStr) {
-  const s = String(eventStr || "").trim();
-  // Match distance at the start: 25m or 50m (allow space before 'm')
-  const m = /^\s*(25|50)\s*m\b/i.exec(s);
-  if (!m) return null;
-  const dist = parseInt(m[1], 10);
-  return (dist === 25 || dist === 50) ? dist : null;
 }

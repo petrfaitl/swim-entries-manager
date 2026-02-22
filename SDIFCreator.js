@@ -68,12 +68,15 @@ var SDIFCreator = (function() {
       throw new Error("SDIFCreator: Sheet '" + entriesSheetName + "' not found");
     }
 
-    var swimmerRowsRaw = entriesSheet.getDataRange().getValues();
-    if (swimmerRowsRaw.length < 2) {
-       throw new Error("SDIFCreator: No data found in entries sheet");
+    // Use shared processing logic from EntryDataProcessor.js
+    Logger.log('[SDIFCreator] Processing entries sheet using shared EntryDataProcessor');
+    var processedSwimmers = processEntriesSheet(entriesSheet, schoolsTableName, ss.getId());
+
+    if (!processedSwimmers || processedSwimmers.length === 0) {
+       throw new Error("SDIFCreator: No valid swimmer data found in entries sheet");
     }
-    // Remove header row
-    swimmerRowsRaw.shift();
+
+    Logger.log('[SDIFCreator] Processed %s swimmers', processedSwimmers.length);
 
     var meetInfo = getMeetInfo(meetTableName);
     var teamLookup = getTeamLookup(schoolsTableName);
@@ -85,7 +88,7 @@ var SDIFCreator = (function() {
       outputFileName = meetNameClean + "-" + dateStr + ".sd3";
     }
 
-    return generateFromData(swimmerRowsRaw, meetInfo, teamLookup, outputFileName, config.outputFolderId);
+    return generateFromData(processedSwimmers, meetInfo, teamLookup, outputFileName, config.outputFolderId);
   }
 
   /**
@@ -560,6 +563,8 @@ var SDIFCreator = (function() {
 
   function normaliseSwimmerRow_(row) {
     var s = {};
+
+    // Handle both old format (arrays) and new format (objects from EntryDataProcessor)
     if (Array.isArray(row)) {
       if (row.length < 8) return null;
       s.teamCode   = String(row[0]);
@@ -571,7 +576,15 @@ var SDIFCreator = (function() {
       s.times      = String(row[6]);
       s.schoolYear = String(row[7]);
     } else {
-      s = row;
+      // New format from EntryDataProcessor
+      s.teamCode   = row.teamCode;
+      s.firstName  = row.firstName;
+      s.lastName   = row.lastName;
+      s.dob        = row.dobFormatted;  // Already formatted as DD/MM/YYYY
+      s.gender     = row.gender;
+      s.events     = row.eventsStr;     // Already formatted as comma-separated string
+      s.times      = row.timesStr;      // Already formatted as comma-separated string
+      s.schoolYear = row.schoolYear;    // Already normalized
     }
 
     if (!s.firstName || !s.lastName) {
@@ -580,7 +593,9 @@ var SDIFCreator = (function() {
     }
 
     s.gender = normaliseGender_(s.gender);
-    // Ensure DOB is DD/MM/YYYY if it's a Date
+
+    // DOB formatting - only needed for old array format
+    // New format already has dobFormatted as DD/MM/YYYY
     if (s.dob instanceof Date) {
        s.dob = Utilities.formatDate(s.dob, Session.getScriptTimeZone(), "dd/MM/yyyy");
     } else if (typeof s.dob === 'number') {
