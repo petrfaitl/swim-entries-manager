@@ -101,7 +101,21 @@ const SDIFCreator = (function() {
    */
   function generateFromData(swimmerRows, meetInfo, teamLookup, outputFileName, folderId) {
     const sdifString = buildSdifString(swimmerRows, meetInfo, teamLookup);
-    return saveToFile_(sdifString, outputFileName, folderId);
+    const sdifFileUrl = saveToFile_(sdifString, outputFileName, folderId);
+
+    // Generate exception report if there are any exceptions
+    let reportUrl = null;
+    if (this.lastExceptions_ && this.lastExceptions_.length > 0) {
+      const reportFileName = outputFileName.replace(/\.sd3$/i, '_ExceptionReport.txt');
+      reportUrl = generateExceptionReport_(this.lastExceptions_, this.lastCounts_, meetInfo, reportFileName, folderId);
+    }
+
+    return {
+      sdifFileUrl: sdifFileUrl,
+      reportUrl: reportUrl,
+      exceptionCount: this.lastExceptions_ ? this.lastExceptions_.length : 0,
+      counts: this.lastCounts_
+    };
   }
 
   /**
@@ -150,6 +164,9 @@ const SDIFCreator = (function() {
       throw new Error("SDIFCreator: No valid swimmer records to process");
     }
 
+    // Exception tracking
+    const exceptions = [];
+
     // Group by team code
     const teamsMap = {};
     const teamOrder = [];
@@ -172,7 +189,8 @@ const SDIFCreator = (function() {
       cRecords: 0,
       d0Records: 0,
       d1Records: 0,
-      swimmers: 0
+      swimmers: 0,
+      skippedEvents: 0
     };
 
     const lines = [];
@@ -190,7 +208,14 @@ const SDIFCreator = (function() {
       const regionCode = teamInfo ? teamInfo.regionCode : "";
 
       if (!teamInfo) {
-        Logger.log('[SDIFCreator] WARNING: Team code %s not found in Schools table. Using defaults.', teamCode);
+        const warning = 'Team code "' + teamCode + '" not found in Schools table. Using defaults.';
+        Logger.log('[SDIFCreator] WARNING: ' + warning);
+        exceptions.push({
+          type: 'WARNING',
+          category: 'Missing Team',
+          teamCode: teamCode,
+          message: warning
+        });
       }
 
       // C1
@@ -208,8 +233,18 @@ const SDIFCreator = (function() {
             counts.d0Records++;
             validEventsCount++;
           } else {
-            Logger.log('[SDIFCreator] WARNING: Skipping invalid event for %s %s: %s (%s)',
-                       swimmer.firstName, swimmer.lastName, event.eventStr, event.errorMessage);
+            const errorMsg = 'Skipping invalid event for ' + swimmer.firstName + ' ' + swimmer.lastName +
+                           ': "' + event.eventStr + '" (' + event.errorMessage + ')';
+            Logger.log('[SDIFCreator] WARNING: ' + errorMsg);
+            exceptions.push({
+              type: 'ERROR',
+              category: 'Invalid Event',
+              swimmer: swimmer.firstName + ' ' + swimmer.lastName,
+              teamCode: swimmer.teamCode,
+              event: event.eventStr,
+              message: event.errorMessage
+            });
+            counts.skippedEvents++;
           }
         });
 
@@ -228,6 +263,10 @@ const SDIFCreator = (function() {
       dRecords: totalD,
       swimmers: counts.swimmers
     }));
+
+    // Store exceptions for later retrieval
+    this.lastExceptions_ = exceptions;
+    this.lastCounts_ = counts;
 
     return lines.join('');
   }
@@ -708,6 +747,112 @@ const SDIFCreator = (function() {
     const folder = folderId ? DriveApp.getFolderById(folderId) : DriveApp.getRootFolder();
     const file = folder.createFile(blob);
     return file.getDownloadUrl();
+  }
+
+  function generateExceptionReport_(exceptions, counts, meetInfo, fileName, folderId) {
+    const lines = [];
+    const timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
+
+    lines.push('═══════════════════════════════════════════════════════════════');
+    lines.push('         SDIF EXPORT EXCEPTION REPORT');
+    lines.push('═══════════════════════════════════════════════════════════════');
+    lines.push('');
+    lines.push('Generated: ' + timestamp);
+    lines.push('Meet: ' + (meetInfo.meetName || 'Unknown'));
+    lines.push('');
+    lines.push('───────────────────────────────────────────────────────────────');
+    lines.push('SUMMARY');
+    lines.push('───────────────────────────────────────────────────────────────');
+    lines.push('');
+    lines.push('Total swimmers processed: ' + counts.swimmers);
+    lines.push('Valid events exported: ' + counts.d0Records);
+    lines.push('Skipped events: ' + counts.skippedEvents);
+    lines.push('Total exceptions: ' + exceptions.length);
+    lines.push('');
+
+    // Group exceptions by type
+    const warnings = exceptions.filter(function(e) { return e.type === 'WARNING'; });
+    const errors = exceptions.filter(function(e) { return e.type === 'ERROR'; });
+
+    if (errors.length > 0) {
+      lines.push('───────────────────────────────────────────────────────────────');
+      lines.push('ERRORS (' + errors.length + ')');
+      lines.push('───────────────────────────────────────────────────────────────');
+      lines.push('');
+
+      // Group errors by category
+      const errorsByCategory = {};
+      errors.forEach(function(err) {
+        if (!errorsByCategory[err.category]) {
+          errorsByCategory[err.category] = [];
+        }
+        errorsByCategory[err.category].push(err);
+      });
+
+      Object.keys(errorsByCategory).forEach(function(category) {
+        lines.push('▸ ' + category + ' (' + errorsByCategory[category].length + ')');
+        lines.push('');
+
+        errorsByCategory[category].forEach(function(err) {
+          lines.push('  Swimmer: ' + err.swimmer);
+          lines.push('  Team: ' + err.teamCode);
+          lines.push('  Event: ' + err.event);
+          lines.push('  Reason: ' + err.message);
+          lines.push('');
+        });
+      });
+    }
+
+    if (warnings.length > 0) {
+      lines.push('───────────────────────────────────────────────────────────────');
+      lines.push('WARNINGS (' + warnings.length + ')');
+      lines.push('───────────────────────────────────────────────────────────────');
+      lines.push('');
+
+      // Group warnings by category
+      const warningsByCategory = {};
+      warnings.forEach(function(warn) {
+        if (!warningsByCategory[warn.category]) {
+          warningsByCategory[warn.category] = [];
+        }
+        warningsByCategory[warn.category].push(warn);
+      });
+
+      Object.keys(warningsByCategory).forEach(function(category) {
+        lines.push('▸ ' + category + ' (' + warningsByCategory[category].length + ')');
+        lines.push('');
+
+        warningsByCategory[category].forEach(function(warn) {
+          lines.push('  Team Code: ' + warn.teamCode);
+          lines.push('  Issue: ' + warn.message);
+          lines.push('');
+        });
+      });
+    }
+
+    lines.push('───────────────────────────────────────────────────────────────');
+    lines.push('ACTION REQUIRED');
+    lines.push('───────────────────────────────────────────────────────────────');
+    lines.push('');
+
+    if (errors.length > 0) {
+      lines.push('⚠ ERRORS: These events were NOT included in the export file.');
+      lines.push('  Please correct the event formats and re-export.');
+      lines.push('');
+    }
+
+    if (warnings.length > 0) {
+      lines.push('⚠ WARNINGS: These items may need attention.');
+      lines.push('  The export file was generated with default values where needed.');
+      lines.push('');
+    }
+
+    lines.push('═══════════════════════════════════════════════════════════════');
+    lines.push('         END OF REPORT');
+    lines.push('═══════════════════════════════════════════════════════════════');
+
+    const reportContent = lines.join('\n');
+    return saveToFile_(reportContent, fileName, folderId);
   }
 
   // --- Exposed Namespace ---

@@ -13,8 +13,11 @@
       .error { color: #d93025; font-size: 12px; margin-top: 5px; display: none; }
       #status { margin-top: 15px; font-size: 14px; text-align: center; }
       .success { color: #1e8e3e; font-weight: bold; }
+      .warning { color: #f9ab00; font-weight: bold; }
       #downloadLink { display: none; margin-top: 10px; text-align: center; }
       #downloadLink a { color: #4285f4; font-weight: bold; text-decoration: none; border-bottom: 1px solid #4285f4; }
+      #exceptionReport { display: none; margin-top: 10px; padding: 10px; background-color: #fff3cd; border: 1px solid #f9ab00; border-radius: 4px; }
+      #exceptionReport a { color: #d93025; font-weight: bold; }
     </style>
   </head>
   <body>
@@ -44,6 +47,10 @@
     <div id="downloadLink">
       <a href="#" id="fileUrl" target="_blank">Download .sd3 File</a>
     </div>
+    <div id="exceptionReport">
+      <strong>⚠️ Warning:</strong> <span id="exceptionCount"></span> issue(s) detected during export.<br>
+      <a href="#" id="reportUrl" target="_blank">View Exception Report</a>
+    </div>
 
     <script>
       const generateBtn = document.getElementById('generateBtn');
@@ -51,6 +58,9 @@
       const downloadLink = document.getElementById('downloadLink');
       const fileUrl = document.getElementById('fileUrl');
       const sheetSelect = document.getElementById('sheetSelect');
+      const exceptionReport = document.getElementById('exceptionReport');
+      const exceptionCount = document.getElementById('exceptionCount');
+      const reportUrl = document.getElementById('reportUrl');
 
       // Initialize sheet list
       google.script.run.withSuccessHandler(sheets => {
@@ -79,13 +89,32 @@
         status.textContent = "Generating SDIF file... please wait.";
         status.className = "";
         downloadLink.style.display = "none";
+        exceptionReport.style.display = "none";
 
         google.script.run
-          .withSuccessHandler(url => {
-            status.textContent = "Successfully generated!";
-            status.className = "success";
-            fileUrl.href = url;
-            downloadLink.style.display = "block";
+          .withSuccessHandler(result => {
+            // Handle both old format (string) and new format (object)
+            if (typeof result === 'string') {
+              // Old format - just the URL
+              status.textContent = "Successfully generated!";
+              status.className = "success";
+              fileUrl.href = result;
+              downloadLink.style.display = "block";
+            } else {
+              // New format - object with sdifFileUrl, reportUrl, exceptionCount
+              if (result.exceptionCount > 0) {
+                status.textContent = "Generated with warnings - please review exception report.";
+                status.className = "warning";
+                exceptionCount.textContent = result.exceptionCount;
+                reportUrl.href = result.reportUrl;
+                exceptionReport.style.display = "block";
+              } else {
+                status.textContent = "Successfully generated!";
+                status.className = "success";
+              }
+              fileUrl.href = result.sdifFileUrl;
+              downloadLink.style.display = "block";
+            }
             generateBtn.disabled = false;
           })
           .withFailureHandler(err => {
