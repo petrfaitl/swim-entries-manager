@@ -12,7 +12,8 @@ function onOpen(e) {
         .addItem('Create Sheets from Template', 'showCreateSheetsDialog')
         .addItem('Create Relay Tables', 'showCreateRelayTablesDialog')
         .addSeparator()
-        .addItem('Export to CSV', 'exportEntriesToCSV');
+        .addItem('Export to CSV', 'exportEntriesToCSV')
+        .addItem('Generate SD3 File', 'showSDIFCreatorDialog');
   }
   menu.addToUi();
 }
@@ -684,4 +685,18 @@ function buildExportCard() {
 
   return CardService.newNavigation()
                     .pushCard(exportCard.build());
+}
+
+function showSDIFCreatorDialog() {
+  SDIFCreator.showDialog();
+}
+
+/**
+ * Gets the names of all visible sheets in the active spreadsheet.
+ * @returns {string[]} Array of sheet names.
+ */
+function getVisibleSheetNames() {
+  return SpreadsheetApp.getActiveSpreadsheet().getSheets()
+    .filter(sheet => !sheet.isSheetHidden())
+    .map(sheet => sheet.getName());
 }

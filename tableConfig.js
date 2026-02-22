@@ -44,6 +44,7 @@ function getTableConfig(overrides) {
   const YEARS = (overrides && overrides.schoolYears) || ['Y5','Y6','Y7','Y8','Y9','Y10','Y11','Y12','Y13'];
   const GENDERS = (overrides && overrides.genders) || ['Female','Male'];
   const COUNTRIES = (overrides && overrides.country) || ['NZL','AUS','CAN','GBR','USA'];
+  const REGIONS = (overrides && overrides.region) || ['AK','BP','CB','CO','ED','HP','MW','NL','NM','OT','SL','TR','WG','WK','WN','WP'];
 
   /** Utility to build a map from headers for concise config */
   const toCols = (spec) => spec; // pass-through for readability
@@ -128,12 +129,13 @@ function getTableConfig(overrides) {
     Schools: {
       tableType: 'core',
       title: 'Schools for Individual Entries Template',
-      headers: ['Team Name','School','Cluster','Code'],
+      headers: ['Team Name','School','Cluster','Code', 'Region'],
       columns: toCols({
         'Team Name': { type: 'text' },
         'School': { type: 'text' },
         'Cluster': { type: 'text', validation: { type: 'list', args: { values: DEFAULT_CLUSTERS } } },
-        'Code': { type: 'text' }
+        'Code': { type: 'text' },
+        'Region': { type: 'text', validation: { type: 'list', args: { values: REGIONS } },default:'BP' },
       }),
       options: {
         freezeHeader: 1, headerBg: '#356853', rows:30, required:true,
@@ -176,7 +178,7 @@ function getTableConfig(overrides) {
     Meet:{
       tableType: 'core',
       title: 'Meet Details*',
-      headers: ['Meet Name','Start Date','End Date','Course','Contact Name','Contact Phone','Venue Address1','Venue Address2','City','Region','Postcode','Country'],
+      headers: ['Meet Name','Start Date','End Date','Course','Contact Name','Contact Phone','Venue','Venue Address1','City','Region','Postcode','Country'],
       columns: toCols({
         'Meet Name': { type: 'text' },
         'Start Date': { type: 'date',validation: { type: 'date', args: { condition: 'DATE_IS_VALID' } }  },
@@ -184,10 +186,10 @@ function getTableConfig(overrides) {
         'Course': { type: 'text',validation: { type: 'list', args: { values: ['S', 'L'] } }, default: 'S' },
         'Contact Name': { type: 'text' },
         'Contact Phone': { type: 'text' },
+        'Venue': { type: 'text' },
         'Venue Address1': { type: 'text' },
-        'Venue Address2': { type: 'text' },
         'City': { type: 'text' },
-        'Region': { type: 'text' },
+        'Region': { type: 'text',validation: { type: 'list', args: { values: REGIONS } }, default:'BP' },
         'Postcode': { type: 'text' },
         'Country': { type: 'text',validation: { type: 'list', args: { values: COUNTRIES } }, default:'NZL' },
       }),
