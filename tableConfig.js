@@ -140,10 +140,10 @@ function getTableConfig(overrides) {
       title: 'Schools for Individual Entries Template*',
       headers: ['Team Name', 'School', 'Cluster', 'Code', 'Region Code'],
       columns: toCols({
-        'Team Name': {type: 'text'},
-        'School': {type: 'text'},
+        'Team Name': {type: 'text', default: 'Team Name'},
+        'School': {type: 'text', default: 'School Name'},
         'Cluster': {type: 'text', validation: {type: 'list', args: {values: DEFAULT_CLUSTERS}}},
-        'Code': {type: 'text'},
+        'Code': {type: 'text', default: 'AAAA'},
         'Region Code': {type: 'text', validation: {type: 'list', args: {values: REGIONS}}, default: 'BP'},
       }),
       options: {

@@ -167,10 +167,37 @@ const SDIFCreator = (function() {
     // Exception tracking
     const exceptions = [];
 
-    // Group by team code
+    // Separate valid and invalid swimmers
+    const validSwimmers = [];
+    const invalidSwimmers = [];
+
+    normalisedSwimmers.forEach(function(swimmer) {
+      if (swimmer.isValid === false) {
+        invalidSwimmers.push(swimmer);
+        // Report critical validation errors
+        swimmer.validationErrors.forEach(function(error) {
+          exceptions.push({
+            type: 'ERROR',
+            category: 'Missing Critical Data',
+            swimmer: (swimmer.firstName || '[No First Name]') + ' ' + (swimmer.lastName || '[No Last Name]'),
+            teamCode: swimmer.teamCode || '[No Team Code]',
+            field: error,
+            message: error
+          });
+        });
+      } else {
+        validSwimmers.push(swimmer);
+      }
+    });
+
+    if (validSwimmers.length === 0) {
+      throw new Error("SDIFCreator: No valid swimmer records after validation. Check exception report for details.");
+    }
+
+    // Group valid swimmers by team code
     const teamsMap = {};
     const teamOrder = [];
-    normalisedSwimmers.forEach(function(swimmer) {
+    validSwimmers.forEach(function(swimmer) {
       if (!teamsMap[swimmer.teamCode]) {
         teamsMap[swimmer.teamCode] = [];
         teamOrder.push(swimmer.teamCode);
@@ -178,7 +205,7 @@ const SDIFCreator = (function() {
       teamsMap[swimmer.teamCode].push(swimmer);
     });
 
-    // Resolve team info
+    // Resolve team info and validate Schools table
     const teamLookupMap = {};
     teamLookup.forEach(function(t) {
       teamLookupMap[t.code] = t;
@@ -190,7 +217,8 @@ const SDIFCreator = (function() {
       d0Records: 0,
       d1Records: 0,
       swimmers: 0,
-      skippedEvents: 0
+      skippedEvents: 0,
+      skippedSwimmers: invalidSwimmers.length
     };
 
     const lines = [];
@@ -204,22 +232,22 @@ const SDIFCreator = (function() {
 
     teamOrder.forEach(function(teamCode) {
       const teamInfo = teamLookupMap[teamCode];
-      const teamName = teamInfo ? teamInfo.teamName : teamCode;
+      const teamName = teamInfo ? teamInfo.teamName : '';
       const regionCode = teamInfo ? teamInfo.regionCode : "";
 
-      if (!teamInfo) {
-        const warning = 'Team code "' + teamCode + '" not found in Schools table. Using defaults.';
-        Logger.log('[SDIFCreator] WARNING: ' + warning);
+      // Critical: Team must exist in Schools table with both code and name
+      if (!teamInfo || !teamInfo.code || !teamInfo.teamName) {
         exceptions.push({
-          type: 'WARNING',
-          category: 'Missing Team',
+          type: 'ERROR',
+          category: 'Missing Team in Schools Table',
           teamCode: teamCode,
-          message: warning
+          field: !teamInfo ? 'Team Code and Team Name' : (!teamInfo.code ? 'Team Code' : 'Team Name'),
+          message: 'Team "' + teamCode + '" not found in Schools table or missing required fields (Code, Team Name)'
         });
       }
 
       // C1
-      lines.push(emitC1_(teamCode, teamName, regionCode));
+      lines.push(emitC1_(teamCode, teamName || teamCode, regionCode));
       counts.cRecords++;
 
       const swimmersInTeam = teamsMap[teamCode];
@@ -233,12 +261,11 @@ const SDIFCreator = (function() {
             counts.d0Records++;
             validEventsCount++;
           } else {
-            const errorMsg = 'Skipping invalid event for ' + swimmer.firstName + ' ' + swimmer.lastName +
-                           ': "' + event.eventStr + '" (' + event.errorMessage + ')';
-            Logger.log('[SDIFCreator] WARNING: ' + errorMsg);
+            const errorMsg = 'Invalid event format: "' + event.eventStr + '" - ' + event.errorMessage;
+            Logger.log('[SDIFCreator] ERROR: ' + errorMsg + ' for ' + swimmer.firstName + ' ' + swimmer.lastName);
             exceptions.push({
               type: 'ERROR',
-              category: 'Invalid Event',
+              category: 'Invalid Event Format',
               swimmer: swimmer.firstName + ' ' + swimmer.lastName,
               teamCode: swimmer.teamCode,
               event: event.eventStr,
@@ -247,6 +274,17 @@ const SDIFCreator = (function() {
             counts.skippedEvents++;
           }
         });
+
+        // Warning: No events for swimmer
+        if (validEventsCount === 0 && events.length === 0) {
+          exceptions.push({
+            type: 'WARNING',
+            category: 'No Events',
+            swimmer: swimmer.firstName + ' ' + swimmer.lastName,
+            teamCode: swimmer.teamCode,
+            message: 'Swimmer has no events entered'
+          });
+        }
 
         // D1
         lines.push(emitD1_(swimmer, regionCode));
@@ -602,6 +640,7 @@ const SDIFCreator = (function() {
 
   function normaliseSwimmerRow_(row) {
     const s = {};
+    const validationErrors = [];
 
     // Handle both old format (arrays) and new format (objects from EntryDataProcessor)
     if (Array.isArray(row)) {
@@ -626,9 +665,29 @@ const SDIFCreator = (function() {
       s.schoolYear = row.schoolYear;    // Already normalized
     }
 
-    if (!s.firstName || !s.lastName) {
-      Logger.log('[SDIFCreator] ERROR: Missing swimmer name: %s', JSON.stringify(s));
-      return null;
+    // Critical validations
+    if (!s.firstName || !s.firstName.trim()) {
+      validationErrors.push('Missing First Name');
+    }
+    if (!s.lastName || !s.lastName.trim()) {
+      validationErrors.push('Missing Last Name');
+    }
+    if (!s.dob || !s.dob.trim()) {
+      validationErrors.push('Missing Date of Birth');
+    }
+    if (!s.gender || !s.gender.trim()) {
+      validationErrors.push('Missing Gender');
+    }
+    if (!s.teamCode || s.teamCode.trim() === '' || s.teamCode === 'UNS') {
+      validationErrors.push('Missing or Invalid Team Code');
+    }
+
+    // If critical data is missing, mark for exclusion
+    if (validationErrors.length > 0) {
+      s.validationErrors = validationErrors;
+      s.isValid = false;
+      Logger.log('[SDIFCreator] ERROR: Critical data missing for swimmer: %s', JSON.stringify(s));
+      return s;  // Return with errors for exception reporting
     }
 
     s.gender = normaliseGender_(s.gender);
@@ -642,6 +701,7 @@ const SDIFCreator = (function() {
        s.dob = Utilities.formatDate(d, Session.getScriptTimeZone(), "dd/MM/yyyy");
     }
 
+    s.isValid = true;
     return s;
   }
 
@@ -765,9 +825,12 @@ const SDIFCreator = (function() {
     lines.push('───────────────────────────────────────────────────────────────');
     lines.push('');
     lines.push('Total swimmers processed: ' + counts.swimmers);
+    if (counts.skippedSwimmers > 0) {
+      lines.push('Swimmers excluded (missing critical data): ' + counts.skippedSwimmers);
+    }
     lines.push('Valid events exported: ' + counts.d0Records);
     lines.push('Skipped events: ' + counts.skippedEvents);
-    lines.push('Total exceptions: ' + exceptions.length);
+    lines.push('Total issues found: ' + exceptions.length);
     lines.push('');
 
     // Group exceptions by type
@@ -794,10 +857,27 @@ const SDIFCreator = (function() {
         lines.push('');
 
         errorsByCategory[category].forEach(function(err) {
-          lines.push('  Swimmer: ' + err.swimmer);
-          lines.push('  Team: ' + err.teamCode);
-          lines.push('  Event: ' + err.event);
-          lines.push('  Reason: ' + err.message);
+          if (err.category === 'Missing Critical Data') {
+            lines.push('  Swimmer: ' + err.swimmer);
+            lines.push('  Team: ' + err.teamCode);
+            lines.push('  Missing Field: ' + err.field);
+            lines.push('  ⚠ This swimmer was EXCLUDED from the export');
+          } else if (err.category === 'Missing Team in Schools Table') {
+            lines.push('  Team Code: ' + err.teamCode);
+            lines.push('  Missing Field: ' + err.field);
+            lines.push('  Issue: ' + err.message);
+          } else if (err.category === 'Invalid Event Format') {
+            lines.push('  Swimmer: ' + err.swimmer);
+            lines.push('  Team: ' + err.teamCode);
+            lines.push('  Event: ' + err.event);
+            lines.push('  Reason: ' + err.message);
+          } else {
+            // Generic error format
+            lines.push('  Swimmer: ' + err.swimmer);
+            lines.push('  Team: ' + err.teamCode);
+            if (err.event) lines.push('  Event: ' + err.event);
+            lines.push('  Reason: ' + err.message);
+          }
           lines.push('');
         });
       });
@@ -823,8 +903,14 @@ const SDIFCreator = (function() {
         lines.push('');
 
         warningsByCategory[category].forEach(function(warn) {
-          lines.push('  Team Code: ' + warn.teamCode);
-          lines.push('  Issue: ' + warn.message);
+          if (warn.category === 'No Events') {
+            lines.push('  Swimmer: ' + warn.swimmer);
+            lines.push('  Team: ' + warn.teamCode);
+            lines.push('  Issue: ' + warn.message);
+          } else {
+            lines.push('  Team Code: ' + warn.teamCode);
+            lines.push('  Issue: ' + warn.message);
+          }
           lines.push('');
         });
       });
@@ -836,14 +922,48 @@ const SDIFCreator = (function() {
     lines.push('');
 
     if (errors.length > 0) {
-      lines.push('⚠ ERRORS: These events were NOT included in the export file.');
-      lines.push('  Please correct the event formats and re-export.');
+      lines.push('🚨 CRITICAL ERRORS FOUND:');
+      lines.push('');
+
+      const criticalDataErrors = errors.filter(function(e) {
+        return e.category === 'Missing Critical Data';
+      });
+      const teamErrors = errors.filter(function(e) {
+        return e.category === 'Missing Team in Schools Table';
+      });
+      const eventErrors = errors.filter(function(e) {
+        return e.category === 'Invalid Event Format';
+      });
+
+      if (criticalDataErrors.length > 0) {
+        lines.push('  • ' + criticalDataErrors.length + ' swimmer(s) EXCLUDED due to missing critical data');
+        lines.push('    (First Name, Last Name, Date of Birth, Gender, or Team Code)');
+        lines.push('    These swimmers will NOT appear in Meet Manager.');
+        lines.push('');
+      }
+
+      if (teamErrors.length > 0) {
+        lines.push('  • ' + teamErrors.length + ' team(s) missing from Schools table');
+        lines.push('    Team information may be incomplete in Meet Manager.');
+        lines.push('');
+      }
+
+      if (eventErrors.length > 0) {
+        lines.push('  • ' + eventErrors.length + ' event(s) NOT included due to invalid format');
+        lines.push('    (e.g., "Y5" instead of "25m Freestyle")');
+        lines.push('    Please correct event names and re-export.');
+        lines.push('');
+      }
+
+      lines.push('  ⚠️  ACTION REQUIRED: Fix the errors above and re-export.');
       lines.push('');
     }
 
     if (warnings.length > 0) {
-      lines.push('⚠ WARNINGS: These items may need attention.');
-      lines.push('  The export file was generated with default values where needed.');
+      lines.push('⚠️  WARNINGS (' + warnings.length + '):');
+      lines.push('');
+      lines.push('  • These items were included but may need attention.');
+      lines.push('  • Review the warnings above to ensure data quality.');
       lines.push('');
     }
 
