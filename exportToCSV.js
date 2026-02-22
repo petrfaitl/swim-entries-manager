@@ -67,7 +67,7 @@ function exportEntriesToCSV() {
 
   const html = HtmlService.createHtmlOutput(`
     <style>
-      body { font-family: Arial, sans-serif; padding: 20px; }
+      body { 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; line-height: 1.4; color: #333; }
       label { display: block; margin-top: 15px; font-weight: bold; }
       .small { font-size: 12px; color: #666; font-weight: normal; }
       select, button { padding: 8px; margin: 10px 0; width: 100%; font-size: 16px; }

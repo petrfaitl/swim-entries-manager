@@ -82,7 +82,7 @@ function showCreateSheetsDialog() {
 
   const html = HtmlService.createHtmlOutput(`
     <style>
-      body {font-family: Arial; padding: 14px;}
+      body {'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; line-height: 1.4; color: #333; }
       label {display: block; margin: 10px 0 5px;font-size:smaller;}
       input {padding: 8px; margin: 10px 0;width: calc(100% - 20px);}
       select {width: 100%; padding: 8px; margin: 10px 0;}

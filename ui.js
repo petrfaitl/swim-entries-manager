@@ -40,7 +40,7 @@ function showCreateTablesDialog() {
   const html = HtmlService.createHtmlOutput(
                             `
     <style>
-      body {font-family: Arial, sans-serif; padding: 14px;}
+      body {'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; line-height: 1.4; color: #333; }
       h2 {margin: 0 0 8px;}
       fieldset {border: 1px solid #ddd; padding: 10px; margin-bottom: 12px;}
       legend {font-weight: bold;}
@@ -184,7 +184,7 @@ function showCreateRelayTablesDialog() {
   const html = HtmlService.createHtmlOutput(`
     
     <style>
-      body {font-family: Arial, sans-serif; padding: 14px;}
+      body {'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; line-height: 1.4; color: #333; }
       h2 {margin: 0 0 8px;}
       fieldset {border: 1px solid #ddd; padding: 10px; margin-bottom: 12px;}
       legend {font-weight: bold;}

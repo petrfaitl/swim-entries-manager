@@ -185,22 +185,22 @@ function getSafeValue(row, index) {
 function formatDob(dobRaw) {
   if (!dobRaw) return "";
 
-  var date;
+  let date;
   if (dobRaw instanceof Date) {
     date = dobRaw;
   } else if (typeof dobRaw === 'number') {
     // Excel/Sheets serial date
     date = new Date((dobRaw - 25569) * 86400000);
   } else if (typeof dobRaw === 'string') {
-    var trimmed = dobRaw.trim();
+    const trimmed = dobRaw.trim();
     if (!trimmed) return "";
 
     // Try DD/MM/YYYY format first
-    var parts = trimmed.split('/');
+    const parts = trimmed.split('/');
     if (parts.length === 3) {
-      var day = parseInt(parts[0], 10);
-      var month = parseInt(parts[1], 10);
-      var year = parseInt(parts[2], 10);
+      const day = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10);
+      const year = parseInt(parts[2], 10);
       date = new Date(year, month - 1, day);
     } else {
       date = new Date(trimmed);
@@ -211,9 +211,9 @@ function formatDob(dobRaw) {
     return "";
   }
 
-  var dd = String(date.getDate()).padStart(2, '0');
-  var mm = String(date.getMonth() + 1).padStart(2, '0');
-  var yyyy = String(date.getFullYear());
+  const dd = String(date.getDate()).padStart(2, '0');
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const yyyy = String(date.getFullYear());
 
   return dd + '/' + mm + '/' + yyyy;
 }
@@ -226,7 +226,7 @@ function formatDob(dobRaw) {
 function formatAsMmSsSs(timeRaw) {
   if (!timeRaw && timeRaw !== 0) return "NT";
 
-  var s = String(timeRaw).trim();
+  const s = String(timeRaw).trim();
   if (s === "" || s.toUpperCase() === "NT") return "NT";
 
   // If it's already in MM:SS.SS format, return as is
@@ -234,32 +234,32 @@ function formatAsMmSsSs(timeRaw) {
 
   // Handle serial time (decimal < 1)
   if (typeof timeRaw === 'number' && timeRaw < 1) {
-    var totalSeconds = timeRaw * 86400;
-    var minutes = Math.floor(totalSeconds / 60);
-    var seconds = totalSeconds % 60;
-    var mm = String(minutes).padStart(2, '0');
-    var ss = seconds.toFixed(2).padStart(5, '0');
+    const totalSeconds = timeRaw * 86400;
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    const mm = String(minutes).padStart(2, '0');
+    const ss = seconds.toFixed(2).padStart(5, '0');
     return mm + ':' + ss;
   }
 
   // Parse string formats like "1:23.45" or "83.45"
   if (s.includes(':')) {
-    var parts = s.split(':');
+    const parts = s.split(':');
     if (parts.length === 2) {
-      var minutes = parseInt(parts[0], 10);
-      var secondsPart = parseFloat(parts[1]);
-      var mm = String(minutes).padStart(2, '0');
-      var ss = secondsPart.toFixed(2).padStart(5, '0');
+      const minutes = parseInt(parts[0], 10);
+      const secondsPart = parseFloat(parts[1]);
+      const mm = String(minutes).padStart(2, '0');
+      const ss = secondsPart.toFixed(2).padStart(5, '0');
       return mm + ':' + ss;
     }
   } else {
     // Assume it's seconds only
-    var totalSec = parseFloat(s);
+    const totalSec = parseFloat(s);
     if (!isNaN(totalSec)) {
-      var minutes = Math.floor(totalSec / 60);
-      var seconds = totalSec % 60;
-      var mm = String(minutes).padStart(2, '0');
-      var ss = seconds.toFixed(2).padStart(5, '0');
+      const minutes = Math.floor(totalSec / 60);
+      const seconds = totalSec % 60;
+      const mm = String(minutes).padStart(2, '0');
+      const ss = seconds.toFixed(2).padStart(5, '0');
       return mm + ':' + ss;
     }
   }

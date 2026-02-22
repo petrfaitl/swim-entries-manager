@@ -14,22 +14,22 @@
  *   getTeamLookup(tableName)
  */
 
-var SDIFCreator = (function() {
+const SDIFCreator = (function() {
 
   // --- Constants ---
-  var SDIF_ORG_CODE    = '8';    // Code 001 — FINA
-  var SDIF_FILE_CODE   = '01';   // Code 003 — meet entries
-  var SDIF_COUNTRY     = 'NZL';
-  var SDIF_MEET_TYPE   = '7';    // Code 005 — Junior
-  var SDIF_COURSE      = 'S';    // Code 013 — short course metres
-  var SDIF_CITIZEN     = 'NZL';
-  var SDIF_VERSION     = '3.0';
-  var SDIF_EVENT_AGE   = '20';   // Code 025 — open age
-  var SDIF_EVENT_SEX   = 'X';    // Mixed
-  var SDIF_CREATOR = "GAS SDIF Creator";
-  var SDIF_CREATOR_VERSION = "v1.0";
+  const SDIF_ORG_CODE    = '8';    // Code 001 — FINA
+  const SDIF_FILE_CODE   = '01';   // Code 003 — meet entries
+  const SDIF_COUNTRY     = 'NZL';
+  const SDIF_MEET_TYPE   = '7';    // Code 005 — Junior
+  const SDIF_COURSE      = 'S';    // Code 013 — short course metres
+  const SDIF_CITIZEN     = 'NZL';
+  const SDIF_VERSION     = '3.0';
+  const SDIF_EVENT_AGE   = '20';   // Code 025 — open age
+  const SDIF_EVENT_SEX   = 'X';    // Mixed
+  const SDIF_CREATOR = "GAS SDIF Creator";
+  const SDIF_CREATOR_VERSION = "v1.0";
 
-  var STROKE_CODES_ = {
+  const STROKE_CODES_ = {
     'free': '1', 'freestyle': '1', 'free style': '1',
     'back': '2', 'backstroke': '2', 'back stroke': '2',
     'breast': '3', 'breaststroke': '3', 'breast stroke': '3',
@@ -37,7 +37,7 @@ var SDIFCreator = (function() {
     'im': '5', 'individual medley': '5', 'individual': '5', 'medley': '5'
   };
 
-  var CONFIG_ = {
+  const CONFIG_ = {
     rightJustifySeedTime: false
   };
 
@@ -54,23 +54,23 @@ var SDIFCreator = (function() {
    */
   function generate(config) {
     config = config || {};
-    var meetTableName = config.meetTableName || "Meet";
-    var schoolsTableName = config.schoolsTableName || "Schools";
-    var entriesSheetName = config.entriesSheetName;
+    const meetTableName = config.meetTableName || "Meet";
+    const schoolsTableName = config.schoolsTableName || "Schools";
+    const entriesSheetName = config.entriesSheetName;
 
     if (!entriesSheetName) {
       throw new Error("SDIFCreator: entriesSheetName is required");
     }
 
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var entriesSheet = ss.getSheetByName(entriesSheetName);
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const entriesSheet = ss.getSheetByName(entriesSheetName);
     if (!entriesSheet) {
       throw new Error("SDIFCreator: Sheet '" + entriesSheetName + "' not found");
     }
 
     // Use shared processing logic from EntryDataProcessor.js
     Logger.log('[SDIFCreator] Processing entries sheet using shared EntryDataProcessor');
-    var processedSwimmers = processEntriesSheet(entriesSheet, schoolsTableName, ss.getId());
+    const processedSwimmers = processEntriesSheet(entriesSheet, schoolsTableName, ss.getId());
 
     if (!processedSwimmers || processedSwimmers.length === 0) {
        throw new Error("SDIFCreator: No valid swimmer data found in entries sheet");
@@ -78,13 +78,13 @@ var SDIFCreator = (function() {
 
     Logger.log('[SDIFCreator] Processed %s swimmers', processedSwimmers.length);
 
-    var meetInfo = getMeetInfo(meetTableName);
-    var teamLookup = getTeamLookup(schoolsTableName);
+    const meetInfo = getMeetInfo(meetTableName);
+    const teamLookup = getTeamLookup(schoolsTableName);
 
-    var outputFileName = config.outputFileName;
+    let outputFileName = config.outputFileName;
     if (!outputFileName) {
-      var dateStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyyMMdd");
-      var meetNameClean = (meetInfo.meetName || "Meet").replace(/[^a-z0-9]/gi, '_');
+      const dateStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyyMMdd");
+      const meetNameClean = (meetInfo.meetName || "Meet").replace(/[^a-z0-9]/gi, '_');
       outputFileName = meetNameClean + "-" + dateStr + ".sd3";
     }
 
@@ -100,7 +100,7 @@ var SDIFCreator = (function() {
    * @returns {string} Download URL
    */
   function generateFromData(swimmerRows, meetInfo, teamLookup, outputFileName, folderId) {
-    var sdifString = buildSdifString(swimmerRows, meetInfo, teamLookup);
+    const sdifString = buildSdifString(swimmerRows, meetInfo, teamLookup);
     return saveToFile_(sdifString, outputFileName, folderId);
   }
 
@@ -115,7 +115,7 @@ var SDIFCreator = (function() {
   }
 
   function showDialog() {
-    var html = HtmlService.createHtmlOutputFromFile('SDIFCreator_Dialog')
+    const html = HtmlService.createHtmlOutputFromFile('SDIFCreator_Dialog')
         .setWidth(450)
         .setHeight(400);
     SpreadsheetApp.getUi().showModalDialog(html, 'Generate SDIF (.sd3) File');
@@ -142,7 +142,7 @@ var SDIFCreator = (function() {
   // --- Internal Functions ---
 
   function buildSdifString_(swimmerRows, meetInfo, teamLookup) {
-    var normalisedSwimmers = swimmerRows.map(function(row) {
+    const normalisedSwimmers = swimmerRows.map(function(row) {
       return normaliseSwimmerRow_(row);
     }).filter(function(s) { return s !== null; });
 
@@ -151,8 +151,8 @@ var SDIFCreator = (function() {
     }
 
     // Group by team code
-    var teamsMap = {};
-    var teamOrder = [];
+    const teamsMap = {};
+    const teamOrder = [];
     normalisedSwimmers.forEach(function(swimmer) {
       if (!teamsMap[swimmer.teamCode]) {
         teamsMap[swimmer.teamCode] = [];
@@ -162,12 +162,12 @@ var SDIFCreator = (function() {
     });
 
     // Resolve team info
-    var teamLookupMap = {};
+    const teamLookupMap = {};
     teamLookup.forEach(function(t) {
       teamLookupMap[t.code] = t;
     });
 
-    var counts = {
+    const counts = {
       bRecords: 0,
       cRecords: 0,
       d0Records: 0,
@@ -175,7 +175,7 @@ var SDIFCreator = (function() {
       swimmers: 0
     };
 
-    var lines = [];
+    const lines = [];
 
     // A0
     lines.push(emitA0_(meetInfo));
@@ -185,9 +185,9 @@ var SDIFCreator = (function() {
     counts.bRecords++;
 
     teamOrder.forEach(function(teamCode) {
-      var teamInfo = teamLookupMap[teamCode];
-      var teamName = teamInfo ? teamInfo.teamName : teamCode;
-      var regionCode = teamInfo ? teamInfo.regionCode : "";
+      const teamInfo = teamLookupMap[teamCode];
+      const teamName = teamInfo ? teamInfo.teamName : teamCode;
+      const regionCode = teamInfo ? teamInfo.regionCode : "";
 
       if (!teamInfo) {
         Logger.log('[SDIFCreator] WARNING: Team code %s not found in Schools table. Using defaults.', teamCode);
@@ -197,10 +197,10 @@ var SDIFCreator = (function() {
       lines.push(emitC1_(teamCode, teamName, regionCode));
       counts.cRecords++;
 
-      var swimmersInTeam = teamsMap[teamCode];
+      const swimmersInTeam = teamsMap[teamCode];
       swimmersInTeam.forEach(function(swimmer) {
-        var events = parseEvents_(swimmer.events, swimmer.times);
-        var validEventsCount = 0;
+        const events = parseEvents_(swimmer.events, swimmer.times);
+        let validEventsCount = 0;
 
         events.forEach(function(event) {
           if (event.isValid) {
@@ -221,7 +221,7 @@ var SDIFCreator = (function() {
     });
 
     // Z0
-    var totalD = counts.d0Records + counts.d1Records;
+    const totalD = counts.d0Records + counts.d1Records;
     lines.push(emitZ0_({
       bRecords: counts.bRecords,
       cRecords: counts.cRecords,
@@ -235,7 +235,7 @@ var SDIFCreator = (function() {
   // --- Emitters ---
 
   function emitA0_(meetInfo) {
-    var today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "MMddyyyy");
+    const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "MMddyyyy");
     return buildRecord_([
       pad_("A0", 2),
       pad_(SDIF_ORG_CODE, 1),
@@ -254,8 +254,8 @@ var SDIFCreator = (function() {
   }
 
   function emitB1_(meetInfo) {
-    var startDate = dateToMMDDYYYY_(meetInfo.startDate);
-    var endDate = dateToMMDDYYYY_(meetInfo.endDate);
+    const startDate = dateToMMDDYYYY_(meetInfo.startDate);
+    const endDate = dateToMMDDYYYY_(meetInfo.endDate);
 
     return buildRecord_([
       pad_("B1", 2),
@@ -279,7 +279,7 @@ var SDIFCreator = (function() {
   }
 
   function emitC1_(teamCode, teamName, regionCode) {
-    var fullTeamCode = (regionCode || "").substring(0, 2) + teamCode.substring(0, 4);
+    let fullTeamCode = (regionCode || "").substring(0, 2) + teamCode.substring(0, 4);
     fullTeamCode = pad_(fullTeamCode, 6);
 
     return buildRecord_([
@@ -303,11 +303,11 @@ var SDIFCreator = (function() {
   }
 
   function emitD0_(swimmer, event, seedTime, meetInfo) {
-    var mmNumber = buildMMNumber_(swimmer.teamCode, swimmer.lastName, swimmer.firstName, swimmer.dob);
-    var fullName = (swimmer.lastName + ", " + swimmer.firstName).substring(0, 28);
-    var dob = dateToMMDDYYYY_(swimmer.dob);
-    var meetStartDate = dateToMMDDYYYY_(meetInfo.startDate);
-    var eventAgeCode = meetInfo.eventAgeCode || "13UN";
+    const mmNumber = buildMMNumber_(swimmer.teamCode, swimmer.lastName, swimmer.firstName, swimmer.dob);
+    const fullName = (swimmer.lastName + ", " + swimmer.firstName).substring(0, 28);
+    const dob = dateToMMDDYYYY_(swimmer.dob);
+    const meetStartDate = dateToMMDDYYYY_(meetInfo.startDate);
+    const eventAgeCode = meetInfo.eventAgeCode || "13UN";
 
     return buildRecord_([
       pad_("D0", 2),
@@ -333,10 +333,10 @@ var SDIFCreator = (function() {
   }
 
   function emitD1_(swimmer, regionCode) {
-    var mmNumber = buildMMNumber_(swimmer.teamCode, swimmer.lastName, swimmer.firstName, swimmer.dob);
-    var fullName = (swimmer.lastName + ", " + swimmer.firstName).substring(0, 28);
-    var dob = dateToMMDDYYYY_(swimmer.dob);
-    var fullTeamCode = (regionCode || "").substring(0, 2) + swimmer.teamCode.substring(0, 4);
+    const mmNumber = buildMMNumber_(swimmer.teamCode, swimmer.lastName, swimmer.firstName, swimmer.dob);
+    const fullName = (swimmer.lastName + ", " + swimmer.firstName).substring(0, 28);
+    const dob = dateToMMDDYYYY_(swimmer.dob);
+    let fullTeamCode = (regionCode || "").substring(0, 2) + swimmer.teamCode.substring(0, 4);
     fullTeamCode = pad_(fullTeamCode, 6);
 
     return buildRecord_([
@@ -358,7 +358,7 @@ var SDIFCreator = (function() {
   }
 
   function emitZ0_(counts) {
-    var line = [
+    const line = [
       pad_("Z0", 2),
       pad_(SDIF_ORG_CODE, 1),
       pad_("", 8),
@@ -380,7 +380,7 @@ var SDIFCreator = (function() {
   }
 
   function buildRecord_(parts) {
-    var line = parts.join('');
+    const line = parts.join('');
     if (line.length !== 160) {
       Logger.log('[SDIFCreator] WARNING: record length %s != 160: "%s"', line.length, line.substring(0, 20));
       // Force it to 160 if we must? Better to fix emitters.
@@ -391,33 +391,33 @@ var SDIFCreator = (function() {
   // --- Formatting & Parsing Helpers ---
 
   function pad_(value, length, rightJustify) {
-    var str = String(value === null || value === undefined ? "" : value);
+    const str = String(value === null || value === undefined ? "" : value);
     if (str.length > length) {
       return str.substring(0, length);
     }
-    var padding = new Array(length - str.length + 1).join(' ');
+    const padding = new Array(length - str.length + 1).join(' ');
     return rightJustify ? padding + str : str + padding;
   }
 
   function dateToMMDDYYYY_(dateVal) {
     if (!dateVal) return "        ";
 
-    var date;
+    let date;
     if (dateVal instanceof Date) {
       date = dateVal;
     } else if (typeof dateVal === 'number') {
       // Excel/Sheets serial date
       date = new Date((dateVal - 25569) * 86400000);
     } else if (typeof dateVal === 'string') {
-      var trimmed = dateVal.trim();
+      const trimmed = dateVal.trim();
       if (!trimmed) return "        ";
 
       // Try DD/MM/YYYY
-      var parts = trimmed.split('/');
+      const parts = trimmed.split('/');
       if (parts.length === 3) {
-        var day = parseInt(parts[0], 10);
-        var month = parseInt(parts[1], 10);
-        var year = parseInt(parts[2], 10);
+        const day = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10);
+        const year = parseInt(parts[2], 10);
         date = new Date(year, month - 1, day);
       } else {
         date = new Date(trimmed);
@@ -428,29 +428,29 @@ var SDIFCreator = (function() {
       return "        ";
     }
 
-    var mm = pad_(date.getMonth() + 1, 2, true).replace(/ /g, '0');
-    var dd = pad_(date.getDate(), 2, true).replace(/ /g, '0');
-    var yyyy = pad_(date.getFullYear(), 4, true).replace(/ /g, '0');
+    const mm = pad_(date.getMonth() + 1, 2, true).replace(/ /g, '0');
+    const dd = pad_(date.getDate(), 2, true).replace(/ /g, '0');
+    const yyyy = pad_(date.getFullYear(), 4, true).replace(/ /g, '0');
 
     return mm + dd + yyyy;
   }
 
   function dobToDDMMYY_(dobDDMMYYYY) {
     // Input is usually "DD/MM/YYYY" from normaliseSwimmerRow_
-    var parts = dobDDMMYYYY.split('/');
+    const parts = dobDDMMYYYY.split('/');
     if (parts.length !== 3) return "000000";
 
-    var dd = pad_(parts[0], 2, true).replace(/ /g, '0');
-    var mm = pad_(parts[1], 2, true).replace(/ /g, '0');
-    var yy = parts[2].substring(2, 4);
+    const dd = pad_(parts[0], 2, true).replace(/ /g, '0');
+    const mm = pad_(parts[1], 2, true).replace(/ /g, '0');
+    const yy = parts[2].substring(2, 4);
 
     return dd + mm + yy;
   }
 
   function buildMMNumber_(teamCode, lastName, firstName, dob) {
-    var lastNameChar = (lastName && lastName[0] ? lastName[0] : 'X').toUpperCase();
-    var firstNameChar = (firstName && firstName[0] ? firstName[0] : 'X').toUpperCase();
-    var dobPart = dobToDDMMYY_(dob);
+    const lastNameChar = (lastName && lastName[0] ? lastName[0] : 'X').toUpperCase();
+    const firstNameChar = (firstName && firstName[0] ? firstName[0] : 'X').toUpperCase();
+    const dobPart = dobToDDMMYY_(dob);
 
     return teamCode.substring(0, 3).toUpperCase()
       + lastNameChar
@@ -461,18 +461,18 @@ var SDIFCreator = (function() {
 
   function parseSeedTime_(timeStr) {
     if (!timeStr) return pad_("NT", 8);
-    var s = timeStr.trim().toUpperCase();
+    let s = timeStr.trim().toUpperCase();
     if (s === "NT" || s === "") return pad_("NT", 8);
 
     // Strip whitespace
     s = s.replace(/\s/g, '');
 
-    var minutes = 0;
-    var seconds = 0;
-    var decimals = 0;
+    let minutes = 0;
+    let seconds = 0;
+    let decimals = 0;
 
     if (s.indexOf(':') !== -1) {
-      var parts = s.split(':');
+      const parts = s.split(':');
       if (parts.length === 3) { // hh:mm:ss.dd or mm:ss:dd
          // Assuming mm:ss:dd if it's swimming
          minutes = parseInt(parts[0], 10);
@@ -481,13 +481,13 @@ var SDIFCreator = (function() {
       } else if (parts.length === 2) { // mm:ss.dd or ss:dd
          if (parts[1].indexOf('.') !== -1) {
            minutes = parseInt(parts[0], 10);
-           var ssdd = parts[1].split('.');
+           const ssdd = parts[1].split('.');
            seconds = parseInt(ssdd[0], 10);
            decimals = parseInt(ssdd[1], 10);
          } else {
            // ss:dd or mm:ss?
            // If parts[0] > 59, it's probably ss:dd
-           var p0 = parseInt(parts[0], 10);
+           const p0 = parseInt(parts[0], 10);
            if (p0 > 59) {
              seconds = p0;
              decimals = parseInt(parts[1], 10);
@@ -498,7 +498,7 @@ var SDIFCreator = (function() {
          }
       }
     } else if (s.indexOf('.') !== -1) {
-      var parts = s.split('.');
+      const parts = s.split('.');
       seconds = parseInt(parts[0], 10);
       decimals = parseInt(parts[1], 10);
     } else {
@@ -509,21 +509,21 @@ var SDIFCreator = (function() {
     if (isNaN(seconds)) seconds = 0;
     if (isNaN(decimals)) decimals = 0;
 
-    var mm = pad_(minutes, 2, true).replace(/ /g, '0');
-    var ss = pad_(seconds, 2, true).replace(/ /g, '0');
-    var dd = pad_(decimals, 2).replace(/ /g, '0');
+    const mm = pad_(minutes, 2, true).replace(/ /g, '0');
+    const ss = pad_(seconds, 2, true).replace(/ /g, '0');
+    const dd = pad_(decimals, 2).replace(/ /g, '0');
 
     return mm + ":" + ss + "." + dd;
   }
 
   function parseEvents_(eventsStr, timesStr) {
     if (!eventsStr) return [];
-    var events = eventsStr.split(',').map(function(s) { return s.trim(); });
-    var times = (timesStr || "").split(',').map(function(s) { return s.trim(); });
+    const events = eventsStr.split(',').map(function(s) { return s.trim(); });
+    const times = (timesStr || "").split(',').map(function(s) { return s.trim(); });
 
     return events.map(function(eventStr, i) {
-      var time = times[i] || "NT";
-      var parsed = parseDistanceAndStroke_(eventStr);
+      const time = times[i] || "NT";
+      const parsed = parseDistanceAndStroke_(eventStr);
       parsed.eventStr = eventStr;
       parsed.seedTime = parseSeedTime_(time);
       return parsed;
@@ -531,15 +531,15 @@ var SDIFCreator = (function() {
   }
 
   function parseDistanceAndStroke_(eventStr) {
-    var s = eventStr.trim().replace(/,$/, '');
-    var match = s.match(/^(\d+)(m)?\s+(.+)$/i);
+    const s = eventStr.trim().replace(/,$/, '');
+    const match = s.match(/^(\d+)(m)?\s+(.+)$/i);
     if (!match) {
       return { distance: "", strokeCode: "", isValid: false, errorMessage: "Unrecognised event format" };
     }
 
-    var distance = match[1];
-    var strokeName = match[3].toLowerCase();
-    var strokeCode = getStrokeCode_(strokeName);
+    const distance = match[1];
+    const strokeName = match[3].toLowerCase();
+    const strokeCode = getStrokeCode_(strokeName);
 
     if (!strokeCode) {
        return { distance: distance, strokeCode: "", isValid: false, errorMessage: "Unrecognised stroke: " + strokeName };
@@ -554,7 +554,7 @@ var SDIFCreator = (function() {
 
   function normaliseGender_(raw) {
     if (!raw) return "X";
-    var s = String(raw).trim().toUpperCase();
+    const s = String(raw).trim().toUpperCase();
     if (s === "M" || s === "MALE" || s === "B" || s === "BOY") return "M";
     if (s === "F" || s === "FEMALE" || s === "G" || s === "GIRL") return "F";
     Logger.log('[SDIFCreator] WARNING: Unrecognised gender "%s", using "X"', raw);
@@ -562,7 +562,7 @@ var SDIFCreator = (function() {
   }
 
   function normaliseSwimmerRow_(row) {
-    var s = {};
+    const s = {};
 
     // Handle both old format (arrays) and new format (objects from EntryDataProcessor)
     if (Array.isArray(row)) {
@@ -599,7 +599,7 @@ var SDIFCreator = (function() {
     if (s.dob instanceof Date) {
        s.dob = Utilities.formatDate(s.dob, Session.getScriptTimeZone(), "dd/MM/yyyy");
     } else if (typeof s.dob === 'number') {
-       var d = new Date((s.dob - 25569) * 86400000);
+       const d = new Date((s.dob - 25569) * 86400000);
        s.dob = Utilities.formatDate(d, Session.getScriptTimeZone(), "dd/MM/yyyy");
     }
 
@@ -607,21 +607,21 @@ var SDIFCreator = (function() {
   }
 
   function readTableByName_(tableName, spreadsheetId) {
-    var ss = spreadsheetId ? SpreadsheetApp.openById(spreadsheetId) : SpreadsheetApp.getActiveSpreadsheet();
+    const ss = spreadsheetId ? SpreadsheetApp.openById(spreadsheetId) : SpreadsheetApp.getActiveSpreadsheet();
 
     // Try TableApp if available
     if (typeof TableApp !== 'undefined' && TableApp.openById) {
       try {
-        var tableApp = TableApp.openById(ss.getId());
-        var table = tableApp.getTableByName(tableName);
+        const tableApp = TableApp.openById(ss.getId());
+        const table = tableApp.getTableByName(tableName);
         if (table) {
-          var values = table.getValues();
+          const values = table.getValues();
           if (values && values.length > 0) {
-            var headers = values[0];
-            var rows = [];
-            for (var i = 1; i < values.length; i++) {
-              var rowObj = {};
-              for (var j = 0; j < headers.length; j++) {
+            const headers = values[0];
+            const rows = [];
+            for (let i = 1; i < values.length; i++) {
+              const rowObj = {};
+              for (let j = 0; j < headers.length; j++) {
                 rowObj[headers[j]] = values[i][j];
               }
               rows.push(rowObj);
@@ -635,16 +635,16 @@ var SDIFCreator = (function() {
     }
 
     // Fallback: search sheets
-    var sheets = ss.getSheets();
-    for (var i = 0; i < sheets.length; i++) {
+    const sheets = ss.getSheets();
+    for (let i = 0; i < sheets.length; i++) {
       if (sheets[i].getName() === tableName) {
-        var values = sheets[i].getDataRange().getValues();
+        const values = sheets[i].getDataRange().getValues();
         if (values.length > 0) {
-          var headers = values[0];
-          var rows = [];
-          for (var r = 1; r < values.length; r++) {
-            var rowObj = {};
-            for (var c = 0; c < headers.length; c++) {
+          const headers = values[0];
+          const rows = [];
+          for (let r = 1; r < values.length; r++) {
+            const rowObj = {};
+            for (let c = 0; c < headers.length; c++) {
               rowObj[headers[c]] = values[r][c];
             }
             rows.push(rowObj);
@@ -658,17 +658,17 @@ var SDIFCreator = (function() {
   }
 
   function readMeetInfo_(tableName) {
-    var rows = readTableByName_(tableName);
+    const rows = readTableByName_(tableName);
     if (rows.length === 0) {
       throw new Error("SDIFCreator: Meet table not found or empty");
     }
 
-    var row = rows[0];
-    var info = {};
+    const row = rows[0];
+    const info = {};
 
     // Map with case-insensitive keys
     Object.keys(row).forEach(function(key) {
-      var k = key.toLowerCase().replace(/\s/g, '');
+      const k = key.toLowerCase().replace(/\s/g, '');
       if (k === 'meetname') info.meetName = row[key];
       else if (k === 'startdate') info.startDate = row[key];
       else if (k === 'enddate') info.endDate = row[key];
@@ -689,11 +689,11 @@ var SDIFCreator = (function() {
   }
 
   function buildTeamLookup_(tableName) {
-    var rows = readTableByName_(tableName);
+    const rows = readTableByName_(tableName);
     return rows.map(function(row) {
-      var info = { code: "", teamName: "", regionCode: "" };
+      const info = { code: "", teamName: "", regionCode: "" };
       Object.keys(row).forEach(function(key) {
-        var k = key.toLowerCase().replace(/\s/g, '');
+        const k = key.toLowerCase().replace(/\s/g, '');
         if (k === 'code') info.code = String(row[key]);
         else if (k === 'teamname') info.teamName = String(row[key]);
         else if (k === 'regioncode') info.regionCode = String(row[key]);
@@ -704,9 +704,9 @@ var SDIFCreator = (function() {
   }
 
   function saveToFile_(content, fileName, folderId) {
-    var blob = Utilities.newBlob(content, 'text/plain', fileName);
-    var folder = folderId ? DriveApp.getFolderById(folderId) : DriveApp.getRootFolder();
-    var file = folder.createFile(blob);
+    const blob = Utilities.newBlob(content, 'text/plain', fileName);
+    const folder = folderId ? DriveApp.getFolderById(folderId) : DriveApp.getRootFolder();
+    const file = folder.createFile(blob);
     return file.getDownloadUrl();
   }
 
