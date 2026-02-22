@@ -49,8 +49,8 @@ function capitalizeNameSafely(name) {
  *
  * Rules:
  * - Years 1-9: "Y1" to "Y9" (or "1" to "9")
- * - Years 10-13: "10" to "13"
- * - Junior/Jn: "Jn"
+ * - Years 10-13: "Jr", "In" or "Sr"
+ * - Junior/Jn: "Jr"
  * - Intermediate/In: "In"
  * - Senior/Sr: "Sr"
  *
@@ -64,7 +64,7 @@ function normalizeSchoolYear(year) {
   if (!yearStr) return '';
 
   // Check for Junior/Intermediate/Senior
-  if (yearStr.includes('JUNIOR') || yearStr === 'JN') return 'Jn';
+  if (yearStr.includes('JUNIOR') || yearStr === 'JR') return 'Jr';
   if (yearStr.includes('INTERMEDIATE') || yearStr === 'IN') return 'In';
   if (yearStr.includes('SENIOR') || yearStr === 'SR') return 'Sr';
 
@@ -76,7 +76,7 @@ function normalizeSchoolYear(year) {
       return 'Y' + num;
     } else if (num >= 10 && num <= 13) {
       if (num === 10){
-        return 'Jn';
+        return 'Jr';
       }else if (num === 11){
         return 'In';
       }

@@ -117,7 +117,7 @@ const SDIFCreator = (function() {
   function showDialog() {
     const html = HtmlService.createHtmlOutputFromFile('SDIFCreator_Dialog')
         .setWidth(450)
-        .setHeight(400);
+        .setHeight(450);
     SpreadsheetApp.getUi().showModalDialog(html, 'Generate SDIF (.sd3) File');
   }
 

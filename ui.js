@@ -12,8 +12,8 @@ function onOpen(e) {
         .addItem('Create Sheets from Template', 'showCreateSheetsDialog')
         .addItem('Create Relay Tables', 'showCreateRelayTablesDialog')
         .addSeparator()
-        .addItem('Export to CSV', 'exportEntriesToCSV')
-        .addItem('Generate SD3 File', 'showSDIFCreatorDialog');
+        .addItem('Export for Meet Manager', 'showSDIFCreatorDialog')
+        .addItem('Export to CSV', 'exportEntriesToCSV');
   }
   menu.addToUi();
 }
@@ -40,7 +40,7 @@ function showCreateTablesDialog() {
   const html = HtmlService.createHtmlOutput(
                             `
     <style>
-      body {'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; line-height: 1.4; color: #333; }
+      body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; line-height: 1.4; color: #333; }
       h2 {margin: 0 0 8px;}
       fieldset {border: 1px solid #ddd; padding: 10px; margin-bottom: 12px;}
       legend {font-weight: bold;}
@@ -184,7 +184,7 @@ function showCreateRelayTablesDialog() {
   const html = HtmlService.createHtmlOutput(`
     
     <style>
-      body {'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; line-height: 1.4; color: #333; }
+      body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; line-height: 1.4; color: #333; }
       h2 {margin: 0 0 8px;}
       fieldset {border: 1px solid #ddd; padding: 10px; margin-bottom: 12px;}
       legend {font-weight: bold;}
@@ -542,7 +542,7 @@ function buildAdminSidebarCard() {
 
                                         .addWidget(
                                           CardService.newTextParagraph()
-                                                     .setText('<b>Next:</b> Export entries to CSV')
+                                                     .setText('<b>Next:</b> Export entries for Meet Manager')
                                         )
                                         .addWidget(
                                           CardService.newButtonSet()
@@ -587,13 +587,13 @@ function buildExportCard() {
                                 .setHeader(
                                   CardService.newCardHeader()
                                              .setTitle('Export Entries')
-                                             .setSubtitle('Generate CSV files for meet management software.')
+                                             .setSubtitle('Generate meet entry files for Hy-Tek Meet Manager.')
                                              .setImageUrl(encodedImageURL)
                                 );
 
-  const exportSection = CardService.newCardSection()
-                                   .setHeader('Export Entries to CSV')
-                                   .setCollapsible(true)
+  const sdifExportSection = CardService.newCardSection()
+                                   .setHeader('Export for Meet Manager (Recommended)')
+                                   .setCollapsible(false)
                                    .addWidget(
                                      CardService.newDecoratedText()
                                                 .setText('<b>STEP 4</b>')
@@ -605,51 +605,36 @@ function buildExportCard() {
                                    )
                                    .addWidget(
                                      CardService.newTextParagraph()
-                                                .setText('Process the current sheet and generate a clean CSV file with formatted entries and times.')
+                                                .setText('Generate an SDIF (.sd3) file ready for import into Hy-Tek Meet Manager. This is the recommended export method for most users.')
                                    )
                                    .addWidget(
                                      CardService.newButtonSet()
                                                 .addButton(
                                                   CardService.newTextButton()
-                                                             .setText('Export to CSV')
+                                                             .setText('Export for Meet Manager')
                                                              .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
                                                              .setBackgroundColor('#0397B3')
                                                              .setOnClickAction(CardService.newAction()
-                                                                                          .setFunctionName('exportEntriesToCSV'))
+                                                                                          .setFunctionName('showSDIFCreatorDialog'))
                                                 )
                                    );
 
-  const csvConverterSection = CardService.newCardSection()
-                                         .setHeader('Convert CSV to SDIF')
+  const csvExportSection = CardService.newCardSection()
+                                         .setHeader('Alternative: Export to CSV')
                                          .setCollapsible(true)
                                          .addWidget(
-                                           CardService.newDecoratedText()
-                                                      .setText('<b>STEP 5</b>')
-                                                      .setStartIcon(CardService.newIconImage()
-                                                                               .setMaterialIcon(
-                                                                                 CardService.newMaterialIcon()
-                                                                                            .setName('looks_5')
-                                                                               ))
-                                         )
-                                         .addWidget(
                                            CardService.newTextParagraph()
-                                                      .setText('After exporting your CSV, go to the CSV to SDIF Converter to prepare entries for the Hy-tek Meet Manager.')
+                                                      .setText('Export entries as a CSV file for manual processing or use with external tools.')
                                          )
-
                                          .addWidget(
                                            CardService.newButtonSet()
                                                       .addButton(
                                                         CardService.newTextButton()
-                                                                   .setText('Convert to SDIF')
-                                                                   .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
-                                                                   .setBackgroundColor('#0397B3')
-                                                                   .setOpenLink(CardService.newOpenLink()
-                                                                                           .setUrl('https://csv-sdif-converter.netlify.app/'))
+                                                                   .setText('Export to CSV')
+                                                                   .setTextButtonStyle(CardService.TextButtonStyle.TEXT)
+                                                                   .setOnClickAction(CardService.newAction()
+                                                                                                .setFunctionName('exportEntriesToCSV'))
                                                       )
-                                         )
-                                         .addWidget(
-                                           CardService.newTextParagraph()
-                                                      .setText('(Opens in a new window.)')
                                          );
 
   // Navigation back to Templates
@@ -667,8 +652,8 @@ function buildExportCard() {
                                     );
 
   exportCard
-    .addSection(exportSection)
-    .addSection(csvConverterSection)
+    .addSection(sdifExportSection)
+    .addSection(csvExportSection)
     .addSection(navBackSection)
     .setFixedFooter(
       CardService.newFixedFooter()
