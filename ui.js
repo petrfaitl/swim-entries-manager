@@ -78,7 +78,7 @@ function showCreateTablesDialog() {
       <div class="row">
         <div>
           <label>School Years (comma-separated)</label>
-          <input type="text" id="years" value="Y5,Y6,Y7,Y8,Y9,Y10,Y11,Y12,Y13" />
+          <input type="text" id="years" value="Y5,Y6,Y7,Y8,Y9,Junior,Intermediate,Senior" />
         </div>
         <div>
           <label>Genders (comma-separated)</label>
@@ -234,7 +234,7 @@ function showCreateRelayTablesDialog() {
       <div id="eventNamesList"></div>
       <div>
         <label>School Years <span class="small">(comma-separated)</span></label>
-        <input type="text" id="years" value="Y5,Y6,Y7,Y8,Y9,Y10,Y11,Y12,Y13" />
+        <input type="text" id="years" value="Y5,Y6,Y7,Y8,Y9,Junior,Intermediate,Senior" />
       </div>
     </fieldset>
 
@@ -631,7 +631,8 @@ function buildExportCard() {
                                                       .addButton(
                                                         CardService.newTextButton()
                                                                    .setText('Export to CSV')
-                                                                   .setTextButtonStyle(CardService.TextButtonStyle.TEXT)
+                                                                   .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+                                                                   .setBackgroundColor('#0397B3')
                                                                    .setOnClickAction(CardService.newAction()
                                                                                                 .setFunctionName('exportEntriesToCSV'))
                                                       )
