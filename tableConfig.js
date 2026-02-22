@@ -129,13 +129,13 @@ function getTableConfig(overrides) {
     Schools: {
       tableType: 'core',
       title: 'Schools for Individual Entries Template',
-      headers: ['Team Name','School','Cluster','Code', 'Region'],
+      headers: ['Team Name','School','Cluster','Code', 'Region Code'],
       columns: toCols({
         'Team Name': { type: 'text' },
         'School': { type: 'text' },
         'Cluster': { type: 'text', validation: { type: 'list', args: { values: DEFAULT_CLUSTERS } } },
         'Code': { type: 'text' },
-        'Region': { type: 'text', validation: { type: 'list', args: { values: REGIONS } },default:'BP' },
+        'Region Code': { type: 'text', validation: { type: 'list', args: { values: REGIONS } },default:'BP' },
       }),
       options: {
         freezeHeader: 1, headerBg: '#356853', rows:30, required:true,

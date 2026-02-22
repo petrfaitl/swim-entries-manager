@@ -20,7 +20,7 @@ var SDIFCreator = (function() {
   var SDIF_ORG_CODE    = '8';    // Code 001 — FINA
   var SDIF_FILE_CODE   = '01';   // Code 003 — meet entries
   var SDIF_COUNTRY     = 'NZL';
-  var SDIF_MEET_TYPE   = '7';    // Code 005 — invitational
+  var SDIF_MEET_TYPE   = '7';    // Code 005 — Junior
   var SDIF_COURSE      = 'S';    // Code 013 — short course metres
   var SDIF_CITIZEN     = 'NZL';
   var SDIF_VERSION     = '3.0';
@@ -259,8 +259,8 @@ var SDIFCreator = (function() {
       pad_(SDIF_ORG_CODE, 1),
       pad_("", 8),
       pad_(meetInfo.meetName || "", 30),
+      pad_(meetInfo.venue || "", 22), // Venue
       pad_(meetInfo.address1 || meetInfo.address || "", 22),
-      pad_("", 22), // Address 2
       pad_(meetInfo.city || "", 20),
       pad_(meetInfo.region || "", 2),
       pad_(meetInfo.postcode || "", 10),
@@ -657,7 +657,8 @@ var SDIFCreator = (function() {
       if (k === 'meetname') info.meetName = row[key];
       else if (k === 'startdate') info.startDate = row[key];
       else if (k === 'enddate') info.endDate = row[key];
-      else if (k === 'address') info.address1 = row[key];
+      else if (k === 'venue') info.venue = row[key];
+      else if (k === 'venueaddress1') info.address1 = row[key];
       else if (k === 'city') info.city = row[key];
       else if (k === 'region') info.region = row[key];
       else if (k === 'postcode') info.postcode = row[key];
@@ -667,8 +668,6 @@ var SDIFCreator = (function() {
       else if (k === 'contactphone') info.contactPhone = row[key];
       else if (k === 'meettype') info.meetType = row[key];
       else if (k === 'eventagecode') info.eventAgeCode = row[key];
-      else if (k === 'softwarename') info.softwareName = row[key];
-      else if (k === 'softwareversion') info.softwareVersion = row[key];
     });
 
     return info;
