@@ -4,7 +4,7 @@
 [![Apps Script](https://img.shields.io/badge/Apps%20Script-V8-34A853)](https://developers.google.com/apps-script)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-A Google Workspace Add-on for managing swim meet entries efficiently. This tool helps swim meet organizers create structured entry templates, manage school/cluster registrations, and export data in CSV format compatible with meet management software.
+A Google Workspace Add-on for managing swim meet entries efficiently. This tool helps swim meet organizers create structured entry templates, manage school/cluster registrations, and export data directly to SDIF format for Hy-Tek Meet Manager or CSV for other tools.
 
 ![Swim Entries Manager](https://www.lvwasc.co.nz/wp-content/uploads/2025/07/Swim-Entries-Manager.png)
 
@@ -21,11 +21,13 @@ A Google Workspace Add-on for managing swim meet entries efficiently. This tool 
 - **Automatic Naming**: Sheets are automatically named based on school/cluster names
 - **Collision Detection**: Prevents overwriting existing sheets
 
-### 📊 CSV Export
+### 📊 Data Export
+- **SDIF Export (Primary)**: Direct export to SDIF v3 (.sd3) format for Hy-Tek Meet Manager
+- **Exception Reporting**: Automatic validation and detailed reports of data quality issues
+- **Critical Data Validation**: Ensures all required fields are present before export
+- **CSV Export (Alternative)**: Traditional CSV format for custom processing
 - **Auto-Detection**: Automatically detects event and time columns in any sheet format
-- **Flexible Format**: Handles sheets with or without time entries
-- **Meet Manager Compatible**: Exports in format suitable for swim meet management software
-- **Sheet Selection**: Export any visible sheet from your spreadsheet
+- **Smart Processing**: Capitalizes names, normalizes school years, converts pool times
 
 ## Quick Start
 
@@ -50,7 +52,6 @@ A Google Workspace Add-on for managing swim meet entries efficiently. This tool 
 
 1. **Open the add-on**: Find it in the right sidebar (you may need to unhide the sidebar first).
 2. **Create Core Tables (STEP 1)**:
-   - Create all tables marked as required in `tableConfig.js` (`options.required: true`).
    - At minimum, include `Team Officials`, `Events for Individual Entries Template`, and `Schools for Individual Entries Template`.
    - If you are using the Individual Entries Template, set your `Gender` and `School Year` values before creating tables.
 3. **Populate tables**:
@@ -61,11 +62,13 @@ A Google Workspace Add-on for managing swim meet entries efficiently. This tool 
    - Verify the dropdowns in `INDIVIDUAL_EVENTS_TEMPLATE` first.
    - Use **Create Sheets From Template** to duplicate one entry sheet per team/school.
 5. **Fill swimmer entries**:
-   - Required: `First Name`, `Last Name`, `Gender`, `Date of Birth`, `School`, and selected events (`Event 1` to `Event 9`).
-   - Recommended: entry times and school year.
-6. **Export entries (STEP 3)**:
-   - Export to CSV for meet software workflows.
-   - CSV to SDIF conversion tool: https://www.lvwasc.co.nz/tools/csv-sdif-converter/
+   - **Required**: `First Name`, `Last Name`, `Gender`, `Date of Birth`, valid `Team Code`
+   - **Recommended**: entry times and school year
+   - Ensure all teams exist in the Schools table
+6. **Export for Meet Manager (STEP 4)**:
+   - Use **"Export for Meet Manager"** to generate SDIF (.sd3) file
+   - Review exception reports if any warnings appear
+   - Alternative: **"Export to CSV"** for manual processing
 
 ## Project Structure
 
@@ -76,9 +79,16 @@ SwimEntriesManager/
 ├── tableConfig.js           # Table definitions and configurations
 ├── tableBuilder.js          # Table creation and named range logic
 ├── duplicateTemplate.js     # Sheet duplication functionality
+├── EntryDataProcessor.js    # Shared data processing and validation
 ├── exportToCSV.js          # CSV export functionality
+├── SDIFCreator.js          # SDIF v3 export with exception reporting
+├── SDIFCreator_Dialog.html # SDIF export dialog UI
 ├── utils.js                # Utility functions
 ├── tests.js                # Test functions
+├── docs/                   # Documentation
+│   ├── USER_GUIDE.md       # Comprehensive user guide
+│   ├── PRIVACY_POLICY.md   # Privacy policy
+│   └── TERMS_OF_SERVICE.md # Terms of service
 └── README.md               # This file
 ```
 
@@ -195,11 +205,28 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for det
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
+## Recent Updates
+
+### v2.0 - SDIF Export & Exception Reporting
+- ✅ Direct SDIF v3 export for Hy-Tek Meet Manager
+- ✅ Automatic exception reporting with detailed validation
+- ✅ Critical data validation (names, DOB, gender, team codes)
+- ✅ Invalid event detection and reporting
+- ✅ Shared data processing between CSV and SDIF exports
+- ✅ Modernized codebase (ES6+ const/let)
+
+### v1.0 - Core Functionality
+- ✅ Template management and table creation
+- ✅ Sheet duplication for multiple schools
+- ✅ CSV export with auto-detection
+- ✅ Named ranges and validation
+
 ## Roadmap
 
 - [ ] Google Workspace Marketplace listing
-- [ ] Advanced export options (SDIF format)
+- [ ] Relay entries SDIF export
 - [ ] Custom event type configurations
+- [ ] Bulk import from existing spreadsheets
 
 
 ## Support

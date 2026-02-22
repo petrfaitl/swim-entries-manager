@@ -80,3 +80,4 @@ temp/
 *.bak
 *.backup
 /TableApp.reference.js
+/docs/SDIFCreator_Spec.md

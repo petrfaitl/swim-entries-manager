@@ -8,10 +8,11 @@ Welcome to the Swim Entries Manager user guide! This comprehensive guide will he
 2. [Creating Core Tables](#creating-core-tables)
 3. [Populating Your Data](#populating-your-data)
 4. [Creating Entry Sheets](#creating-entry-sheets)
-5. [Exporting to CSV](#exporting-to-csv)
-6. [Advanced Configuration](#advanced-configuration)
-7. [Troubleshooting](#troubleshooting)
-8. [FAQ](#faq)
+5. [Exporting for Meet Manager](#exporting-for-meet-manager)
+6. [Understanding Exception Reports](#understanding-exception-reports)
+7. [Advanced Configuration](#advanced-configuration)
+8. [Troubleshooting](#troubleshooting)
+9. [FAQ](#faq)
 
 ## Getting Started
 
@@ -56,11 +57,13 @@ Use this sequence for a standard meet setup:
 4. **Create Sheets from Templates (STEP 2)**
    - Duplicate the individual template for each team/school so each coordinator works in a separate sheet.
 5. **Fill swimmer entries**
-   - Required fields: `First Name`, `Last Name`, `Gender`, `Date of Birth`, `School`, and event selections.
-   - Recommended fields: entry times and `School Year`.
-6. **Export entries (STEP 3)**
-   - Export CSV from the sheet.
-   - If SDIF is needed, convert CSV using: https://www.lvwasc.co.nz/tools/csv-sdif-converter/
+   - **Required fields**: `First Name`, `Last Name`, `Gender`, `Date of Birth`, and valid `Team Code`
+   - **Recommended fields**: entry times and `School Year`
+   - Ensure each team exists in the Schools table
+6. **Export for Meet Manager (STEP 4)**
+   - Use "Export for Meet Manager" to generate an SDIF (.sd3) file
+   - Review any exception reports if warnings appear
+   - Alternative: Export to CSV for manual processing
 
 ## Creating Core Tables
 
@@ -87,7 +90,7 @@ The core tables form the foundation of your swim meet management system. These i
    - Select the tables you need (typically start with EventsForTemplate and Schools)
 
 3. **Customize Dropdown Values (Optional)**
-   - **School Years**: Comma-separated list (default: Y5,Y6,Y7,Y8,Y9,Y10,Y11,Y12,Y13)
+   - **School Years**: Comma-separated list (default: Y5,Y6,Y7,Y8,Y9,Junior,Intermediate,Senior)
    - **Genders**: Comma-separated list (default: Female,Male)
    - These values will populate dropdown validations in your tables
 
@@ -229,54 +232,310 @@ Each entry sheet contains:
 - Leave time cells blank if no entry time available
 - 33m conversion uses simple distance truncation. Provides approximate conversion for schools qualifying for 25m pool competitions, when coming from 33m pool.
 
-## Exporting to CSV
+## Exporting for Meet Manager
 
 ### Overview
 
-Once entries are complete, export sheets to CSV format for import into meet management software.
+The Swim Entries Manager provides two export options:
 
-### Step-by-Step: Export Process
+1. **Export for Meet Manager** (Recommended) - Generates an SDIF (.sd3) file ready for direct import into Hy-Tek Meet Manager
+2. **Export to CSV** - Creates a CSV file for manual processing or use with other tools
 
-1. **Navigate to Export Card**
+### Recommended: Export for Meet Manager (SDIF)
+
+This is the **primary export method** that generates SDIF v3 format files compatible with Hy-Tek Meet Manager.
+
+#### Step-by-Step Process
+
+1. **Navigate to Export**
    - In the sidebar, click **"Go to Export →"** button
-   - Or use **Extensions** > **Export to CSV** from the menu
+   - Or use **Extensions** > **Swim Entries Manager** > **Export for Meet Manager**
+
+2. **Open Export Dialog**
+   - Click **"Export for Meet Manager"** button in the sidebar (STEP 4)
+   - A dialog will appear
+
+3. **Configure Export**
+   - **Entries Sheet**: Select the sheet containing swimmer entries
+   - **Meet Table Name**: Confirm the meet details table (default: "Meet")
+   - **Schools Table Name**: Confirm the schools/teams table (default: "Schools")
+   - **Output File Name**: Leave blank for auto-generated name, or specify custom name
+
+4. **Generate SDIF File**
+   - Click **"Generate SD3 File"**
+   - The system will:
+     - Validate all critical data (names, DOB, gender, team codes)
+     - Process events and times
+     - Generate SDIF v3 format file
+     - Create an exception report if any issues are found
+
+5. **Review Results**
+   - **Success (Green)**: "Successfully generated!" - No issues found
+   - **Warning (Yellow)**: "Generated with warnings - please review exception report"
+     - Click the exception report link to see details
+     - The .sd3 file is still generated but may be missing some data
+
+6. **Download Files**
+   - Click **"Download .sd3 File"** to get your Meet Manager import file
+   - If warnings appeared, also download and review the Exception Report
+
+#### What Gets Validated
+
+The export process performs critical validations to prevent import failures:
+
+**Critical Data (Must be present or swimmer is excluded):**
+- First Name
+- Last Name
+- Date of Birth
+- Gender
+- Team Code (must exist in Schools table)
+- Team Name (from Schools table)
+
+**Event Validation:**
+- Events must be in correct format (e.g., "25m Freestyle", not "Y5")
+- Invalid events are skipped but swimmer is still exported
+
+**Warnings (Not critical):**
+- Swimmers with no events entered
+
+### Alternative: Export to CSV
+
+Use this option if you need CSV format for custom processing or other tools.
+
+#### Step-by-Step Process
+
+1. **Navigate to Export**
+   - In the sidebar, expand **"Alternative: Export to CSV"** section
+   - Or use **Extensions** > **Swim Entries Manager** > **Export to CSV**
 
 2. **Open Export Dialog**
    - Click **"Export to CSV"** button
    - A dialog will appear
 
-3. **Select Sheet**
-   - Choose the sheet you want to export from the dropdown
-   - Only visible sheets are shown
+3. **Select Sheet and Table**
+   - **Sheet**: Choose the sheet to export
+   - **Team Code Table**: Select the table for team code lookup (default: "Schools")
 
 4. **Export**
    - Click **"Export to CSV"**
    - The system will:
      - Auto-detect Event and Time columns
      - Format times correctly
-     - Generate a CSV file
-     - Prompt you to download
+     - Look up team codes
+     - Generate CSV file
 
-5. **Save the CSV**
-   - Choose a location to save the file
-   - Name it descriptively (e.g., "Hamilton_East_Entries.csv")
-   - If your meet software needs SDIF, convert your CSV using https://www.lvwasc.co.nz/tools/csv-sdif-converter/
+5. **Download CSV**
+   - Click the download link
+   - Save with a descriptive name (e.g., "Hamilton_East_Entries.csv")
 
-### CSV Format
-
-The exported CSV includes:
+#### CSV Format
 
 ```csv
-code,First Name,Last Name,Date of Birth,Gender,Events,Times,School Year
-HAMES,Sarah,Johnson,01/15/2012,Female,"50m Freestyle, 100m Backstroke","35.2, 1:12.8",Y8
+Team Code,First Name,Last Name,Date of Birth,Gender,Event Entries,Entry Times,School Year
+HAMES,Sarah,Johnson,15/01/2012,Female,"50m Freestyle, 100m Backstroke","0:35.20, 1:15.80",Y8
 ```
 
 **Features:**
 - Auto-detects event/time column pairs
 - Handles missing times gracefully
-- Compatible with most meet management software
-- Provides approximate conversion for schools qualifying for 25m pool competitions, when coming from 33m pool.
-- Codes are 4-5 letters
+- Provides approximate conversion for 33m pool times
+- Team codes are 4-5 letters
+
+## Understanding Exception Reports
+
+### What is an Exception Report?
+
+When you export for Meet Manager, the system validates all critical data required for successful import. If any issues are found, an **Exception Report** is automatically generated alongside your .sd3 file.
+
+The exception report is a text file that details:
+- What data is missing or invalid
+- Which swimmers or events are affected
+- Whether items were excluded or included with warnings
+- Action items to fix the issues
+
+### When Exception Reports Are Created
+
+An exception report is generated whenever:
+- A swimmer is missing critical data (name, DOB, gender, team code)
+- A team code isn't found in the Schools table
+- Events are in invalid format
+- Swimmers have no events entered
+
+### Reading an Exception Report
+
+#### Report Structure
+
+```
+═══════════════════════════════════════════════════════════════
+         SDIF EXPORT EXCEPTION REPORT
+═══════════════════════════════════════════════════════════════
+
+Generated: 2026-02-22 15:30:00
+Meet: Summer Championships
+
+───────────────────────────────────────────────────────────────
+SUMMARY
+───────────────────────────────────────────────────────────────
+
+Total swimmers processed: 45
+Swimmers excluded (missing critical data): 3
+Valid events exported: 120
+Skipped events: 8
+Total issues found: 11
+```
+
+The **Summary** section shows:
+- How many swimmers were successfully exported
+- How many were excluded due to missing critical data
+- Event statistics
+- Total number of issues found
+
+#### Error Categories
+
+Errors are grouped by category for easy review:
+
+**1. Missing Critical Data**
+```
+▸ Missing Critical Data (3)
+
+  Swimmer: John [No Last Name]
+  Team: ABC
+  Missing Field: Missing Last Name
+  ⚠ This swimmer was EXCLUDED from the export
+```
+
+**Impact**: These swimmers will **NOT appear** in Meet Manager. You must fix these issues and re-export.
+
+**2. Missing Team in Schools Table**
+```
+▸ Missing Team in Schools Table (2)
+
+  Team Code: XYZ
+  Missing Field: Team Code and Team Name
+  Issue: Team "XYZ" not found in Schools table...
+```
+
+**Impact**: Team information may be incomplete. Swimmers are included but team details may not display correctly.
+
+**3. Invalid Event Format**
+```
+▸ Invalid Event Format (6)
+
+  Swimmer: Jane Smith
+  Team: ABC
+  Event: Y5
+  Reason: Unrecognised event format
+```
+
+**Impact**: Invalid events are **NOT included** in the export. Swimmer is still exported but without these events.
+
+#### Warning Categories
+
+**No Events**
+```
+▸ No Events (2)
+
+  Swimmer: Tom Brown
+  Team: ABC
+  Issue: Swimmer has no events entered
+```
+
+**Impact**: Swimmer is included in export but has no events. Not critical but may need attention.
+
+#### Action Required Section
+
+The report ends with a clear summary of actions needed:
+
+```
+───────────────────────────────────────────────────────────────
+ACTION REQUIRED
+───────────────────────────────────────────────────────────────
+
+🚨 CRITICAL ERRORS FOUND:
+
+  • 3 swimmer(s) EXCLUDED due to missing critical data
+    (First Name, Last Name, Date of Birth, Gender, or Team Code)
+    These swimmers will NOT appear in Meet Manager.
+
+  • 2 team(s) missing from Schools table
+    Team information may be incomplete in Meet Manager.
+
+  • 6 event(s) NOT included due to invalid format
+    (e.g., "Y5" instead of "25m Freestyle")
+    Please correct event names and re-export.
+
+  ⚠️  ACTION REQUIRED: Fix the errors above and re-export.
+```
+
+### Fixing Common Issues
+
+#### Missing Critical Data
+
+**Problem**: Swimmer excluded due to missing name, DOB, gender, or team code
+
+**Solution**:
+1. Open the entries sheet
+2. Locate the swimmer mentioned in the report
+3. Fill in all required fields:
+   - First Name
+   - Last Name
+   - Date of Birth (DD/MM/YYYY format)
+   - Gender (use dropdown)
+   - School/Team (use dropdown)
+4. Ensure the team exists in Schools table
+5. Re-export
+
+#### Missing Team in Schools Table
+
+**Problem**: Team code not found or incomplete in Schools table
+
+**Solution**:
+1. Open the **Schools** (or **SchoolsForTemplate**) table
+2. Find or add the team row
+3. Ensure these fields are filled:
+   - **Code**: 4-5 letter team code
+   - **Team Name**: Full team name
+   - **School**: School name
+4. Save and re-export
+
+#### Invalid Event Format
+
+**Problem**: Event name doesn't match expected format
+
+**Solution**:
+1. Events must be formatted as: `[Distance] [Stroke]`
+   - ✅ Correct: "25m Freestyle", "50m Backstroke", "100m IM"
+   - ❌ Incorrect: "Y5", "25 Free", "50 Back"
+2. Open the entries sheet
+3. Correct the event name using the dropdown
+4. Re-export
+
+#### Swimmers with No Events
+
+**Problem**: Swimmer has no events entered (warning only)
+
+**Action**:
+- If intentional, no action needed
+- If swimmer should have events, add them and re-export
+
+### Best Practices
+
+1. **Review Before Import**: Always review exception reports before importing to Meet Manager
+2. **Fix Critical Errors First**: Focus on excluded swimmers and missing teams first
+3. **Validate Data Early**: Run a test export early to catch data quality issues
+4. **Keep Schools Table Updated**: Ensure all teams are in the Schools table before entries begin
+5. **Use Consistent Format**: Train data entry users on proper event naming
+6. **Save Reports**: Keep exception reports for your records
+
+### Tips for Clean Exports
+
+- ✅ **DO**: Fill in all required fields before exporting
+- ✅ **DO**: Use dropdown values when available
+- ✅ **DO**: Add all teams to Schools table first
+- ✅ **DO**: Use correct event naming format
+- ❌ **DON'T**: Leave required fields blank
+- ❌ **DON'T**: Type freeform text when dropdowns are available
+- ❌ **DON'T**: Use abbreviated event names
 
 ## Advanced Configuration
 
