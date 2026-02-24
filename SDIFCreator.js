@@ -83,9 +83,10 @@ const SDIFCreator = (function() {
 
     let outputFileName = config.outputFileName;
     if (!outputFileName) {
-      const dateStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyyMMdd");
+      const dateStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "ddMMyyyy");
       const meetNameClean = (meetInfo.meetName || "Meet").replace(/[^a-z0-9]/gi, '_');
-      outputFileName = meetNameClean + "-" + dateStr + ".sd3";
+      const entriesSheetNameCLean = entriesSheetName.replace(/[^a-z0-9]/gi, '_');
+      outputFileName = meetNameClean + "-" + dateStr + "-" + entriesSheetNameCLean+ ".sd3";
     }
 
     return generateFromData(processedSwimmers, meetInfo, teamLookup, outputFileName, config.outputFolderId);

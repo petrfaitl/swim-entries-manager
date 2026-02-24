@@ -126,14 +126,14 @@ These allow the Individual Events Template to always reference current school an
 
 Located in the **SchoolsForTemplate** sheet:
 
-| Team Name | School | Cluster | Code  |
-|-----------|--------|---------|-------|
-| Hamilton East | Hamilton East School | Cluster One | HAMES |
-| Cambridge | Cambridge Primary | Cluster Two | CAMPS |
+| Team Name     | School                  | Cluster       | Code  | Region Code |
+|---------------|-------------------------|---------------|-------|-------------|
+| South Cluster | Tauranga Primary School | South Cluster | WBPSC | BP          |
+| Cambridge     | Cambridge Primary       | Cluster Two   | CAMPS | WK          |
 
 **Tips:**
 - The **School** column is used for the named range
-- Codes for Secondary schools are predefined. For other grades it is advisable to seek confirmation from regional leads.
+- Codes for Secondary schools are predefined.[Appendix: Secondary School Codes](#Secondary_school_codes) For other grades it is advisable to seek confirmation from regional leads.
 - Codes are 4-5 letters
 - Use short codes for quick identification in exports
 - For cluster meets, values should be unique across the four fields where possible
@@ -612,6 +612,11 @@ Modify the EventsForTemplate configuration:
   }
 }
 ```
+## Appendix: Secondary School Codes
+The following list is of all schools listed at NZ Swimming Fastlane database.
+[NZ High School List](https://sheet.zohopublic.com.au/sheet/published/xh6ehdb8ee9f15c7a4de19079addb425cefca)
+
+
 
 ## Troubleshooting
 

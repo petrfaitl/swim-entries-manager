@@ -40,7 +40,7 @@ function showCreateTablesDialog() {
   const html = HtmlService.createHtmlOutput(
                             `
     <style>
-      body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; line-height: 1.4; color: #333; }
+      body { font-family: 'Google Sans',Roboto,sans-serif; padding: 20px; line-height: 1.4; color: #333; }
       h2 {margin: 0 0 8px;}
       fieldset {border: 1px solid #ddd; padding: 10px; margin-bottom: 12px;}
       legend {font-weight: bold;}
@@ -184,7 +184,7 @@ function showCreateRelayTablesDialog() {
   const html = HtmlService.createHtmlOutput(`
     
     <style>
-      body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; line-height: 1.4; color: #333; }
+      body { font-family: 'Google Sans',Roboto,sans-serif; padding: 20px; line-height: 1.4; color: #333; }
       h2 {margin: 0 0 8px;}
       fieldset {border: 1px solid #ddd; padding: 10px; margin-bottom: 12px;}
       legend {font-weight: bold;}
@@ -564,12 +564,20 @@ function buildAdminSidebarCard() {
       CardService.newFixedFooter()
                  .setPrimaryButton(
                    CardService.newTextButton()
-                              .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
-                              .setBackgroundColor('#FFDD00')
-                              .setText('Buy me a coffee.')
-                              .setIcon(CardService.Icon.STORE)
-                              .setOpenLink(CardService.newOpenLink()
-                                                      .setUrl('https://buymeacoffee.com/pfaitl'))
+                              .setTextButtonStyle(CardService.TextButtonStyle.BORDERLESS)
+                              .setBackgroundColor('#e2f9ff')
+                              .setText('Help')
+                              .setIcon(CardService.Icon.DESCRIPTION)
+                              .setOnClickAction(CardService.newAction()
+                                                           .setFunctionName('showHelpCard'))
+                 )
+                 .setSecondaryButton(
+                   CardService.newTextButton()
+                              .setTextButtonStyle(CardService.TextButtonStyle.BORDERLESS)
+                              .setText('About')
+                              .setIcon(CardService.Icon.BOOKMARK)
+                              .setOnClickAction(CardService.newAction()
+                                                           .setFunctionName('showAboutCard'))
                  )
     );
 
@@ -661,11 +669,19 @@ function buildExportCard() {
                  .setPrimaryButton(
                    CardService.newTextButton()
                               .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
-                              .setBackgroundColor('#FFDD00')
-                              .setText('Buy me a coffee.')
-                              .setIcon(CardService.Icon.STORE)
-                              .setOpenLink(CardService.newOpenLink()
-                                                      .setUrl('https://buymeacoffee.com/pfaitl'))
+                              .setBackgroundColor('#0397B3')
+                              .setText('Help')
+                              .setIcon(CardService.Icon.DESCRIPTION)
+                              .setOnClickAction(CardService.newAction()
+                                                           .setFunctionName('showHelpCard'))
+                 )
+                 .setSecondaryButton(
+                   CardService.newTextButton()
+                              .setTextButtonStyle(CardService.TextButtonStyle.TEXT)
+                              .setText('About')
+                              .setIcon(CardService.Icon.BOOKMARK)
+                              .setOnClickAction(CardService.newAction()
+                                                           .setFunctionName('showAboutCard'))
                  )
     );
 
@@ -675,6 +691,198 @@ function buildExportCard() {
 
 function showSDIFCreatorDialog() {
   SDIFCreator.showDialog();
+}
+
+/**
+ * Builds and returns the About card with project description and coffee link
+ */
+function showAboutCard() {
+  const aboutCard = CardService.newCardBuilder()
+                               .setHeader(
+                                 CardService.newCardHeader()
+                                            .setTitle('About Swim Entries Manager')
+                                            .setSubtitle('v2.0')
+                               );
+
+  const descriptionSection = CardService.newCardSection()
+                                        .addWidget(
+                                          CardService.newTextParagraph()
+                                                     .setText('<b>Swim Entries Manager</b> is a Google Workspace Add-on for managing swim meet entries efficiently.')
+                                        )
+                                        .addWidget(
+                                          CardService.newTextParagraph()
+                                                     .setText('This tool helps swim meet organizers create structured entry templates, manage school/cluster registrations, and export data directly to SDIF format for Hy-Tek Meet Manager or CSV for other tools.')
+                                        );
+
+  const featuresSection = CardService.newCardSection()
+                                     .setHeader('Key Features')
+                                     .addWidget(
+                                       CardService.newTextParagraph()
+                                                  .setText('• <b>Template Management:</b> Generate structured tables with automated validation and named ranges<br><br>• <b>Sheet Duplication:</b> Bulk creation of entry sheets for multiple schools or clusters<br><br>• <b>SDIF Export:</b> Direct export to SDIF v3 format with exception reporting and data validation<br><br>• <b>CSV Export:</b> Traditional CSV format for custom processing')
+                                     );
+
+  const linksSection = CardService.newCardSection()
+                                  .setHeader('Resources')
+                                  .addWidget(
+                                    CardService.newButtonSet()
+                                               .addButton(
+                                                 CardService.newTextButton()
+                                                            .setText('View on GitHub')
+                                                            .setIcon(CardService.Icon.DESCRIPTION)
+                                                            .setOpenLink(CardService.newOpenLink()
+                                                                                   .setUrl('https://github.com/petrfaitl/swim-entries-manager'))
+                                               )
+                                  )
+                                  .addWidget(
+                                    CardService.newButtonSet()
+                                               .addButton(
+                                                 CardService.newTextButton()
+                                                            .setText('Report Issues')
+                                                            .setIcon(CardService.Icon.EMAIL)
+                                                            .setOpenLink(CardService.newOpenLink()
+                                                                                   .setUrl('https://github.com/petrfaitl/swim-entries-manager/issues'))
+                                               )
+                                  );
+
+  const supportSection = CardService.newCardSection()
+                                    .setHeader('Support Development')
+                                    .addWidget(
+                                      CardService.newTextParagraph()
+                                                 .setText('If you find this add-on useful, consider supporting its development:')
+                                    )
+                                    .addWidget(
+                                      CardService.newButtonSet()
+                                                 .addButton(
+                                                   CardService.newTextButton()
+                                                              .setText('Buy me a coffee')
+                                                              .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+                                                              .setBackgroundColor('#FFDD00')
+                                                              .setIcon(CardService.Icon.STORE)
+                                                              .setOpenLink(CardService.newOpenLink()
+                                                                                     .setUrl('https://buymeacoffee.com/pfaitl'))
+                                                 )
+                                    );
+
+  const legalSection = CardService.newCardSection()
+                                  .addWidget(
+                                    CardService.newTextParagraph()
+                                               .setText('<font color="#666666"><i>Licensed under MIT License<br>Built with Google Apps Script<br>Contact: recorder@lvwasc.co.nz</i></font>')
+                                  );
+
+  aboutCard
+    .addSection(descriptionSection)
+    .addSection(featuresSection)
+    .addSection(linksSection)
+    .addSection(supportSection)
+    .addSection(legalSection);
+
+  return CardService.newNavigation()
+                    .pushCard(aboutCard.build());
+}
+
+/**
+ * Builds and returns the Help card with essential user guide information
+ */
+function showHelpCard() {
+  const helpCard = CardService.newCardBuilder()
+                              .setHeader(
+                                CardService.newCardHeader()
+                                           .setTitle('Help & Quick Start')
+                                           .setSubtitle('Essential guide to using Swim Entries Manager')
+                              );
+
+  const quickStartSection = CardService.newCardSection()
+                                       .setHeader('Quick Start Workflow')
+                                       .addWidget(
+                                         CardService.newTextParagraph()
+                                                    .setText('<b>1. Create Core Tables (STEP 1)</b><br>Create Team Officials, Events for Template, and Schools tables. Define Gender and School Year values if using Individual Entries Template.')
+                                       )
+                                       .addWidget(
+                                         CardService.newTextParagraph()
+                                                    .setText('<b>2. Populate Tables</b><br>• <i>Team Officials:</i> Enter teams/schools/clusters<br>• <i>Events:</i> Enter Distance and Discipline<br>• <i>Schools:</i> Fill Team Name, School, Cluster, and Code')
+                                       )
+                                       .addWidget(
+                                         CardService.newTextParagraph()
+                                                    .setText('<b>3. Create Entry Sheets (STEP 2)</b><br>Duplicate the template for each team/school so coordinators work in separate sheets.')
+                                       )
+                                       .addWidget(
+                                         CardService.newTextParagraph()
+                                                    .setText('<b>4. Fill Swimmer Entries</b><br><b>Required:</b> First Name, Last Name, Gender, Date of Birth, valid Team Code<br><b>Recommended:</b> Entry times and School Year')
+                                       )
+                                       .addWidget(
+                                         CardService.newTextParagraph()
+                                                    .setText('<b>5. Export for Meet Manager (STEP 4)</b><br>Generate SDIF file and review exception reports if warnings appear. Alternative: Export to CSV.')
+                                       );
+
+  const criticalFieldsSection = CardService.newCardSection()
+                                           .setHeader('Critical Data Requirements')
+                                           .addWidget(
+                                             CardService.newTextParagraph()
+                                                        .setText('<b>Must be present or swimmer is excluded:</b><br>• First Name<br>• Last Name<br>• Date of Birth (DD/MM/YYYY)<br>• Gender<br>• Team Code (must exist in Schools table)<br>• Team Name (from Schools table)')
+                                           )
+                                           .addWidget(
+                                             CardService.newTextParagraph()
+                                                        .setText('<b>Event Format:</b><br>Events must be formatted as [Distance] [Stroke]<br>✓ Correct: "25m Freestyle", "50m Backstroke"<br>✗ Incorrect: "Y5", "25 Free"')
+                                           );
+
+  const exceptionReportsSection = CardService.newCardSection()
+                                             .setHeader('Understanding Exception Reports')
+                                             .addWidget(
+                                               CardService.newTextParagraph()
+                                                          .setText('When exporting for Meet Manager, the system validates all critical data. If issues are found, an <b>Exception Report</b> is generated that details:')
+                                             )
+                                             .addWidget(
+                                               CardService.newTextParagraph()
+                                                          .setText('• Missing critical data (swimmer excluded)<br>• Missing teams in Schools table<br>• Invalid event format (events skipped)<br>• Swimmers with no events (warning only)')
+                                             )
+                                             .addWidget(
+                                               CardService.newTextParagraph()
+                                                          .setText('<b>Always review exception reports before importing to Meet Manager!</b>')
+                                             );
+
+  const tipsSection = CardService.newCardSection()
+                                 .setHeader('Best Practices')
+                                 .addWidget(
+                                   CardService.newTextParagraph()
+                                              .setText('✓ Fill in all required fields before exporting<br>✓ Use dropdown values when available<br>✓ Add all teams to Schools table first<br>✓ Use correct event naming format<br>✓ Run test export early to catch data issues')
+                                 );
+
+  const resourcesSection = CardService.newCardSection()
+                                      .setHeader('Need More Help?')
+                                      .addWidget(
+                                        CardService.newButtonSet()
+                                                   .addButton(
+                                                     CardService.newTextButton()
+                                                                .setText('Full User Guide')
+                                                                .setIcon(CardService.Icon.DESCRIPTION)
+                                                                .setOpenLink(CardService.newOpenLink()
+                                                                                       .setUrl('https://github.com/petrfaitl/swim-entries-manager/blob/main/docs/USER_GUIDE.md'))
+                                                   )
+                                      )
+                                      .addWidget(
+                                        CardService.newButtonSet()
+                                                   .addButton(
+                                                     CardService.newTextButton()
+                                                                .setText('Report Issues')
+                                                                .setIcon(CardService.Icon.EMAIL)
+                                                                .setOpenLink(CardService.newOpenLink()
+                                                                                       .setUrl('https://github.com/petrfaitl/swim-entries-manager/issues'))
+                                                   )
+                                      )
+                                      .addWidget(
+                                        CardService.newTextParagraph()
+                                                   .setText('<font color="#666666"><i>Email: recorder@lvwasc.co.nz</i></font>')
+                                      );
+
+  helpCard
+    .addSection(quickStartSection)
+    .addSection(criticalFieldsSection)
+    .addSection(exceptionReportsSection)
+    .addSection(tipsSection)
+    .addSection(resourcesSection);
+
+  return CardService.newNavigation()
+                    .pushCard(helpCard.build());
 }
 
 /**

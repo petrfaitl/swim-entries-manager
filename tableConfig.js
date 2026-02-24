@@ -113,7 +113,7 @@ function getTableConfig(overrides) {
 
     EventsForTemplate: {
       tableType: 'core',
-      title: 'Events for Individual Entries Template*',
+      title: 'Events*',
       headers: ['Distance', 'Discipline', 'Events'],
       columns: toCols({
         'Distance': {type: 'text', validation: {type: 'list', args: {values: ['25m', '50m', '100m', '200m', '400m']}}},
@@ -129,7 +129,7 @@ function getTableConfig(overrides) {
       options: {
         freezeHeader: 1, headerBg: '#356853',
         rows: 10, required: true,
-        placement: {targetSheet: "EventsForTemplate", startCell: 'A1'}, clearMode: 'rebuild',
+        placement: {targetSheet: "Events", startCell: 'A1'}, clearMode: 'rebuild',
         namedRange: {name: 'EventsList', columnName: 'Events'}
       },
       notes: 'Simplified event names used for dropdown validation in individual entries.'
@@ -137,7 +137,7 @@ function getTableConfig(overrides) {
 
     Schools: {
       tableType: 'core',
-      title: 'Schools for Individual Entries Template*',
+      title: 'Schools*',
       headers: ['Team Name', 'School', 'Cluster', 'Code', 'Region Code'],
       columns: toCols({
         'Team Name': {type: 'text', default: 'Team Name'},
@@ -148,7 +148,7 @@ function getTableConfig(overrides) {
       }),
       options: {
         freezeHeader: 1, headerBg: '#356853', rows: 30, required: true,
-        placement: {targetSheet: "SchoolsForTemplate", startCell: 'A1'}, clearMode: 'rebuild',
+        placement: {targetSheet: "Schools", startCell: 'A1'}, clearMode: 'rebuild',
         namedRange: {name: 'SchoolsList', columnName: 'School'}
       }
     },
