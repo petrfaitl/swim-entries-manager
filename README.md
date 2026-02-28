@@ -4,7 +4,7 @@
 [![Apps Script](https://img.shields.io/badge/Apps%20Script-V8-34A853)](https://developers.google.com/apps-script)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-A Google Workspace Add-on for managing swim meet entries efficiently. This tool helps swim meet organizers create structured entry templates, manage school/cluster registrations, and export data directly to SDIF format for Hy-Tek Meet Manager or CSV for other tools.
+A Google Workspace Add-on for managing swim meet entries efficiently. This tool helps swim meet organisers create structured entry templates, manage school/cluster registrations, and export data directly to SDIF format for Hy-Tek Meet Manager or CSV for other tools.
 
 ![Swim Entries Manager](https://www.lvwasc.co.nz/wp-content/uploads/2025/07/Swim-Entries-Manager.png)
 

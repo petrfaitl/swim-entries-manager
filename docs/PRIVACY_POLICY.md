@@ -63,7 +63,7 @@ Spreadsheet content remains in your Google environment unless you export, copy, 
 
 ## 8. Security
 
-We use reasonable administrative, technical, and organizational safeguards to protect information. No method of transmission or storage is 100% secure, so we cannot guarantee absolute security.
+We use reasonable administrative, technical, and organisational safeguards to protect information. No method of transmission or storage is 100% secure, so we cannot guarantee absolute security.
 
 ## 9. International Transfers
 
@@ -91,5 +91,5 @@ We may update this Privacy Policy from time to time. We will post the updated ve
 For privacy questions or requests:
 
 - Email: `recorder@lvwasc.co.nz`
-- Organization: `LVWASC / Liz van Welie Aquatics Swimming Club`
+- Organisation: `LVWASC / Liz van Welie Aquatics Swimming Club`
 - Address: `79 Pyes Pa road, Pyes Pa, Tauranga, 3112, New Zealand`

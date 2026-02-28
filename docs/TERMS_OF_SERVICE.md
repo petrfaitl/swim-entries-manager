@@ -14,7 +14,7 @@ Contact: `recorder@lvwasc.co.nz`
 You represent that:
 
 - You are legally able to accept these Terms.
-- If you use the Add-on on behalf of an organization, you have authority to bind that organization.
+- If you use the Add-on on behalf of an organisation, you have authority to bind that organization.
 
 ## 2. License and Permitted Use
 
@@ -92,5 +92,5 @@ Subject to mandatory consumer law, courts of New Zealand will have exclusive jur
 Questions about these Terms:
 
 - Email: `recorder@lvwasc.co.nz`
-- Organization: `LVWASC / Liz van Welie Aquatics Swimming Club`
+- Organisation: `LVWASC / Liz van Welie Aquatics Swimming Club`
 - Address: `79 Pyes Pa road, Pyes Pa, Tauranga, 3112, New Zealand`

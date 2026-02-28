@@ -711,7 +711,7 @@ function showAboutCard() {
                                         )
                                         .addWidget(
                                           CardService.newTextParagraph()
-                                                     .setText('This tool helps swim meet organizers create structured entry templates, manage school/cluster registrations, and export data directly to SDIF format for Hy-Tek Meet Manager or CSV for other tools.')
+                                                     .setText('This tool helps swim meet organisers create structured entry templates, manage school/cluster registrations, and export data directly to SDIF format for Hy-Tek Meet Manager or CSV for other tools.')
                                         );
 
   const featuresSection = CardService.newCardSection()
