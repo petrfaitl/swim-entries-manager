@@ -89,10 +89,165 @@ function normalizeSchoolYear(year) {
 }
 
 /**
- * AUTO-DETECTS Event/Time column pairs from header row
+ * Detects the column mapping based on header row
+ * Handles tables with or without the '#' numbering column
+ *
+ * @param {Array} headerRow - Header row from sheet
+ * @return {Object} Column mapping with indices for: firstName, lastName, dob, gender, schoolYear, school, hasNumberColumn, eventStartCol
+ */
+function detectColumnMapping(headerRow) {
+  const mapping = {
+    firstName: -1,
+    lastName: -1,
+    dob: -1,
+    gender: -1,
+    schoolYear: -1,
+    school: -1,
+    hasNumberColumn: false,
+    eventStartCol: -1
+  };
+
+  // Check if first column is a number/hash column
+  const firstHeader = String(headerRow[0] || "").trim().toLowerCase();
+  mapping.hasNumberColumn = firstHeader === '#' || firstHeader === 'no' || firstHeader === 'no.' ||
+                            firstHeader === 'number' || firstHeader === '' && String(headerRow[1] || "").trim().toLowerCase().includes('first');
+
+  // Set base offset
+  const offset = mapping.hasNumberColumn ? 1 : 0;
+
+  // Detect standard columns by pattern matching
+  for (let col = 0; col < Math.min(headerRow.length, 15); col++) {
+    const header = String(headerRow[col] || "").trim().toLowerCase();
+
+    if (!header) continue;
+
+    // First Name detection
+    if ((header.includes('first') && header.includes('name')) || header === 'first name' || header === 'firstname') {
+      mapping.firstName = col;
+    }
+    // Last Name detection
+    else if ((header.includes('last') && header.includes('name')) || header === 'last name' || header === 'lastname' || header === 'surname') {
+      mapping.lastName = col;
+    }
+    // Date of Birth detection
+    else if (header.includes('date') && header.includes('birth') || header === 'dob' || header === 'birth date' || header === 'birthdate') {
+      mapping.dob = col;
+    }
+    // Gender detection
+    else if (header === 'gender' || header === 'sex' || header === 'm/f') {
+      mapping.gender = col;
+    }
+    // School Year detection
+    else if ((header.includes('school') && header.includes('year')) ||
+             (header.includes('year') && header.includes('level')) ||
+             header === 'year' || header === 'year level' || header === 'grade') {
+      mapping.schoolYear = col;
+    }
+    // School detection
+    else if (header === 'school' || header === 'team' || header === 'club' || header === 'house') {
+      mapping.school = col;
+    }
+  }
+
+  // Fallback to default positions if not found
+  if (mapping.firstName === -1) mapping.firstName = 0 + offset;
+  if (mapping.lastName === -1) mapping.lastName = 1 + offset;
+  if (mapping.dob === -1) mapping.dob = 2 + offset;
+  if (mapping.gender === -1) mapping.gender = 3 + offset;
+  if (mapping.schoolYear === -1) mapping.schoolYear = 4 + offset;
+  if (mapping.school === -1) mapping.school = 5 + offset;
+
+  // Event columns typically start after school column
+  mapping.eventStartCol = Math.max(mapping.school + 1, 6 + offset);
+
+  Logger.log(`[EntryDataProcessor] Column mapping detected: hasNumberColumn=${mapping.hasNumberColumn}, firstName=${mapping.firstName}, lastName=${mapping.lastName}, dob=${mapping.dob}, gender=${mapping.gender}, schoolYear=${mapping.schoolYear}, school=${mapping.school}, eventStartCol=${mapping.eventStartCol}`);
+
+  return mapping;
+}
+
+/**
+ * Determines if an event name is valid (real event format)
+ * Valid: "25m Freestyle", "100m Backstroke", "50m IM"
+ * Invalid: "Event 1", "Event", generic text
+ * @param {string} header - Header text to check
+ * @return {boolean}
+ */
+function isRealEventName(header) {
+  const h = String(header || "").trim();
+  if (!h) return false;
+
+  // Must start with distance (e.g., "25m", "100m")
+  const hasDistance = /^\d+m/i.test(h);
+
+  // Must contain stroke/discipline name
+  const hasStroke = /(backstroke|breaststroke|butterfly|freestyle|im|medley|relay|back|free|breast|fly|kick)/i.test(h);
+
+  return hasDistance && hasStroke;
+}
+
+/**
+ * COLUMN FORMAT DETECTION
+ * Detects which format the sheet uses:
+ * - METHOD_1: "Event 1" | "Time 1" pairs (values in cells)
+ * - METHOD_2: "100m Freestyle" | "100m Freestyle Best Time" (Yes/NT in cells)
+ *
+ * @param {array} headerRow - Header row values
+ * @return {object} {method: 'METHOD_1'|'METHOD_2', confidence: number}
+ */
+function detectColumnFormat(headerRow) {
+  let method1Score = 0;
+  let method2Score = 0;
+
+  // Scan headers starting from column F (index 5)
+  for (let col = 5; col < headerRow.length; col++) {
+    const header = String(headerRow[col] || "").trim();
+    if (!header) continue;
+
+    // METHOD_1 indicators: "Event X" pattern
+    if (/event\s*\d+/i.test(header)) {
+      method1Score += 10;
+    }
+
+    // METHOD_1 indicators: "Time X" pattern
+    if (/time\s*\d+/i.test(header)) {
+      method1Score += 5;
+    }
+
+    // METHOD_2 indicators: Real event names in headers
+    if (isRealEventName(header)) {
+      method2Score += 10;
+    }
+
+    // METHOD_2 indicators: "Best Time" pattern following event name
+    if (/(best\s*time|entry\s*time|pb\s*time)/i.test(header)) {
+      method2Score += 5;
+
+      // Check if previous column was a real event name
+      if (col > 0 && isRealEventName(headerRow[col - 1])) {
+        method2Score += 10; // Strong indicator
+      }
+    }
+  }
+
+  Logger.log(`[EntryDataProcessor] Format detection scores: METHOD_1=${method1Score}, METHOD_2=${method2Score}`);
+
+  // Determine which method based on scores
+  if (method1Score > method2Score) {
+    return { method: 'METHOD_1', confidence: method1Score };
+  } else if (method2Score > method1Score) {
+    return { method: 'METHOD_2', confidence: method2Score };
+  } else {
+    // Default to METHOD_1 if scores are equal
+    Logger.log('[EntryDataProcessor] Warning: Unable to determine format confidently, defaulting to METHOD_1');
+    return { method: 'METHOD_1', confidence: 0 };
+  }
+}
+
+/**
+ * AUTO-DETECTS Event/Time column pairs from header row (METHOD 1)
  * Only matches clear "Event X" or real event names, then checks NEXT column for Time
  * @param {array} headerRow - Header row values (e.g. data[0])
- * @return {array} Array of {eventCol: number, timeCol: number|null} pairs
+ * @return {array} Array of {eventCol: number, timeCol: number|null, method: 'METHOD_1'} pairs
  */
 function detectEventTimeColumns(headerRow) {
   const pairs = [];
@@ -136,16 +291,67 @@ function detectEventTimeColumns(headerRow) {
       }
     }
 
-    pairs.push({ eventCol, timeCol });
+    pairs.push({ eventCol, timeCol, method: 'METHOD_1' });
   }
 
   // Fallback: if nothing detected, assume standard J:AA (9 pairs)
   if (pairs.length === 0) {
     Logger.log("[EntryDataProcessor] No Event columns detected → using fallback J:AA (indices 9-26)");
     for (let col = 9; col <= 26; col += 2) {
-      pairs.push({ eventCol: col, timeCol: col + 1 });
+      pairs.push({ eventCol: col, timeCol: col + 1, method: 'METHOD_1' });
     }
   }
+
+  return pairs;
+}
+
+/**
+ * AUTO-DETECTS Event/BestTime column pairs from header row (METHOD 2)
+ * Looks for real event names (e.g., "100m Freestyle") followed by optional "Best Time" column
+ * @param {array} headerRow - Header row values
+ * @return {array} Array of {eventCol: number, timeCol: number|null, eventName: string, method: 'METHOD_2'} pairs
+ */
+function detectEventColumnsWithBestTime(headerRow) {
+  const pairs = [];
+
+  // Scan from column F (index 5) onwards
+  for (let col = 5; col < headerRow.length; col++) {
+    const header = String(headerRow[col] || "").trim();
+
+    // Skip empty headers
+    if (!header) continue;
+
+    // Check if this is a real event name
+    if (isRealEventName(header)) {
+      const eventCol = col;
+      const eventName = header;
+      let timeCol = null;
+
+      // Check if NEXT column is "Best Time" or similar
+      if (col + 1 < headerRow.length) {
+        const nextHeader = String(headerRow[col + 1] || "").trim();
+
+        // Look for patterns like "Best Time", "Entry Time", or event name + "Best Time"
+        const isBestTimeColumn =
+          /(best\s*time|entry\s*time)/i.test(nextHeader) ||
+          (nextHeader.toLowerCase().includes(header.toLowerCase()) && /time/i.test(nextHeader));
+
+        if (isBestTimeColumn) {
+          timeCol = col + 1;
+          col++; // Skip the time column in next iteration
+        }
+      }
+
+      pairs.push({
+        eventCol,
+        timeCol,
+        eventName,
+        method: 'METHOD_2'
+      });
+    }
+  }
+
+  Logger.log(`[EntryDataProcessor] METHOD_2: Detected ${pairs.length} event columns with real event names`);
 
   return pairs;
 }
@@ -312,31 +518,33 @@ function getSchoolCode(teamCodeData, schoolName) {
 
 /**
  * Process a single row from the entries sheet into structured data
+ * Handles both METHOD_1 (Event/Time pairs) and METHOD_2 (Yes/NT indicators)
  *
  * @param {Array} row - Raw row data from sheet
- * @param {Array} eventTimePairs - Detected event/time column pairs
+ * @param {Array} eventTimePairs - Detected event/time column pairs (includes method info)
  * @param {number} convertColumnIndex - Index of convert column, or -1
  * @param {Array} teamCodeData - Team code lookup data
+ * @param {Object} columnMapping - Column indices mapping (from detectColumnMapping)
  * @return {Object} Processed swimmer data with: teamCode, firstName, lastName, dobFormatted, gender, eventsStr, timesStr, schoolYear
  */
-function processEntryRow(row, eventTimePairs, convertColumnIndex, teamCodeData) {
-  // Skip empty rows (no first name)
-  const firstNameRaw = getSafeValue(row, 1);  // Zero indexed
+function processEntryRow(row, eventTimePairs, convertColumnIndex, teamCodeData, columnMapping) {
+  // Skip empty rows (no first name) - use dynamic column index
+  const firstNameRaw = getSafeValue(row, columnMapping.firstName);
   if (firstNameRaw === "" || firstNameRaw == null) {
     return null;
   }
 
-  // Fixed columns
+  // Use dynamic column indices from mapping
   let teamCode = "UNS";
-  const lastNameRaw = getSafeValue(row, 2);
+  const lastNameRaw = getSafeValue(row, columnMapping.lastName);
 
   // Apply safe capitalization to names (only fixes all-caps or all-lowercase)
   const firstName = capitalizeNameSafely(firstNameRaw);
   const lastName = capitalizeNameSafely(lastNameRaw);
-  const dobRaw = getSafeValue(row, 3);
-  const gender = getSafeValue(row, 4);
-  const schoolYearRaw = getSafeValue(row, 5);
-  const schoolName = getSafeValue(row, 6);
+  const dobRaw = getSafeValue(row, columnMapping.dob);
+  const gender = getSafeValue(row, columnMapping.gender);
+  const schoolYearRaw = getSafeValue(row, columnMapping.schoolYear);
+  const schoolName = getSafeValue(row, columnMapping.school);
 
   // Normalize school year to SDIF 2-character format
   const schoolYear = normalizeSchoolYear(schoolYearRaw);
@@ -359,42 +567,96 @@ function processEntryRow(row, eventTimePairs, convertColumnIndex, teamCodeData) 
   const entryTimes = [];
 
   eventTimePairs.forEach(pair => {
-    const event = getSafeValue(row, pair.eventCol);
-    const eventStr = String(event || "").trim();
+    if (pair.method === 'METHOD_2') {
+      // METHOD 2: Event name in header, "Yes" or time in event column
+      const cellValue = getSafeValue(row, pair.eventCol);
+      const cellStr = String(cellValue || "").trim().toUpperCase();
 
-    if (eventStr !== "") {
-      eventEntries.push(eventStr);
+      // Check if swimmer is entered in this event
+      const isEntered = cellStr === "YES" || cellStr === "Y" || cellStr !== "" && cellStr !== "NO" && cellStr !== "N";
 
-      // Time handling based on column format
-      if (pair.timeCol !== null) {
-        // Standard format: Event | Time pair
-        const timeRaw = getSafeValue(row, pair.timeCol);
-        let timeStr = (timeRaw === "" || timeRaw == null)
-          ? "NT"
-          : formatAsMmSsSs(timeRaw);
+      if (isEntered) {
+        // Use the event name from the header
+        eventEntries.push(pair.eventName);
 
-        // Convert times from 33.3m pool to standard 25m pool timing when requested.
-        if (timeStr !== "NT") {
-          const convertFlag = String(convertTimes || "").trim().toLowerCase();
-          if (convertFlag === "yes") {
-            const dist = parseEventDistance(eventStr);
-            try {
-              if (dist === 25) {
-                timeStr = RESIZESWIM(33.3, 25, timeStr);
-              } else if (dist === 50) {
-                timeStr = RESIZESWIM(66.6, 50, timeStr);
+        // Check if there's a time in the Best Time column
+        if (pair.timeCol !== null) {
+          const timeRaw = getSafeValue(row, pair.timeCol);
+          const timeStr = String(timeRaw || "").trim().toUpperCase();
+
+          // If the cell value in event column looks like a time, use that instead
+          let finalTime;
+          if (/^\d{1,2}:\d{2}/.test(cellStr) || /^\d+\.\d+$/.test(cellStr)) {
+            // Event column contains the time
+            finalTime = formatAsMmSsSs(cellValue);
+          } else if (timeStr === "" || timeStr === "NT" || timeStr === "NO TIME") {
+            finalTime = "NT";
+          } else {
+            finalTime = formatAsMmSsSs(timeRaw);
+          }
+
+          // Apply pool conversion if needed
+          if (finalTime !== "NT") {
+            const convertFlag = String(convertTimes || "").trim().toLowerCase();
+            if (convertFlag === "yes") {
+              const dist = parseEventDistance(pair.eventName);
+              try {
+                if (dist === 25) {
+                  finalTime = RESIZESWIM(33.3, 25, finalTime);
+                } else if (dist === 50) {
+                  finalTime = RESIZESWIM(66.6, 50, finalTime);
+                }
+              } catch (e) {
+                Logger.log(`[EntryDataProcessor] Conversion skipped due to error for event "${pair.eventName}": ${e && e.message ? e.message : e}`);
               }
-            } catch (e) {
-              // If anything goes wrong during conversion, keep original timeStr
-              Logger.log(`[EntryDataProcessor] Conversion skipped due to error for event "${eventStr}": ${e && e.message ? e.message : e}`);
             }
           }
-        }
 
-        entryTimes.push(timeStr);
-      } else {
-        // Events-only format: default "NT"
-        entryTimes.push("NT");
+          entryTimes.push(finalTime);
+        } else {
+          // No time column, default to NT
+          entryTimes.push("NT");
+        }
+      }
+    } else {
+      // METHOD 1: Event value in cell, time in adjacent column
+      const event = getSafeValue(row, pair.eventCol);
+      const eventStr = String(event || "").trim();
+
+      if (eventStr !== "") {
+        eventEntries.push(eventStr);
+
+        // Time handling based on column format
+        if (pair.timeCol !== null) {
+          // Standard format: Event | Time pair
+          const timeRaw = getSafeValue(row, pair.timeCol);
+          let timeStr = (timeRaw === "" || timeRaw == null)
+            ? "NT"
+            : formatAsMmSsSs(timeRaw);
+
+          // Convert times from 33.3m pool to standard 25m pool timing when requested.
+          if (timeStr !== "NT") {
+            const convertFlag = String(convertTimes || "").trim().toLowerCase();
+            if (convertFlag === "yes") {
+              const dist = parseEventDistance(eventStr);
+              try {
+                if (dist === 25) {
+                  timeStr = RESIZESWIM(33.3, 25, timeStr);
+                } else if (dist === 50) {
+                  timeStr = RESIZESWIM(66.6, 50, timeStr);
+                }
+              } catch (e) {
+                // If anything goes wrong during conversion, keep original timeStr
+                Logger.log(`[EntryDataProcessor] Conversion skipped due to error for event "${eventStr}": ${e && e.message ? e.message : e}`);
+              }
+            }
+          }
+
+          entryTimes.push(timeStr);
+        } else {
+          // Events-only format: default "NT"
+          entryTimes.push("NT");
+        }
       }
     }
   });
@@ -416,6 +678,7 @@ function processEntryRow(row, eventTimePairs, convertColumnIndex, teamCodeData) 
 
 /**
  * Process all rows from an entries sheet
+ * Automatically detects column format (METHOD_1 or METHOD_2) and column mapping
  *
  * @param {Sheet} sheet - Google Sheets sheet object
  * @param {string} teamCodeTableName - Name of the table for team code lookup
@@ -429,11 +692,32 @@ function processEntriesSheet(sheet, teamCodeTableName, spreadsheetId) {
     throw new Error("[EntryDataProcessor] No data found in sheet");
   }
 
-  // ── AUTO-DETECT Event/Time columns from HEADER ROW ───────────────────
+  // ── AUTO-DETECT COLUMN MAPPING ──────────────────────────────────────
   const headerRow = data[0];
-  const eventTimePairs = detectEventTimeColumns(headerRow);
+  const columnMapping = detectColumnMapping(headerRow);
 
-  Logger.log(`[EntryDataProcessor] Detected ${eventTimePairs.length} event/time pairs at columns: ${eventTimePairs.map(p => `(${p.eventCol}, ${p.timeCol || 'N/A'})`).join(', ')}`);
+  // ── AUTO-DETECT COLUMN FORMAT ───────────────────────────────────────
+  const formatDetection = detectColumnFormat(headerRow);
+
+  Logger.log(`[EntryDataProcessor] Detected column format: ${formatDetection.method} (confidence: ${formatDetection.confidence})`);
+
+  // ── AUTO-DETECT Event/Time columns based on format ──────────────────
+  let eventTimePairs;
+  if (formatDetection.method === 'METHOD_2') {
+    // METHOD 2: Event names in headers with "Yes" indicators
+    eventTimePairs = detectEventColumnsWithBestTime(headerRow);
+    Logger.log(`[EntryDataProcessor] METHOD_2: Detected ${eventTimePairs.length} event columns with best time pairs`);
+  } else {
+    // METHOD 1: Traditional "Event X" | "Time X" pairs
+    eventTimePairs = detectEventTimeColumns(headerRow);
+    Logger.log(`[EntryDataProcessor] METHOD_1: Detected ${eventTimePairs.length} event/time pairs`);
+  }
+
+  if (eventTimePairs.length === 0) {
+    Logger.log('[EntryDataProcessor] WARNING: No event columns detected. Results may be empty.');
+  } else {
+    Logger.log(`[EntryDataProcessor] Event columns at indices: ${eventTimePairs.map(p => `(${p.eventCol}, ${p.timeCol || 'N/A'})`).join(', ')}`);
+  }
 
   const convertColumnIndex = findConvertColumnIndex(headerRow);
 
@@ -456,11 +740,13 @@ function processEntriesSheet(sheet, teamCodeTableName, spreadsheetId) {
   const processedRows = [];
   for (let i = 1; i < data.length; i++) {
     const row = data[i];
-    const processed = processEntryRow(row, eventTimePairs, convertColumnIndex, teamCodeData);
+    const processed = processEntryRow(row, eventTimePairs, convertColumnIndex, teamCodeData, columnMapping);
     if (processed) {
       processedRows.push(processed);
     }
   }
+
+  Logger.log(`[EntryDataProcessor] Successfully processed ${processedRows.length} swimmers using ${formatDetection.method}`);
 
   return processedRows;
 }
