@@ -425,52 +425,118 @@ function formatDob(dobRaw) {
 }
 
 /**
- * Formats time as MM:SS.SS
- * @param {Date|number|string} timeRaw
- * @return {string}
+ * Reformats time strings into MM:SS.SS format
+ * Does NOT recalculate or convert - only parses and reformats existing time values
+ *
+ * Accepts formats:
+ * - MM:SS.SS (e.g. "01:30.95") - already correct, normalizes padding
+ * - SS.SS (e.g. "45.67") - seconds only, no minutes
+ * - MM:SS:SS (e.g. "01:30:95") - last : treated as .
+ * - MM:SS.S (e.g. "01:05.6") - one decimal, pads to two
+ * - MM:SS:S (e.g. "01:05:6") - last : as ., one decimal
+ * - SS.S (e.g. "45.6") - seconds only, one decimal
+ *
+ * @param {Date|number|string} timeRaw - Raw time value from cell
+ * @return {string} Formatted time as MM:SS.SS or "NT"
  */
 function formatAsMmSsSs(timeRaw) {
   if (!timeRaw && timeRaw !== 0) return "NT";
 
   const s = String(timeRaw).trim();
-  if (s === "" || s.toUpperCase() === "NT") return "NT";
+  if (s === "" || s.toUpperCase() === "NT" || s.toUpperCase() === "DNS" || s.toUpperCase() === "DNF") return "NT";
 
-  // If it's already in MM:SS.SS format, return as is
-  if (/^\d{1,2}:\d{2}\.\d{2}$/.test(s)) return s;
+  // Check for free text (contains letters) - return NT
+  if (/[a-zA-Z]/.test(s)) return "NT";
 
-  // Handle serial time (decimal < 1)
-  if (typeof timeRaw === 'number' && timeRaw < 1) {
+  // Handle serial time from Google Sheets (decimal < 1 represents fraction of a day)
+  // This is the ONLY case where we need to convert
+  if (typeof timeRaw === 'number' && timeRaw > 0 && timeRaw < 1) {
     const totalSeconds = timeRaw * 86400;
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
+
+    // Validate ranges
+    if (minutes >= 60) return "NT";
+    if (seconds >= 60) return "NT";
+
     const mm = String(minutes).padStart(2, '0');
-    const ss = seconds.toFixed(2).padStart(5, '0');
-    return mm + ':' + ss;
+    const secondsInt = Math.floor(seconds);
+    const secondsDec = Math.round((seconds - secondsInt) * 100);
+    const ss = String(secondsInt).padStart(2, '0');
+    const dec = String(secondsDec).padStart(2, '0');
+
+    return mm + ':' + ss + '.' + dec;
   }
 
-  // Parse string formats like "1:23.45" or "83.45"
-  if (s.includes(':')) {
-    const parts = s.split(':');
+  // ─── STRING PARSING ────────────────────────────────────────────────
+
+  let workingStr = s;
+
+  // Step 1: Handle MM:SS:SS format (last : should be .)
+  const colonCount = (s.match(/:/g) || []).length;
+  if (colonCount === 2) {
+    // Replace last : with .
+    const lastColonIndex = s.lastIndexOf(':');
+    workingStr = s.substring(0, lastColonIndex) + '.' + s.substring(lastColonIndex + 1);
+  } else if (colonCount === 1) {
+    // Check if we need to convert last : to . (e.g. "01:05:6" format)
+    // If there's a : followed by 1-2 digits at end, treat as MM:SS:S
+    const match = /^(\d{1,2}):(\d{1,2}):(\d{1,2})$/.exec(s);
+    if (match) {
+      workingStr = match[1] + ':' + match[2] + '.' + match[3];
+    }
+  }
+
+  // Step 2: Split into components
+  let minutes = 0;
+  let secondsStr = workingStr;
+
+  if (workingStr.includes(':')) {
+    const parts = workingStr.split(':');
     if (parts.length === 2) {
-      const minutes = parseInt(parts[0], 10);
-      const secondsPart = parseFloat(parts[1]);
-      const mm = String(minutes).padStart(2, '0');
-      const ss = secondsPart.toFixed(2).padStart(5, '0');
-      return mm + ':' + ss;
+      minutes = parseInt(parts[0], 10);
+      secondsStr = parts[1];
+    } else {
+      return "NT"; // Invalid format
+    }
+  }
+
+  // Step 3: Parse seconds (integer and decimal parts)
+  let secondsInt;
+  let decimalPart = "00";
+
+  if (secondsStr.includes('.')) {
+    const secParts = secondsStr.split('.');
+    secondsInt = parseInt(secParts[0], 10);
+
+    // Handle decimal padding: .6 becomes .60 (not .06)
+    // Single digit represents TENTHS, must be RIGHT-padded
+    if (secParts[1]) {
+      const dec = secParts[1];
+      if (dec.length === 1) {
+        decimalPart = dec + '0'; // Right-pad: .6 -> .60
+      } else if (dec.length === 2) {
+        decimalPart = dec;
+      } else {
+        // Truncate to 2 digits if longer
+        decimalPart = dec.substring(0, 2);
+      }
     }
   } else {
-    // Assume it's seconds only
-    const totalSec = parseFloat(s);
-    if (!isNaN(totalSec)) {
-      const minutes = Math.floor(totalSec / 60);
-      const seconds = totalSec % 60;
-      const mm = String(minutes).padStart(2, '0');
-      const ss = seconds.toFixed(2).padStart(5, '0');
-      return mm + ':' + ss;
-    }
+    // No decimal point
+    secondsInt = parseInt(secondsStr, 10);
   }
 
-  return "NT";
+  // Step 4: Validate
+  if (isNaN(minutes) || isNaN(secondsInt)) return "NT";
+  if (minutes < 0 || minutes >= 60) return "NT";
+  if (secondsInt < 0 || secondsInt >= 60) return "NT";
+
+  // Step 5: Format output
+  const mm = String(minutes).padStart(2, '0');
+  const ss = String(secondsInt).padStart(2, '0');
+
+  return mm + ':' + ss + '.' + decimalPart;
 }
 
 /**

@@ -537,10 +537,27 @@ const SDIFCreator = (function() {
       + dobPart;
   }
 
+  /**
+   * Parses and reformats seed time for SDIF format (MM:SS.DD)
+   * Accepts standard swim time formats and converts to SDIF format
+   * Does NOT recalculate - only reformats existing time values
+   *
+   * Input formats accepted:
+   * - MM:SS.SS (e.g. "01:30.95")
+   * - SS.SS (e.g. "45.67")
+   * - MM:SS:SS (e.g. "01:30:95") - last : treated as .
+   * - MM:SS.S (e.g. "01:05.6") - one decimal, pads to two
+   *
+   * @param {string} timeStr - Time string in various formats
+   * @return {string} SDIF formatted time MM:SS.DD or "NT      " (8 chars)
+   */
   function parseSeedTime_(timeStr) {
     if (!timeStr) return pad_("NT", 8);
-    let s = timeStr.trim().toUpperCase();
-    if (s === "NT" || s === "") return pad_("NT", 8);
+    let s = String(timeStr).trim().toUpperCase();
+    if (s === "" || s === "NT" || s === "DNS" || s === "DNF") return pad_("NT", 8);
+
+    // Check for free text (letters) - return NT
+    if (/[A-Z]/i.test(s.replace(/NT|DNS|DNF/i, ''))) return pad_("NT", 8);
 
     // Strip whitespace
     s = s.replace(/\s/g, '');
@@ -549,44 +566,81 @@ const SDIFCreator = (function() {
     let seconds = 0;
     let decimals = 0;
 
-    if (s.indexOf(':') !== -1) {
-      const parts = s.split(':');
-      if (parts.length === 3) { // hh:mm:ss.dd or mm:ss:dd
-         // Assuming mm:ss:dd if it's swimming
-         minutes = parseInt(parts[0], 10);
-         seconds = parseInt(parts[1], 10);
-         decimals = parseInt(parts[2], 10);
-      } else if (parts.length === 2) { // mm:ss.dd or ss:dd
-         if (parts[1].indexOf('.') !== -1) {
-           minutes = parseInt(parts[0], 10);
-           const ssdd = parts[1].split('.');
-           seconds = parseInt(ssdd[0], 10);
-           decimals = parseInt(ssdd[1], 10);
-         } else {
-           // ss:dd or mm:ss?
-           // If parts[0] > 59, it's probably ss:dd
-           const p0 = parseInt(parts[0], 10);
-           if (p0 > 59) {
-             seconds = p0;
-             decimals = parseInt(parts[1], 10);
-           } else {
-             minutes = p0;
-             seconds = parseInt(parts[1], 10);
-           }
-         }
-      }
-    } else if (s.indexOf('.') !== -1) {
-      const parts = s.split('.');
-      seconds = parseInt(parts[0], 10);
-      decimals = parseInt(parts[1], 10);
-    } else {
-      seconds = parseInt(s, 10);
+    // Step 1: Handle MM:SS:SS format (last : should be .)
+    const colonCount = (s.match(/:/g) || []).length;
+    let workingStr = s;
+
+    if (colonCount === 2) {
+      // Replace last : with . (handles "01:30:95" -> "01:30.95")
+      const lastColonIndex = s.lastIndexOf(':');
+      workingStr = s.substring(0, lastColonIndex) + '.' + s.substring(lastColonIndex + 1);
     }
 
+    // Step 2: Parse the time string
+    if (workingStr.indexOf(':') !== -1) {
+      const parts = workingStr.split(':');
+      if (parts.length === 2) {
+        // MM:SS.DD format
+        minutes = parseInt(parts[0], 10);
+
+        if (parts[1].indexOf('.') !== -1) {
+          // Has decimal point: MM:SS.DD
+          const ssdd = parts[1].split('.');
+          seconds = parseInt(ssdd[0], 10);
+
+          // Handle decimal part: .6 means .60 (tenths), not .06
+          if (ssdd[1]) {
+            const decStr = ssdd[1];
+            if (decStr.length === 1) {
+              // Single digit = tenths, right-pad with 0
+              decimals = parseInt(decStr + '0', 10);
+            } else {
+              // Two or more digits, take first two
+              decimals = parseInt(decStr.substring(0, 2), 10);
+            }
+          }
+        } else {
+          // No decimal point: MM:SS
+          seconds = parseInt(parts[1], 10);
+          decimals = 0;
+        }
+      } else {
+        return pad_("NT", 8); // Invalid format
+      }
+    } else if (workingStr.indexOf('.') !== -1) {
+      // SS.DD format (no minutes)
+      const parts = workingStr.split('.');
+      seconds = parseInt(parts[0], 10);
+
+      // Handle decimal part: .6 means .60 (tenths), not .06
+      if (parts[1]) {
+        const decStr = parts[1];
+        if (decStr.length === 1) {
+          // Single digit = tenths, right-pad with 0
+          decimals = parseInt(decStr + '0', 10);
+        } else {
+          // Two or more digits, take first two
+          decimals = parseInt(parts[1].substring(0, 2), 10);
+        }
+      }
+    } else {
+      // Just seconds (no decimals, no minutes)
+      seconds = parseInt(workingStr, 10);
+      decimals = 0;
+    }
+
+    // Validate
     if (isNaN(minutes)) minutes = 0;
     if (isNaN(seconds)) seconds = 0;
     if (isNaN(decimals)) decimals = 0;
 
+    // Check valid ranges
+    if (minutes >= 60 || seconds >= 60) {
+      Logger.log('[SDIFCreator] Invalid time (minutes/seconds >= 60): %s', timeStr);
+      return pad_("NT", 8);
+    }
+
+    // Format for SDIF: MM:SS.DD (always 8 characters with padding)
     const mm = pad_(minutes, 2, true).replace(/ /g, '0');
     const ss = pad_(seconds, 2, true).replace(/ /g, '0');
     const dd = pad_(decimals, 2).replace(/ /g, '0');
