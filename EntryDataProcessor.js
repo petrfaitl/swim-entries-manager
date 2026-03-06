@@ -369,9 +369,9 @@ function findConvertColumnIndex(headerRow) {
     if (!h) continue;
 
     const hasConvertWord = /(convert|conversion|converted)/.test(h);
-    const has33mWord = /(\b33\s*m\b|\b33m\b|33\s*met(er|re)s?)/.test(h);
 
-    if (hasConvertWord && has33mWord) return i;
+
+    if (hasConvertWord) return i;
   }
   return -1;
 }
@@ -429,12 +429,21 @@ function formatDob(dobRaw) {
  * Does NOT recalculate or convert - only parses and reformats existing time values
  *
  * Accepts formats:
- * - MM:SS.SS (e.g. "01:30.95") - already correct, normalizes padding
+ * - MM:SS.SS (e.g. "01:30.95") - minutes:seconds.decimals
  * - SS.SS (e.g. "45.67") - seconds only, no minutes
  * - MM:SS:SS (e.g. "01:30:95") - last : treated as .
  * - MM:SS.S (e.g. "01:05.6") - one decimal, pads to two
- * - MM:SS:S (e.g. "01:05:6") - last : as ., one decimal
+ * - SS:DD (e.g. "34:56") - seconds:decimals (interpreted as 34.56 seconds, not 34 minutes)
+ * - MM:SS (e.g. "1:23") - minutes:seconds (small first value = minutes)
  * - SS.S (e.g. "45.6") - seconds only, one decimal
+ *
+ * Disambiguation logic for single colon (X:Y):
+ * - If Y has 2 digits AND X >= 10 AND X < 60: treat as SS:DD (seconds.decimals)
+ *   Example: "34:56" → 00:34.56 (34.56 seconds)
+ * - Otherwise: treat as MM:SS (minutes:seconds)
+ *   Example: "1:23" → 01:23.00 (1 minute 23 seconds)
+ * - If colon AND dot present: always MM:SS.DD format
+ *   Example: "1:23.45" → 01:23.45 (1 minute 23.45 seconds)
  *
  * @param {Date|number|string} timeRaw - Raw time value from cell
  * @return {string} Formatted time as MM:SS.SS or "NT"
@@ -472,19 +481,37 @@ function formatAsMmSsSs(timeRaw) {
 
   let workingStr = s;
 
-  // Step 1: Handle MM:SS:SS format (last : should be .)
+  // Step 1: Determine format and handle special cases
   const colonCount = (s.match(/:/g) || []).length;
+  const dotCount = (s.match(/\./g) || []).length;
+
   if (colonCount === 2) {
-    // Replace last : with .
+    // Three parts separated by colons: MM:SS:DD format
+    // Last colon should be treated as decimal point
     const lastColonIndex = s.lastIndexOf(':');
     workingStr = s.substring(0, lastColonIndex) + '.' + s.substring(lastColonIndex + 1);
-  } else if (colonCount === 1) {
-    // Check if we need to convert last : to . (e.g. "01:05:6" format)
-    // If there's a : followed by 1-2 digits at end, treat as MM:SS:S
-    const match = /^(\d{1,2}):(\d{1,2}):(\d{1,2})$/.exec(s);
-    if (match) {
-      workingStr = match[1] + ':' + match[2] + '.' + match[3];
+  } else if (colonCount === 1 && dotCount === 0) {
+    // Single colon, no decimal: Could be MM:SS or SS:DD
+    // Disambiguate based on the value after the colon
+    const parts = s.split(':');
+    const firstPart = parseInt(parts[0], 10);
+    const secondPart = parseInt(parts[1], 10);
+
+    // If second part has exactly 2 digits AND first part < 60, treat as SS:DD (seconds with decimals)
+    // Pattern: 34:56 means 34.56 seconds (not 34 minutes 56 seconds)
+    // Pattern: 1:23 means 1 minute 23 seconds (first part is small, typical for minutes)
+    if (parts[1].length === 2 && firstPart >= 10 && firstPart < 60 && secondPart < 100) {
+      // This looks like SS:DD format (e.g., "34:56" = 34.56 seconds)
+      workingStr = firstPart + '.' + parts[1];
+    } else {
+      // This is MM:SS format (e.g., "1:23" = 1 minute 23 seconds)
+      // Keep as is - will be processed below
+      workingStr = s;
     }
+  } else if (colonCount === 1 && dotCount === 1) {
+    // Has both colon and dot: This is definitely MM:SS.DD format
+    // Keep as is
+    workingStr = s;
   }
 
   // Step 2: Split into components
@@ -542,17 +569,18 @@ function formatAsMmSsSs(timeRaw) {
 /**
  * Parses the event distance from an event string.
  * Supports formats like "25m Freestyle", "50 m Backstroke" (case-insensitive).
- * Only 25m and 50m are recognized for conversion; others return null.
+ * Recognizes: 25m, 50m, 100m, 200m, 400m
  * @param {string} eventStr
- * @return {number|null} 25, 50, or null if not recognized
+ * @return {number|null} Distance in meters, or null if not recognized
  */
 function parseEventDistance(eventStr) {
   const s = String(eventStr || "").trim();
-  // Match distance at the start: 25m or 50m (allow space before 'm')
-  const m = /^\s*(25|50)\s*m\b/i.exec(s);
+  // Match distance at the start: 25m, 50m, 100m, 200m, 400m (allow space before 'm')
+  const m = /^\s*(25|50|100|200|400)\s*m\b/i.exec(s);
   if (!m) return null;
   const dist = parseInt(m[1], 10);
-  return (dist === 25 || dist === 50) ? dist : null;
+  // Validate it's one of the supported distances
+  return [25, 50, 100, 200, 400].includes(dist) ? dist : null;
 }
 
 /**
@@ -663,17 +691,21 @@ function processEntryRow(row, eventTimePairs, convertColumnIndex, teamCodeData, 
 
           // Apply pool conversion if needed
           if (finalTime !== "NT") {
-            const convertFlag = String(convertTimes || "").trim().toLowerCase();
-            if (convertFlag === "yes") {
+            const convertFlag = String(convertTimes || "").trim();
+            if (convertFlag !== "" && convertFlag.toLowerCase() !== "no") {
               const dist = parseEventDistance(pair.eventName);
-              try {
-                if (dist === 25) {
-                  finalTime = RESIZESWIM(33.3, 25, finalTime);
-                } else if (dist === 50) {
-                  finalTime = RESIZESWIM(66.6, 50, finalTime);
+              if (dist) {
+                try {
+                  const sourceDistance = getSourceDistance(convertFlag, dist);
+                  if (sourceDistance) {
+                    finalTime = RESIZESWIM(sourceDistance, dist, finalTime);
+                    Logger.log(`[EntryDataProcessor] Converted time from ${sourceDistance}m to ${dist}m: ${finalTime}`);
+                  } else {
+                    Logger.log(`[EntryDataProcessor] No conversion mapping found for ${convertFlag} at ${dist}m distance`);
+                  }
+                } catch (e) {
+                  Logger.log(`[EntryDataProcessor] Conversion skipped due to error for event "${pair.eventName}": ${e && e.message ? e.message : e}`);
                 }
-              } catch (e) {
-                Logger.log(`[EntryDataProcessor] Conversion skipped due to error for event "${pair.eventName}": ${e && e.message ? e.message : e}`);
               }
             }
           }
@@ -700,20 +732,24 @@ function processEntryRow(row, eventTimePairs, convertColumnIndex, teamCodeData, 
             ? "NT"
             : formatAsMmSsSs(timeRaw);
 
-          // Convert times from 33.3m pool to standard 25m pool timing when requested.
+          // Convert times from non-standard pools to standard 25m pool timing when requested
           if (timeStr !== "NT") {
-            const convertFlag = String(convertTimes || "").trim().toLowerCase();
-            if (convertFlag === "yes") {
+            const convertFlag = String(convertTimes || "").trim();
+            if (convertFlag !== "" && convertFlag.toLowerCase() !== "no") {
               const dist = parseEventDistance(eventStr);
-              try {
-                if (dist === 25) {
-                  timeStr = RESIZESWIM(33.3, 25, timeStr);
-                } else if (dist === 50) {
-                  timeStr = RESIZESWIM(66.6, 50, timeStr);
+              if (dist) {
+                try {
+                  const sourceDistance = getSourceDistance(convertFlag, dist);
+                  if (sourceDistance) {
+                    timeStr = RESIZESWIM(sourceDistance, dist, timeStr);
+                    Logger.log(`[EntryDataProcessor] Converted time from ${sourceDistance}m to ${dist}m: ${timeStr}`);
+                  } else {
+                    Logger.log(`[EntryDataProcessor] No conversion mapping found for ${convertFlag} at ${dist}m distance`);
+                  }
+                } catch (e) {
+                  // If anything goes wrong during conversion, keep original timeStr
+                  Logger.log(`[EntryDataProcessor] Conversion skipped due to error for event "${eventStr}": ${e && e.message ? e.message : e}`);
                 }
-              } catch (e) {
-                // If anything goes wrong during conversion, keep original timeStr
-                Logger.log(`[EntryDataProcessor] Conversion skipped due to error for event "${eventStr}": ${e && e.message ? e.message : e}`);
               }
             }
           }

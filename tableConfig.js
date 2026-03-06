@@ -35,6 +35,43 @@ function getTableConfig(overrides) {
   ];
 
 
+  /**
+   * Pool conversion configuration
+   * Maps source pool types to their distance conversions
+   * All conversions target 25m pool distances
+   *
+   * Format: { sourcePoolKey: { sourceDistance: targetDistance } }
+   *
+   * Usage: When converting times from non-standard pools to 25m pools,
+   * use RESIZESWIM(sourceDistance, targetDistance, time)
+   */
+  const POOL_CONVERSIONS = {
+    'From 33m pool': {
+      // 33m pool distances -> 25m pool equivalents
+      33.3: 25,    // 25m event swum in 33.3m pool
+      66.6: 50,    // 50m event swum in 66.6m pool
+      99.9: 100,   // 100m event swum in 99.9m pool (3 lengths)
+      199.8: 200,  // 200m event swum in 199.8m pool (6 lengths)
+      399.6: 400   // 400m event swum in 399.6m pool (12 lengths)
+    },
+    'From 18m pool': {
+      // 18m pool distances -> 25m pool equivalents
+      18: 25,      // 25m event swum in 18m pool (2 lengths = 36m, but treated as 25m)
+      36: 50,      // 50m event swum in 36m pool (2 lengths)
+      72: 100,     // 100m event swum in 72m pool (4 lengths)
+      144: 200,    // 200m event swum in 144m pool (8 lengths)
+      288: 400     // 400m event swum in 288m pool (16 lengths)
+    },
+    'From LC': {
+      // Long Course (50m) pool distances -> Short Course (25m) pool equivalents
+      50: 25,      // 25m event swum in 50m pool (half length)
+      50: 50,      // 50m event swum in 50m pool (one length)
+      100: 100,    // 100m event swum in 100m pool (2 lengths)
+      200: 200,    // 200m event swum in 200m pool (4 lengths)
+      400: 400     // 400m event swum in 400m pool (8 lengths)
+    }
+  };
+
   const relayDefaults = {
     suggestedEventNames: ['4x25m Girls Freestyle Relay', '4x25m Boys Freestyle Relay', '4x25m Freestyle Grand Relay'],
     defaultRowsPerTable: 4,   // fixed swimmer rows per relay table
@@ -157,7 +194,7 @@ function getTableConfig(overrides) {
       tableType: 'core',
       title: 'Individual Events Template*',
       headers: ['#', 'First Name', 'Last Name', 'Date of Birth', 'Gender', 'School Year', 'School',
-        'Event 1', 'Time 1 (m:s.S)', 'Event 2', 'Time 2 (m:s.S)', 'Event 3', 'Time 3 (m:s.S)', 'Event 4', 'Time 4 (m:s.S)', 'Event 5', 'Time 5 (m:s.S)', 'Event 6', 'Time 6 (m:s.S)', 'Event 7', 'Time 7 (m:s.S)', 'Event 8', 'Time 8 (m:s.S)', 'Event 9', 'Time 9 (m:s.S)', 'Convert times from 33m pool'
+        'Event 1', 'Time 1 (m:s.S)', 'Event 2', 'Time 2 (m:s.S)', 'Event 3', 'Time 3 (m:s.S)', 'Event 4', 'Time 4 (m:s.S)', 'Event 5', 'Time 5 (m:s.S)', 'Event 6', 'Time 6 (m:s.S)', 'Event 7', 'Time 7 (m:s.S)', 'Event 8', 'Time 8 (m:s.S)', 'Event 9', 'Time 9 (m:s.S)', 'Convert times'
       ],
       columns: toCols({
         '#': {type: 'number'},
@@ -185,13 +222,14 @@ function getTableConfig(overrides) {
         'Time 8 (m:s.S)': {type: 'text'},
         'Event 9': {type: 'text', validation: {type: 'range', args: {rangeA1: '=EventsList'}}},
         'Time 9 (m:s.S)': {type: 'text'},
-        'Convert times from 33m pool': {
+        'Convert times': {
           type: 'text',
-          validation: {type: 'list', args: {values: ['Yes', '']}},
+          validation: {type: 'list', args: {values: ['From 33m pool','From 18m pool' ,'From LC',]}},
           default: ''
         }
       }),
       options: {
+        conversions: POOL_CONVERSIONS,  // Reference to pool conversion configuration
         freezeHeader: 1, headerBg: '#356853', title: "Individual Entries Template", rows: 30, required: true,
         placement: {targetSheet: 'INDIVIDUAL_EVENTS_TEMPLATE', startCell: 'A1'}, clearMode: 'rebuild'
       },
@@ -252,7 +290,8 @@ function getTableConfig(overrides) {
   return {
     tables: config,
     relayDefaults: relayDefaults,
-    defaultClusters: DEFAULT_CLUSTERS  // Fallback if no team names available
+    defaultClusters: DEFAULT_CLUSTERS,  // Fallback if no team names available
+    poolConversions: POOL_CONVERSIONS   // Pool conversion configuration
   };
 }
 
@@ -274,4 +313,33 @@ function listAvailableTables(overrides) {
                        });
   Logger.log('[listAvailableTables] Found %s tables: %s', tables.length, JSON.stringify(tables));
   return tables;
+}
+
+/**
+ * Gets pool conversion configuration
+ * @return {Object} Pool conversion mappings
+ */
+function getPoolConversions() {
+  const cfg = getTableConfig();
+  return cfg.poolConversions;
+}
+
+/**
+ * Gets the source distance for a given target distance and pool type
+ * @param {string} poolType - Pool type key (e.g., "From 33m pool")
+ * @param {number} targetDistance - Target distance in 25m pool (25, 50, 100, 200, 400)
+ * @return {number|null} Source distance or null if not found
+ */
+function getSourceDistance(poolType, targetDistance) {
+  const conversions = getPoolConversions();
+  if (!conversions[poolType]) return null;
+
+  const poolMap = conversions[poolType];
+  // Find the source distance that maps to this target
+  for (const source in poolMap) {
+    if (poolMap[source] === targetDistance) {
+      return parseFloat(source);
+    }
+  }
+  return null;
 }
