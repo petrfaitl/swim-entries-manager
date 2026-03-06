@@ -34,33 +34,55 @@ function getTableConfig(overrides) {
     'Team Seven'
   ];
 
-
   /**
    * Pool conversion configuration
-   * Maps source pool types to their distance conversions
+   * Maps source pool types to their distance conversions (stroke-dependent)
    * All conversions target 25m pool distances
    *
-   * Format: { sourcePoolKey: { sourceDistance: targetDistance } }
+   * Structure: { poolType: { targetDistance: { stroke: sourceDistance } } }
+   * Special stroke keys:
+   * - 'default': applies to Freestyle, Backstroke, Breaststroke, Butterfly
+   * - 'IM': Individual Medley (different distances due to stroke changes)
    *
    * Usage: When converting times from non-standard pools to 25m pools,
    * use RESIZESWIM(sourceDistance, targetDistance, time)
    */
   const POOL_CONVERSIONS = {
     'From 33m pool': {
-      // 33m pool distances -> 25m pool equivalents
-      33.3: 25,    // 25m event swum in 33.3m pool
-      66.6: 50,    // 50m event swum in 66.6m pool
-      99.9: 100,   // 100m event swum in 99.9m pool (3 lengths)
-      199.8: 200,  // 200m event swum in 199.8m pool (6 lengths)
-      399.6: 400   // 400m event swum in 399.6m pool (12 lengths)
+      25: {
+        'default': 33.3,
+        'IM': 33.3
+      },
+      50: {
+        'default': 66.6,
+        'IM': 66.6
+      },
+      100: {
+        'default': 99.9,   // 3 lengths (Freestyle, Back, Breast, Fly)
+        'IM': 133.2        // 4 lengths (Individual Medley - stroke changes per length)
+      },
+      200: {
+        'default': 199.8,
+        'IM': 266.4
+      },
+      400: {
+        'default': 399.6,
+        'IM': 532.8
+      }
     },
     'From 18m pool': {
-      // 18m pool distances -> 25m pool equivalents
-      18: 25,      // 25m event swum in 18m pool (2 lengths = 36m, but treated as 25m)
-      36: 50,      // 50m event swum in 36m pool (2 lengths)
-      72: 100,     // 100m event swum in 72m pool (4 lengths)
-      144: 200,    // 200m event swum in 144m pool (8 lengths)
-      288: 400     // 400m event swum in 288m pool (16 lengths)
+      25: { 'default': 18, 'IM': 18 },
+      50: { 'default': 36, 'IM': 36 },
+      100: { 'default': 72, 'IM': 72 },
+      200: { 'default': 144, 'IM': 144 },
+      400: { 'default': 288, 'IM': 288 }
+    },
+    'From LC': {
+      25: { 'default': 50, 'IM': 50 },
+      50: { 'default': 50, 'IM': 50 },
+      100: { 'default': 100, 'IM': 100 },
+      200: { 'default': 200, 'IM': 200 },
+      400: { 'default': 400, 'IM': 400 }
     }
   };
 
@@ -317,21 +339,40 @@ function getPoolConversions() {
 }
 
 /**
- * Gets the source distance for a given target distance and pool type
+ * Parses stroke type from event string
+ * @param {string} eventStr - Event string (e.g., "100m Individual Medley", "50m Freestyle")
+ * @return {string} 'IM' for Individual Medley, 'default' for all other strokes
+ */
+function getStrokeType(eventStr) {
+  if (!eventStr) return 'default';
+  const s = String(eventStr).toLowerCase();
+
+  // Check for Individual Medley variations
+  if (s.includes('individual medley') || s.includes('medley') || /\bim\b/.test(s)) {
+    return 'IM';
+  }
+
+  // All other strokes (Freestyle, Backstroke, Breaststroke, Butterfly) use 'default'
+  return 'default';
+}
+
+/**
+ * Gets the source distance for a given target distance, pool type, and stroke
  * @param {string} poolType - Pool type key (e.g., "From 33m pool")
  * @param {number} targetDistance - Target distance in 25m pool (25, 50, 100, 200, 400)
+ * @param {string} [strokeType='default'] - Stroke type ('default' or 'IM')
  * @return {number|null} Source distance or null if not found
  */
-function getSourceDistance(poolType, targetDistance) {
+function getSourceDistance(poolType, targetDistance, strokeType) {
   const conversions = getPoolConversions();
   if (!conversions[poolType]) return null;
 
   const poolMap = conversions[poolType];
-  // Find the source distance that maps to this target
-  for (const source in poolMap) {
-    if (poolMap[source] === targetDistance) {
-      return parseFloat(source);
-    }
-  }
-  return null;
+  if (!poolMap[targetDistance]) return null;
+
+  const stroke = strokeType || 'default';
+  const distanceMap = poolMap[targetDistance];
+
+  // Return stroke-specific distance, fallback to 'default' if stroke not found
+  return distanceMap[stroke] || distanceMap['default'] || null;
 }

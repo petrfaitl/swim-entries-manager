@@ -696,12 +696,13 @@ function processEntryRow(row, eventTimePairs, convertColumnIndex, teamCodeData, 
               const dist = parseEventDistance(pair.eventName);
               if (dist) {
                 try {
-                  const sourceDistance = getSourceDistance(convertFlag, dist);
+                  const strokeType = getStrokeType(pair.eventName);
+                  const sourceDistance = getSourceDistance(convertFlag, dist, strokeType);
                   if (sourceDistance) {
                     finalTime = RESIZESWIM(sourceDistance, dist, finalTime);
-                    Logger.log(`[EntryDataProcessor] Converted time from ${sourceDistance}m to ${dist}m: ${finalTime}`);
+                    Logger.log(`[EntryDataProcessor] Converted ${strokeType} time from ${sourceDistance}m to ${dist}m: ${finalTime}`);
                   } else {
-                    Logger.log(`[EntryDataProcessor] No conversion mapping found for ${convertFlag} at ${dist}m distance`);
+                    Logger.log(`[EntryDataProcessor] No conversion mapping found for ${convertFlag} at ${dist}m distance (${strokeType})`);
                   }
                 } catch (e) {
                   Logger.log(`[EntryDataProcessor] Conversion skipped due to error for event "${pair.eventName}": ${e && e.message ? e.message : e}`);
@@ -739,12 +740,13 @@ function processEntryRow(row, eventTimePairs, convertColumnIndex, teamCodeData, 
               const dist = parseEventDistance(eventStr);
               if (dist) {
                 try {
-                  const sourceDistance = getSourceDistance(convertFlag, dist);
+                  const strokeType = getStrokeType(eventStr);
+                  const sourceDistance = getSourceDistance(convertFlag, dist, strokeType);
                   if (sourceDistance) {
                     timeStr = RESIZESWIM(sourceDistance, dist, timeStr);
-                    Logger.log(`[EntryDataProcessor] Converted time from ${sourceDistance}m to ${dist}m: ${timeStr}`);
+                    Logger.log(`[EntryDataProcessor] Converted ${strokeType} time from ${sourceDistance}m to ${dist}m: ${timeStr}`);
                   } else {
-                    Logger.log(`[EntryDataProcessor] No conversion mapping found for ${convertFlag} at ${dist}m distance`);
+                    Logger.log(`[EntryDataProcessor] No conversion mapping found for ${convertFlag} at ${dist}m distance (${strokeType})`);
                   }
                 } catch (e) {
                   // If anything goes wrong during conversion, keep original timeStr
