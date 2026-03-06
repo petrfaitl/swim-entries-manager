@@ -61,14 +61,6 @@ function getTableConfig(overrides) {
       72: 100,     // 100m event swum in 72m pool (4 lengths)
       144: 200,    // 200m event swum in 144m pool (8 lengths)
       288: 400     // 400m event swum in 288m pool (16 lengths)
-    },
-    'From LC': {
-      // Long Course (50m) pool distances -> Short Course (25m) pool equivalents
-      50: 25,      // 25m event swum in 50m pool (half length)
-      50: 50,      // 50m event swum in 50m pool (one length)
-      100: 100,    // 100m event swum in 100m pool (2 lengths)
-      200: 200,    // 200m event swum in 200m pool (4 lengths)
-      400: 400     // 400m event swum in 400m pool (8 lengths)
     }
   };
 
@@ -224,7 +216,7 @@ function getTableConfig(overrides) {
         'Time 9 (m:s.S)': {type: 'text'},
         'Convert times': {
           type: 'text',
-          validation: {type: 'list', args: {values: ['From 33m pool','From 18m pool' ,'From LC',]}},
+          validation: {type: 'list', args: {values: ['From 33m pool','From 18m pool','No']}},
           default: ''
         }
       }),
