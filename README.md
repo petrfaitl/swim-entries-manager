@@ -25,6 +25,14 @@ A Google Workspace Add-on for managing swim meet entries efficiently. This tool 
 - **SDIF Export (Primary)**: Direct export to SDIF v3 (.sd3) format for Hy-Tek Meet Manager
 - **Exception Reporting**: Automatic validation and detailed reports of data quality issues
 - **Critical Data Validation**: Ensures all required fields are present before export
+- **Multiple Entry Format Support**:
+  - Method 1: Event names in cells (e.g., "Event 1" column header, "100m Freestyle" in cell)
+  - Method 2: Event names in headers (e.g., "100m Freestyle" header, "Yes" or time in cell)
+- **Flexible Column Detection**: Automatically handles sheets with or without "#" numbering column
+- **Smart Time Format Parsing**: Accepts multiple time formats (MM:SS.SS, SS.SS, SS:DD, etc.)
+- **Stroke-Aware Pool Conversions**:
+  - Supports 33m pool, 18m pool, and Long Course (50m) conversions
+  - Individual Medley events use correct source distances (e.g., 133.2m vs 99.9m for 100m in 33m pool)
 - **CSV Export (Alternative)**: Traditional CSV format for custom processing
 - **Auto-Detection**: Automatically detects event and time columns in any sheet format
 - **Smart Processing**: Capitalizes names, normalizes school years, converts pool times
@@ -56,7 +64,7 @@ A Google Workspace Add-on for managing swim meet entries efficiently. This tool 
    - If you are using the Individual Entries Template, set your `Gender` and `School Year` values before creating tables.
 3. **Populate tables**:
    - `Team Officials`: Enter your team, school, or cluster details (minimum required data is the first column).
-   - `Events for Template`: Enter `Distance` and `Discipline`; the last column builds the event name automatically.
+   - `Events for Template`: Enter `Distance` (25m, 50m, 100m, 200m, 400m) and `Discipline` (Freestyle, Backstroke, Breaststroke, Butterfly, Individual Medley); the last column builds the event name automatically.
    - `Schools`: Fill `Team Name`, `School`, `Cluster`, and `Code` based on your meet setup.
 4. **Create sheets from template (STEP 2)**:
    - Verify the dropdowns in `INDIVIDUAL_EVENTS_TEMPLATE` first.
@@ -64,9 +72,12 @@ A Google Workspace Add-on for managing swim meet entries efficiently. This tool 
 5. **Fill swimmer entries**:
    - **Required**: `First Name`, `Last Name`, `Gender`, `Date of Birth`, valid `Team Code`
    - **Recommended**: entry times and school year
+   - **Time Format**: Use any format - `1:30.95`, `45.67`, `34:56` (= 34.56 sec) all work
+   - **Pool Conversion**: Select from dropdown if times are from non-standard pool (33m, 18m, or LC)
    - Ensure all teams exist in the Schools table
 6. **Export for Meet Manager (STEP 4)**:
    - Use **"Export for Meet Manager"** to generate SDIF (.sd3) file
+   - System automatically detects column layout and entry format
    - Review exception reports if any warnings appear
    - Alternative: **"Export to CSV"** for manual processing
 
@@ -206,6 +217,15 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for det
 5. Open a Pull Request
 
 ## Recent Updates
+
+### v2.1 - Enhanced Data Processing & Flexibility
+- ✅ **Multiple entry format support**: Event names in headers OR in cells
+- ✅ **Flexible column detection**: Works with or without "#" numbering column
+- ✅ **Smart time parsing**: Handles MM:SS.SS, SS.SS, SS:DD, and other formats
+- ✅ **Stroke-aware pool conversions**: Individual Medley uses correct distances
+- ✅ **Extended pool support**: 33m, 18m, and Long Course (50m) conversions
+- ✅ **Improved time formatting**: Proper decimal padding (.6 → .60, not .06)
+- ✅ **Help & About pages**: In-app documentation with links to full guides
 
 ### v2.0 - SDIF Export & Exception Reporting
 - ✅ Direct SDIF v3 export for Hy-Tek Meet Manager

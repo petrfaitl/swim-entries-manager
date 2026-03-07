@@ -153,6 +153,8 @@ Located in the **EventsForTemplate** sheet:
 - The **Events** column uses a formula to combine Distance + Discipline
 - Formula: `=IF(AND(B2<>"",A2<>""),A2&" "&B2,"")`
 - This column feeds the EventsList named range
+- Supported distances: 25m, 50m, 100m, 200m, 400m
+- Supported disciplines: Freestyle, Backstroke, Breaststroke, Butterfly, Individual Medley
 
 ### Team Officials Table
 
@@ -221,16 +223,26 @@ Each entry sheet contains:
 
 **Features:**
 - **Dropdowns**: School, School Year, Gender, and all Event columns have dropdown validation
-- **Time Format**: Use m:s.S format (e.g., 0:35.2 for 35.2 seconds, 1:32.12 for 1 minute and 32.12 seconds)
-- **33m Pool Conversion**: Optional checkbox to indicate times from 33m pool
+- **Time Format**: Multiple formats supported:
+  - `MM:SS.SS` - minutes:seconds.hundredths (e.g., `1:30.95`)
+  - `SS.SS` - seconds.hundredths (e.g., `45.67`)
+  - `SS:DD` - seconds:decimals where `:` replaces `.` (e.g., `34:56` = 34.56 seconds)
+  - `M:SS` - small minutes value (e.g., `1:23` = 1 minute 23 seconds)
+- **Pool Conversion**: Dropdown to convert times from non-standard pools
+  - Options: "From 33m pool", "From 18m pool", "From LC" (Long Course 50m)
+  - Stroke-aware conversions (Individual Medley uses different distances)
 
 **Tips:**
 - Fill in swimmer details first (name, DOB, gender, year)
 - Select school from dropdown
 - Choose events from validated dropdowns
-- Enter times in the correct format
+- Enter times using any supported format
 - Leave time cells blank if no entry time available
-- 33m conversion uses simple distance truncation. Provides approximate conversion for schools qualifying for 25m pool competitions, when coming from 33m pool.
+- **Pool Conversion Notes:**
+  - Select pool type from "Convert times" dropdown (not a checkbox)
+  - Conversions are stroke-dependent: 100m IM in 33m pool = 133.2m (4 lengths), but 100m Freestyle = 99.9m (3 lengths)
+  - All conversions target standard 25m pool times
+  - System automatically detects Individual Medley events and applies correct conversion
 
 ## Exporting for Meet Manager
 
@@ -244,6 +256,13 @@ The Swim Entries Manager provides two export options:
 ### Recommended: Export for Meet Manager (SDIF)
 
 This is the **primary export method** that generates SDIF v3 format files compatible with Hy-Tek Meet Manager.
+
+**New Features:**
+- **Flexible Column Detection**: Automatically detects column layout with or without "#" numbering column
+- **Multiple Entry Formats**: Supports two methods:
+  - **Method 1**: Traditional "Event 1", "Event 2" columns with event names in cells
+  - **Method 2**: Event names in headers (e.g., "100m Freestyle") with "Yes" or times in cells
+- **Stroke-Aware Pool Conversions**: Individual Medley events use correct source distances
 
 #### Step-by-Step Process
 
@@ -286,14 +305,21 @@ The export process performs critical validations to prevent import failures:
 **Critical Data (Must be present or swimmer is excluded):**
 - First Name
 - Last Name
-- Date of Birth
+- Date of Birth (format: DD/MM/YYYY)
 - Gender
 - Team Code (must exist in Schools table)
 - Team Name (from Schools table)
 
 **Event Validation:**
-- Events must be in correct format (e.g., "25m Freestyle", not "Y5")
+- Events must be in correct format (e.g., "25m Freestyle", "100m Individual Medley", not "Y5")
 - Invalid events are skipped but swimmer is still exported
+- Supported distances: 25m, 50m, 100m, 200m, 400m
+- Supported strokes: Freestyle, Backstroke, Breaststroke, Butterfly, Individual Medley (or IM)
+
+**Time Format Validation:**
+- System accepts multiple time formats and normalizes them to MM:SS.DD
+- Examples: `34:56` (34.56 sec), `1:30.95` (1 min 30.95 sec), `45.67` (45.67 sec)
+- Invalid times or free text (e.g., "DNS", "DNF") are converted to "NT"
 
 **Warnings (Not critical):**
 - Swimmers with no events entered
@@ -532,12 +558,40 @@ ACTION REQUIRED
 - ✅ **DO**: Fill in all required fields before exporting
 - ✅ **DO**: Use dropdown values when available
 - ✅ **DO**: Add all teams to Schools table first
-- ✅ **DO**: Use correct event naming format
+- ✅ **DO**: Use correct event naming format: "[Distance] [Stroke]" (e.g., "100m Individual Medley")
+- ✅ **DO**: Use any of the supported time formats - the system will normalize them
+- ✅ **DO**: Select the correct pool type if converting times (e.g., "From 33m pool")
 - ❌ **DON'T**: Leave required fields blank
 - ❌ **DON'T**: Type freeform text when dropdowns are available
-- ❌ **DON'T**: Use abbreviated event names
+- ❌ **DON'T**: Use abbreviated event names (e.g., "100 IM" instead of "100m Individual Medley")
+- ❌ **DON'T**: Mix pool conversion types - use one per sheet
 
 ## Advanced Configuration
+
+### Pool Conversion Configuration
+
+Pool conversions are configured in `tableConfig.js` with the `POOL_CONVERSIONS` constant. The system supports:
+
+**Supported Pool Types:**
+- **From 33m pool**: Converts from 33.3m, 66.6m, 99.9m/133.2m, 199.8m, 399.6m to standard 25m pool distances
+- **From 18m pool**: Converts from 18m, 36m, 72m, 144m, 288m to standard 25m pool distances
+- **From LC** (Long Course): Converts from 50m pool to 25m pool
+
+**Stroke-Specific Conversions:**
+The system automatically detects Individual Medley events and applies different conversions:
+- **100m IM in 33m pool**: 133.2m (4 lengths) vs. 99.9m for other strokes (3 lengths)
+- **Reason**: IM has stroke changes at each wall, requiring an extra length
+
+**Example Conversion Logic:**
+```javascript
+// 100m Freestyle in 33m pool
+Source: 99.9m (3 lengths × 33.3m)
+Target: 100m
+
+// 100m Individual Medley in 33m pool
+Source: 133.2m (4 lengths × 33.3m)
+Target: 100m
+```
 
 ### Customizing Table Definitions
 
@@ -675,6 +729,21 @@ The following list is of all schools listed at NZ Swimming Fastlane database.
 ### Can I customize the event types?
 
 Yes! Edit `tableConfig.js` to modify the EventsForTemplate table configuration. You can add or remove distances, disciplines, and event types.
+
+Supported distances: 25m, 50m, 100m, 200m, 400m
+Supported strokes: Freestyle, Backstroke, Breaststroke, Butterfly, Individual Medley
+
+### Can I add custom pool conversions?
+
+Yes! Edit the `POOL_CONVERSIONS` constant in `tableConfig.js`. The structure is:
+```javascript
+'Pool Name': {
+  targetDistance: {
+    'default': sourceDistance,  // For Freestyle, Back, Breast, Fly
+    'IM': sourceDistanceIM      // For Individual Medley
+  }
+}
+```
 
 ### How many entries can I manage?
 
