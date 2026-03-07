@@ -75,6 +75,7 @@ function showCreateTablesDialog() {
 
     <fieldset>
       <legend>Dropdown values (optional)</legend>
+      <div class="small">Applicable to <strong>Individual Events Template</strong> table</div>
       <div class="row">
         <div>
           <label>School Years (comma-separated)</label>

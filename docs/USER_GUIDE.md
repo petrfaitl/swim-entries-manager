@@ -229,7 +229,7 @@ Each entry sheet contains:
   - `SS:DD` - seconds:decimals where `:` replaces `.` (e.g., `34:56` = 34.56 seconds)
   - `M:SS` - small minutes value (e.g., `1:23` = 1 minute 23 seconds)
 - **Pool Conversion**: Dropdown to convert times from non-standard pools
-  - Options: "From 33m pool", "From 18m pool", "From LC" (Long Course 50m)
+  - Options: "From 33m pool", "From 18m pool"
   - Stroke-aware conversions (Individual Medley uses different distances)
 
 **Tips:**

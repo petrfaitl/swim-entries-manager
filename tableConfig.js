@@ -194,7 +194,7 @@ function getTableConfig(overrides) {
         'Team Name': {type: 'text', default: 'Team Name'},
         'School': {type: 'text', default: 'School Name'},
         'Cluster': {type: 'text', validation: {type: 'list', args: {values: DEFAULT_CLUSTERS}}},
-        'Code': {type: 'text', default: 'AAAA'},
+        'Code': {type: 'text', default: 'UNSP'},
         'Region Code': {type: 'text', validation: {type: 'list', args: {values: REGIONS}}, default: 'BP'},
       }),
       options: {

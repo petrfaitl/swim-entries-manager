@@ -118,9 +118,31 @@
             generateBtn.disabled = false;
           })
           .withFailureHandler(err => {
-            status.textContent = "Error: " + err.message;
-            status.className = "error";
-            status.style.display = "block";
+            // Check if error message contains embedded report URL
+            const errorMessage = err.message || String(err);
+            const urlMarker = '|||REPORT_URL|||';
+
+            if (errorMessage.includes(urlMarker)) {
+              const parts = errorMessage.split(urlMarker);
+              const actualMessage = parts[0];
+              const reportUrlValue = parts[1];
+
+              status.textContent = "Error: " + actualMessage;
+              status.className = "error";
+              status.style.display = "block";
+
+              // Display exception report link
+              reportUrl.href = reportUrlValue;
+              exceptionCount.textContent = "See details:";
+              exceptionReport.style.display = "block";
+              exceptionReport.style.backgroundColor = "#ffebee";
+              exceptionReport.style.borderColor = "#d93025";
+            } else {
+              status.textContent = "Error: " + errorMessage;
+              status.className = "error";
+              status.style.display = "block";
+            }
+
             generateBtn.disabled = false;
           })
           .processSheetToSd3(sheetName, meetTable, schoolsTable, fileName);

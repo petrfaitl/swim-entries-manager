@@ -157,6 +157,30 @@ const SDIFCreator = (function() {
   // --- Internal Functions ---
 
   function buildSdifString_(swimmerRows, meetInfo, teamLookup) {
+    // Exception tracking
+    const exceptions = [];
+
+    // Validate that Schools table is not empty
+    if (!teamLookup || teamLookup.length === 0) {
+      exceptions.push({
+        type: 'ERROR',
+        category: 'Configuration Error',
+        swimmer: 'N/A',
+        teamCode: 'N/A',
+        field: 'Schools Table',
+        message: 'Schools table is empty or not found. Please verify the table name exists in your spreadsheet.'
+      });
+
+      // Generate exception report immediately so user sees the helpful error
+      const counts = { swimmers: 0, skippedSwimmers: swimmerRows.length, bRecords: 0, cRecords: 0, d0Records: 0, d1Records: 0, skippedEvents: 0 };
+      const reportFileName = 'SDIF_Exception_Report_' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyyMMdd_HHmmss") + '.txt';
+      const reportUrl = generateExceptionReport_(exceptions, counts, meetInfo, reportFileName, null);
+
+      const error = new Error("Schools table is empty or not found. Please verify the table name exists in your spreadsheet.");
+      error.exceptionReportUrl = reportUrl;
+      throw error;
+    }
+
     const normalisedSwimmers = swimmerRows.map(function(row) {
       return normaliseSwimmerRow_(row);
     }).filter(function(s) { return s !== null; });
@@ -164,9 +188,6 @@ const SDIFCreator = (function() {
     if (normalisedSwimmers.length === 0) {
       throw new Error("SDIFCreator: No valid swimmer records to process");
     }
-
-    // Exception tracking
-    const exceptions = [];
 
     // Separate valid and invalid swimmers
     const validSwimmers = [];
@@ -192,7 +213,22 @@ const SDIFCreator = (function() {
     });
 
     if (validSwimmers.length === 0) {
-      throw new Error("SDIFCreator: No valid swimmer records after validation. Check exception report for details.");
+      // Generate exception report with the validation errors we collected
+      const counts = {
+        swimmers: normalisedSwimmers.length,
+        skippedSwimmers: invalidSwimmers.length,
+        bRecords: 0,
+        cRecords: 0,
+        d0Records: 0,
+        d1Records: 0,
+        skippedEvents: 0
+      };
+      const reportFileName = 'SDIF_Exception_Report_' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyyMMdd_HHmmss") + '.txt';
+      const reportUrl = generateExceptionReport_(exceptions, counts, meetInfo, reportFileName, null);
+
+      const error = new Error("No valid swimmer records after validation. Please check the exception report for details.");
+      error.exceptionReportUrl = reportUrl;
+      throw error;
     }
 
     // Group valid swimmers by team code
@@ -912,7 +948,10 @@ const SDIFCreator = (function() {
         lines.push('');
 
         errorsByCategory[category].forEach(function(err) {
-          if (err.category === 'Missing Critical Data') {
+          if (err.category === 'Configuration Error') {
+            lines.push('  🛑 ' + err.message);
+            lines.push('  ⚠ NO DATA WAS EXPORTED due to this issue');
+          } else if (err.category === 'Missing Critical Data') {
             lines.push('  Swimmer: ' + err.swimmer);
             lines.push('  Team: ' + err.teamCode);
             lines.push('  Missing Field: ' + err.field);
@@ -980,6 +1019,9 @@ const SDIFCreator = (function() {
       lines.push('🚨 CRITICAL ERRORS FOUND:');
       lines.push('');
 
+      const configErrors = errors.filter(function(e) {
+        return e.category === 'Configuration Error';
+      });
       const criticalDataErrors = errors.filter(function(e) {
         return e.category === 'Missing Critical Data';
       });
@@ -989,6 +1031,18 @@ const SDIFCreator = (function() {
       const eventErrors = errors.filter(function(e) {
         return e.category === 'Invalid Event Format';
       });
+
+      if (configErrors.length > 0) {
+        lines.push('  🛑 CONFIGURATION ERROR:');
+        lines.push('');
+        configErrors.forEach(function(err) {
+          lines.push('    ' + err.message);
+        });
+        lines.push('');
+        lines.push('    NO DATA WAS EXPORTED due to this configuration issue.');
+        lines.push('    Please correct the error above before exporting.');
+        lines.push('');
+      }
 
       if (criticalDataErrors.length > 0) {
         lines.push('  • ' + criticalDataErrors.length + ' swimmer(s) EXCLUDED due to missing critical data');
@@ -1046,12 +1100,23 @@ const SDIFCreator = (function() {
  * Server-side function called from dialog.
  */
 function processSheetToSd3(sheetName, meetTableName, schoolsTableName, fileName) {
-  return SDIFCreator.generate({
-    entriesSheetName: sheetName,
-    meetTableName: meetTableName,
-    schoolsTableName: schoolsTableName,
-    outputFileName: fileName
-  });
+  try {
+    return SDIFCreator.generate({
+      entriesSheetName: sheetName,
+      meetTableName: meetTableName,
+      schoolsTableName: schoolsTableName,
+      outputFileName: fileName
+    });
+  } catch (error) {
+    // If error has an exception report URL, we need to return it to the UI
+    // Google Apps Script's withFailureHandler can't handle custom properties on Error objects
+    // So we embed the URL in the error message for the UI to parse
+    if (error.exceptionReportUrl) {
+      const errorWithUrl = new Error(error.message + '|||REPORT_URL|||' + error.exceptionReportUrl);
+      throw errorWithUrl;
+    }
+    throw error;
+  }
 }
 
 /**
