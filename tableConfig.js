@@ -249,22 +249,22 @@ function getTableConfig(overrides) {
       },
       notes: 'Template for duplication into per-cluster sheets.'
     },
-    HowToFillIndividualTable: {
+    SampleIndividualEntries: {
       tableType: 'core',
       title: 'Sample Individual Entries',
       headers: ['#', 'First Name', 'Last Name', 'Date of Birth', 'Gender', 'School Year', 'School',
         'Event 1', 'Time 1 (m:s.S)', 'Event 2', 'Time 2 (m:s.S)', 'Event 3', 'Time 3 (m:s.S)', 'Event 4', 'Time 4 (m:s.S)', 'Event 5', 'Time 5 (m:s.S)', 'Event 6', 'Time 6 (m:s.S)', 'Event 7', 'Time 7 (m:s.S)', 'Event 8', 'Time 8 (m:s.S)', 'Event 9', 'Time 9 (m:s.S)', 'Convert times'
       ],
       columns: toCols({
-        '#': {type: 'number'},
-        'First Name': {type: 'text', default: ''},
-        'Last Name': {type: 'text', default: ''},
-        'Date of Birth': {type: 'date', validation: {type: 'date', args: {condition: 'DATE_IS_VALID'}}, default: ''},
+        '#': {type: 'number', default:'1'},
+        'First Name': {type: 'text', default: 'Leah'},
+        'Last Name': {type: 'text', default: 'Smith'},
+        'Date of Birth': {type: 'date', validation: {type: 'date', args: {condition: 'DATE_IS_VALID'}}, default: '08/11/2012'},
         'Gender': {type: 'text', validation: {type: 'list', args: {values: GENDERS}}, default: 'Female'},
         'School Year': {type: 'text', validation: {type: 'list', args: {values: YEARS}}, default: 'Y5'},
         'School': {
           type: 'text', validation: {
-            type: 'range', args: {
+            type: 'list', args: {
               values: ['ACG',
                 'Bethlehem College',
                 'Arataki',
@@ -273,25 +273,25 @@ function getTableConfig(overrides) {
                 'Takapuna',
                 'Omanu']
             }
-          }
+          },default: 'ACG'
         },
-        'Event 1': {type: 'text', validation: {type: 'range', args: {values: ['25m Breaststroke','25m Freestyle','50m Backstroke','100m Freestyle','100m Individual Medley','50m Breaststroke']}},default:'25m Breaststroke'},
+        'Event 1': {type: 'text', validation: {type: 'list', args: {values: ['25m Breaststroke','25m Freestyle','50m Backstroke','100m Freestyle','100m Individual Medley','50m Breaststroke']}},default:'25m Breaststroke'},
         'Time 1 (m:s.S)': {type: 'text', default: '45.98'},
-        'Event 2': {type: 'text', validation: {type: 'range', args: {values: ['25m Breaststroke','25m Freestyle','50m Backstroke','100m Freestyle','100m Individual Medley','50m Breaststroke']}},default:'50m Breaststroke'},
+        'Event 2': {type: 'text', validation: {type: 'list', args: {values: ['25m Breaststroke','25m Freestyle','50m Backstroke','100m Freestyle','100m Individual Medley','50m Breaststroke']}},default:'50m Breaststroke'},
         'Time 2 (m:s.S)': {type: 'text', default: '01:01.20'},
-        'Event 3': {type: 'text', validation: {type: 'range', args: {values: ['25m Breaststroke','25m Freestyle','50m Backstroke','100m Freestyle','100m Individual Medley','50m Breaststroke']}},default:'50m Backstroke'},
+        'Event 3': {type: 'text', validation: {type: 'list', args: {values: ['25m Breaststroke','25m Freestyle','50m Backstroke','100m Freestyle','100m Individual Medley','50m Breaststroke']}},default:'50m Backstroke'},
         'Time 3 (m:s.S)': {type: 'text', default: '00:59.21'},
-        'Event 4': {type: 'text', validation: {type: 'range', args: {values: ['25m Breaststroke','25m Freestyle','50m Backstroke','100m Freestyle','100m Individual Medley','50m Breaststroke']}},default:'100m Individual Medley'},
+        'Event 4': {type: 'text', validation: {type: 'list', args: {values: ['25m Breaststroke','25m Freestyle','50m Backstroke','100m Freestyle','100m Individual Medley','50m Breaststroke']}},default:'100m Individual Medley'},
         'Time 4 (m:s.S)': {type: 'text', default: 'NT'},
-        'Event 5': {type: 'text', validation: {type: 'range', args: {values: ['25m Breaststroke','25m Freestyle','50m Backstroke','100m Freestyle','100m Individual Medley','50m Breaststroke']}},default:'100m Freestyle'},
+        'Event 5': {type: 'text', validation: {type: 'list', args: {values: ['25m Breaststroke','25m Freestyle','50m Backstroke','100m Freestyle','100m Individual Medley','50m Breaststroke']}},default:'100m Freestyle'},
         'Time 5 (m:s.S)': {type: 'text', default: '1:42.67'},
-        'Event 6': {type: 'text', validation: {type: 'range', args: {values: ['25m Breaststroke','25m Freestyle','50m Backstroke','100m Freestyle','100m Individual Medley','50m Breaststroke']}}},
-        'Time 6 (m:s.S)': {type: 'text'},
-        'Event 7': {type: 'text', validation: {type: 'range', args: {values: ['25m Breaststroke','25m Freestyle','50m Backstroke','100m Freestyle','100m Individual Medley','50m Breaststroke']}}},
+        'Event 6': {type: 'text', validation: {type: 'list', args: {values: ['25m Breaststroke','25m Freestyle','50m Backstroke','100m Freestyle','100m Individual Medley','50m Breaststroke']}},default:'25m Freestyle'},
+        'Time 6 (m:s.S)': {type: 'text', default: '00:34.65'},
+        'Event 7': {type: 'text', validation: {type: 'list', args: {values: ['25m Breaststroke','25m Freestyle','50m Backstroke','100m Freestyle','100m Individual Medley','50m Breaststroke']}}},
         'Time 7 (m:s.S)': {type: 'text'},
-        'Event 8': {type: 'text', validation: {type: 'range', args: {values: ['25m Breaststroke','25m Freestyle','50m Backstroke','100m Freestyle','100m Individual Medley','50m Breaststroke']}}},
+        'Event 8': {type: 'text', validation: {type: 'list', args: {values: ['25m Breaststroke','25m Freestyle','50m Backstroke','100m Freestyle','100m Individual Medley','50m Breaststroke']}}},
         'Time 8 (m:s.S)': {type: 'text'},
-        'Event 9': {type: 'text', validation: {type: 'range', args: {values: ['25m Breaststroke','25m Freestyle','50m Backstroke','100m Freestyle','100m Individual Medley','50m Breaststroke']}}},
+        'Event 9': {type: 'text', validation: {type: 'list', args: {values: ['25m Breaststroke','25m Freestyle','50m Backstroke','100m Freestyle','100m Individual Medley','50m Breaststroke']}}},
         'Time 9 (m:s.S)': {type: 'text'},
         'Convert times': {
           type: 'text',
@@ -302,7 +302,7 @@ function getTableConfig(overrides) {
       options: {
         conversions: POOL_CONVERSIONS,  // Reference to pool conversion configuration
         freezeHeader: 1, headerBg: '#139997', title: "Sample Individual Entries", rows: 10, required: true,
-        placement: {targetSheet: 'How to use', startCell: 'A1'}, clearMode: 'rebuild'
+        placement: {targetSheet: 'How to fill entries', startCell: 'A1'}, clearMode: 'rebuild'
       },
       notes: 'Sample table to show how to fill swimmer data.'
     },
