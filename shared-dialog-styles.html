@@ -133,6 +133,39 @@
     margin: 10px 0;
   }
 
+  /* Dynamic input lists (e.g., relay event names) */
+  #eventNamesList {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .event-name-input {
+    width: 100%;
+    padding: 7px 10px;
+    border: 1.5px solid #e0e3ed;
+    border-radius: 7px;
+    font-family: inherit;
+    font-size: 12.5px;
+    color: #1a1a2e;
+    background: #fafbfd;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+
+  .event-name-input:focus {
+    border-color: #0397B3;
+    box-shadow: 0 0 0 3px rgba(3, 151, 179, 0.1);
+    background: #fff;
+  }
+
+  /* Conditional sections */
+  #sameSheetOptions { margin-top: 10px; }
+  #sameSheetOptions.hidden { display: none; }
+
   /* Radio options */
   .radio-group { display: flex; flex-direction: column; gap: 6px; }
 
