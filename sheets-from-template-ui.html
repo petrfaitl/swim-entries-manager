@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+<?!= HtmlService.createHtmlOutputFromFile('shared-dialog-styles').getContent(); ?>
+</head>
+<body>
+
+<div class="header">
+  <p>Duplicate a template sheet for each team name in a specified range.</p>
+</div>
+
+<div class="section">
+  <div class="section-label">Template</div>
+  <div class="field">
+    <label>Template Sheet Name</label>
+    <select id="templateName"></select>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-label">Team Names Source</div>
+  <div class="field">
+    <label>Sheet with names of Teams <span class="hint">e.g., Team Officials</span></label>
+    <select id="sheet"></select>
+  </div>
+  <div class="field">
+    <label>Range with names <span class="hint">e.g., A2:A8</span></label>
+    <input type="text" id="range" value="A2:A8" placeholder="A2:A8">
+  </div>
+</div>
+
+<button id="createSheetsBtn" type="button">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+    <polyline points="14 2 14 8 20 8"/>
+    <line x1="12" y1="18" x2="12" y2="12"/>
+    <line x1="9" y1="15" x2="15" y2="15"/>
+  </svg>
+  Create Sheets
+</button>
+
+<div id="status"></div>
+
+<script>
+  function loadTemplates() {
+    google.script.run
+      .withSuccessHandler(function(names) {
+        const select = document.getElementById('templateName');
+        select.innerHTML = '';
+
+        if (!names || names.length === 0) {
+          select.innerHTML = '<option value="">No template sheets found</option>';
+          return;
+        }
+
+        names.forEach(function(name) {
+          const option = document.createElement('option');
+          option.value = name;
+          option.textContent = name;
+          select.appendChild(option);
+        });
+      })
+      .withFailureHandler(function(err) {
+        alert('Error loading templates: ' + err.message);
+      })
+      .getTemplateSheetNames();
+  }
+
+  function loadSourceSheets() {
+    google.script.run
+      .withSuccessHandler(function(names) {
+        const select = document.getElementById('sheet');
+        select.innerHTML = '';
+
+        if (!names || names.length === 0) {
+          select.innerHTML = '<option value="">No source sheets found</option>';
+          return;
+        }
+
+        names.forEach(function(name) {
+          const option = document.createElement('option');
+          option.value = name;
+          option.textContent = name;
+          select.appendChild(option);
+        });
+      })
+      .withFailureHandler(function(err) {
+        alert('Error loading source sheets: ' + err.message);
+      })
+      .getNonTemplateSheetNames();
+  }
+
+  function run() {
+    const template = document.getElementById('templateName').value.trim();
+    const sheetStr = document.getElementById('sheet').value.trim();
+    const rangeStr = document.getElementById('range').value.trim();
+
+    if (!template || !rangeStr) {
+      alert('Please fill all fields');
+      return;
+    }
+
+    const btn = document.getElementById('createSheetsBtn');
+    btn.disabled = true;
+    document.getElementById('status').textContent = 'Creating sheets…';
+
+    google.script.run
+      .withSuccessHandler(function() {
+        document.getElementById('status').textContent = 'Sheets created successfully!';
+        document.getElementById('status').className = 'success';
+        btn.disabled = false;
+        setTimeout(function() {
+          google.script.host.close();
+        }, 1500);
+      })
+      .withFailureHandler(function(err) {
+        document.getElementById('status').textContent = 'Error: ' + err.message;
+        document.getElementById('status').className = 'error';
+        btn.disabled = false;
+      })
+      .duplicateTemplateForNames(template, sheetStr, rangeStr);
+  }
+
+  function bindEvents() {
+    const btn = document.getElementById('createSheetsBtn');
+    if (!btn) {
+      document.getElementById('status').textContent = 'Error: Button not found.';
+      document.getElementById('status').className = 'error';
+      return;
+    }
+    btn.addEventListener('click', run);
+    document.getElementById('status').textContent = 'Ready.';
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() {
+      loadTemplates();
+      loadSourceSheets();
+      bindEvents();
+    });
+  } else {
+    loadTemplates();
+    loadSourceSheets();
+    bindEvents();
+  }
+</script>
+
+</body>
+</html>

@@ -307,7 +307,7 @@ function getTableConfig(overrides) {
       notes: 'Sample table to show how to fill swimmer data.'
     },
     DetailedEvents: {
-      tableType: 'core',
+      tableType: 'optional',
       title: 'Detailed Events',
       headers: ['Events', 'Gender', 'Min Age', 'Max Age', 'Discipline', 'Distance', 'Event Type', 'Event No.'],
       columns: toCols({
@@ -328,7 +328,7 @@ function getTableConfig(overrides) {
       }),
       options: {
         freezeHeader: 1, headerBg: '#356853', title: 'Events for Meet Manager', required: false,
-        placement: {targetSheet: "Events", startCell: 'A1'}, clearMode: 'rebuild'
+        placement: {targetSheet: "MMEvents", startCell: 'A1'}, clearMode: 'rebuild'
       },
       notes: 'Full events list for Meet Manager alignment.'
     },

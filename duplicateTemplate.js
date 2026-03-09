@@ -80,101 +80,10 @@ function getRelayDefaults() {
 function showCreateSheetsDialog() {
   const ui = SpreadsheetApp.getUi();
 
-  const html = HtmlService.createHtmlOutput(`
-    <style>
-      body { font-family: 'Google Sans',Roboto,sans-serif; padding: 20px; line-height: 1.4; color: #333; }
-      label {display: block; margin: 10px 0 5px;font-size:smaller;}
-      input {padding: 8px; margin: 10px 0;width: calc(100% - 20px);}
-      select {width: 100%; padding: 8px; margin: 10px 0;}
-      button { padding: 8px; margin: 10px 0; font-size: 16px; }
-      button {  background: #0397B3; color: white; border: none; cursor: pointer; border-end-end-radius: 14px;
-              border-start-end-radius: 14px;
-              border-start-start-radius: 14px;
-              border-end-start-radius: 14px;
-              padding-inline-start: 24px;
-              padding-inline-end: 24px;
-              min-inline-size: 200px;}
-      button:hover { box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.4);}
-    </style>
-    
-    <label>Template Sheet Name:</label>
-    <select id="templateName"></select>
+  const html = HtmlService.createTemplateFromFile('sheets-from-template-ui')
+                          .evaluate()
+                          .setWidth(450)
+                          .setHeight(480);
 
-    <label>Sheet name with names of Teams (e.g. Team Officials):</label>
-    <select id="sheet"></select>
-    
-    <label>Range with names (e.g. A2:A8):</label>
-    <input type="text" id="range" value="A2:A8" placeholder="A2:A8">
-    
-    <button onclick="run()">Create Sheets</button>
-    
-    <script>
-      function loadTemplates() {
-        google.script.run
-          .withSuccessHandler(names => {
-            const select = document.getElementById('templateName');
-            select.innerHTML = '';
-
-            if (!names || names.length === 0) {
-              select.innerHTML = '<option value="">No template sheets found</option>';
-              return;
-            }
-
-            names.forEach(name => {
-              const option = document.createElement('option');
-              option.value = name;
-              option.textContent = name;
-              select.appendChild(option);
-            });
-          })
-          .withFailureHandler(err => alert('Error loading templates: ' + err.message))
-          .getTemplateSheetNames();
-      }
-
-      function loadSourceSheets() {
-        google.script.run
-          .withSuccessHandler(names => {
-            const select = document.getElementById('sheet');
-            select.innerHTML = '';
-
-            if (!names || names.length === 0) {
-              select.innerHTML = '<option value="">No source sheets found</option>';
-              return;
-            }
-
-            names.forEach(name => {
-              const option = document.createElement('option');
-              option.value = name;
-              option.textContent = name;
-              select.appendChild(option);
-            });
-          })
-          .withFailureHandler(err => alert('Error loading source sheets: ' + err.message))
-          .getNonTemplateSheetNames();
-      }
-
-      function run() {
-        const template = document.getElementById('templateName').value.trim();
-        const sheetStr = document.getElementById('sheet').value.trim();
-        const rangeStr = document.getElementById('range').value.trim();
-        
-        if (!template || !rangeStr) {
-          alert('Please fill all fields');
-          return;
-        }
-        
-        google.script.run
-          .withSuccessHandler(() => google.script.host.close())
-          .withFailureHandler(err => alert('Error: ' + err.message))
-          .duplicateTemplateForNames(template, sheetStr, rangeStr);
-      }
-
-      loadTemplates();
-      loadSourceSheets();
-    </script>
-  `)
-  .setWidth(380)
-  .setHeight(380);
-
-  ui.showModalDialog(html, 'Create Sheets from List');
+  ui.showModalDialog(html, 'Create Sheets from Template');
 }

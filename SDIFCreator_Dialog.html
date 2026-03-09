@@ -2,55 +2,56 @@
 <html>
   <head>
     <base target="_top">
-    <style>
-      body { font-family: 'Google Sans',Roboto,sans-serif; padding: 20px; line-height: 1.4; color: #333; }
-      .field { margin-bottom: 15px; }
-      label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 14px; }
-      select, input { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
-      button { background-color: #4285f4; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 10px; }
-      button:hover { background-color: #357ae8; }
-      button:disabled { background-color: #ccc; cursor: not-allowed; }
-      .error { color: #d93025; font-size: 12px; margin-top: 5px; display: none; }
-      #status { margin-top: 15px; font-size: 14px; text-align: center; }
-      .success { color: #1e8e3e; font-weight: bold; }
-      .warning { color: #f9ab00; font-weight: bold; }
-      #downloadLink { display: none; margin-top: 10px; text-align: center; }
-      #downloadLink a { color: #4285f4; font-weight: bold; text-decoration: none; border-bottom: 1px solid #4285f4; }
-      #exceptionReport { display: none; margin-top: 10px; padding: 10px; background-color: #fff3cd; border: 1px solid #f9ab00; border-radius: 4px; }
-      #exceptionReport a { color: #d93025; font-weight: bold; }
-    </style>
+<?!= HtmlService.createHtmlOutputFromFile('shared-dialog-styles').getContent(); ?>
   </head>
   <body>
-    <div class="field">
-      <label for="sheetSelect">Entries Sheet</label>
-      <select id="sheetSelect"></select>
-    </div>
 
-    <div class="field">
-      <label for="meetTable">Meet Table Name</label>
-      <input type="text" id="meetTable" value="Meet">
-    </div>
+<div class="header">
+  <p>Generate an SDIF (.sd3) file ready for import into Hy-Tek Meet Manager.</p>
+</div>
 
-    <div class="field">
-      <label for="schoolsTable">Schools Table Name</label>
-      <input type="text" id="schoolsTable" value="Schools">
-    </div>
+<div class="section">
+  <div class="section-label">Configuration</div>
+  <div class="field">
+    <label for="sheetSelect">Entries Sheet</label>
+    <select id="sheetSelect"></select>
+  </div>
 
-    <div class="field">
-      <label for="fileName">Output File Name</label>
-      <input type="text" id="fileName" placeholder="auto-generated if blank">
-    </div>
+  <div class="field">
+    <label for="meetTable">Meet Table Name</label>
+    <input type="text" id="meetTable" value="Meet">
+  </div>
 
-    <button id="generateBtn">Generate SD3 File</button>
+  <div class="field">
+    <label for="schoolsTable">Schools Table Name</label>
+    <input type="text" id="schoolsTable" value="Schools">
+  </div>
 
-    <div id="status"></div>
-    <div id="downloadLink">
-      <a href="#" id="fileUrl" target="_blank">Download .sd3 File</a>
-    </div>
-    <div id="exceptionReport">
-      <strong>⚠️ Warning:</strong> <span id="exceptionCount"></span> issue(s) detected during export.<br>
-      <a href="#" id="reportUrl" target="_blank">View Exception Report</a>
-    </div>
+  <div class="field">
+    <label for="fileName">Output File Name <span class="hint">auto-generated if blank</span></label>
+    <input type="text" id="fileName" placeholder="Leave blank for auto-generation">
+  </div>
+</div>
+
+<button id="generateBtn" type="button">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+    <polyline points="7 10 12 15 17 10"/>
+    <line x1="12" y1="15" x2="12" y2="3"/>
+  </svg>
+  Generate SD3 File
+</button>
+
+<div id="status"></div>
+
+<div id="downloadLink" class="download-link">
+  <a href="#" id="fileUrl" target="_blank">Download .sd3 File</a>
+</div>
+
+<div id="exceptionReport" class="exception-report">
+  <strong>⚠️ Warning:</strong> <span id="exceptionCount"></span> issue(s) detected during export.<br>
+  <a href="#" id="reportUrl" target="_blank">View Exception Report</a>
+</div>
 
     <script>
       const generateBtn = document.getElementById('generateBtn');
@@ -129,18 +130,15 @@
 
               status.textContent = "Error: " + actualMessage;
               status.className = "error";
-              status.style.display = "block";
 
               // Display exception report link
               reportUrl.href = reportUrlValue;
               exceptionCount.textContent = "See details:";
               exceptionReport.style.display = "block";
-              exceptionReport.style.backgroundColor = "#ffebee";
-              exceptionReport.style.borderColor = "#d93025";
+              exceptionReport.classList.add("error");
             } else {
               status.textContent = "Error: " + errorMessage;
               status.className = "error";
-              status.style.display = "block";
             }
 
             generateBtn.disabled = false;

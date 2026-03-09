@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+<?!= HtmlService.createHtmlOutputFromFile('shared-dialog-styles').getContent(); ?>
+</head>
+<body>
+
+<div class="header">
+  <p class="small">Select one or more table types to create or rebuild. You can override dropdown values (e.g., school years) below.</p>
+  <p class="small subtitle">Required tables marked with an asterisk (<span class="required">*</span>)</p>
+</div>
+
+<div class="section">
+  <div class="section-label">Tables</div>
+  <div id="tableList"><?!= tableListHtml ?></div>
+  <div id="tableListDebug" class="small">Rendered server-side: <?= tableCount ?> table option(s).</div>
+</div>
+
+<div class="section">
+  <div class="section-label">Dropdown values (optional)</div>
+  <div class="small" style="margin-bottom: 10px;">Applicable to <strong>Individual Events Template</strong> table</div>
+  <div class="row">
+    <div class="field">
+      <label>School Years <span class="hint">comma-separated</span></label>
+      <input type="text" id="years" value="Y5,Y6,Y7,Y8,Y9,Junior,Intermediate,Senior" />
+    </div>
+    <div class="field">
+      <label>Genders <span class="hint">comma-separated</span></label>
+      <input type="text" id="genders" value="Female,Male" />
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-label">Placement (optional overrides for all selected)</div>
+  <div class="row">
+    <div class="field">
+      <label>Override Sheet Name</label>
+      <input type="text" id="sheetName" placeholder="Leave blank to use default" />
+    </div>
+    <div class="field">
+      <label>Start Cell</label>
+      <input type="text" id="startCell" placeholder="A1" />
+    </div>
+  </div>
+</div>
+
+<button id="createTablesBtn" type="button">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="3" y="3" width="18" height="18" rx="2"/>
+    <line x1="3" y1="9" x2="21" y2="9"/>
+    <line x1="3" y1="15" x2="21" y2="15"/>
+    <line x1="9" y1="9" x2="9" y2="21"/>
+  </svg>
+  Create Tables
+</button>
+
+<div id="status"></div>
+
+<script>
+  function createTables() {
+    const names = Array.from(document.querySelectorAll('#tableList input[type=checkbox]:checked')).map(function(cb) {
+      return cb.value;
+    });
+
+    if (!names.length) {
+      alert('Please select at least one table.');
+      return;
+    }
+
+    const years = document.getElementById('years').value.split(',').map(function(s) {
+      return s.trim();
+    }).filter(Boolean);
+
+    const genders = document.getElementById('genders').value.split(',').map(function(s) {
+      return s.trim();
+    }).filter(Boolean);
+
+    const sheetName = document.getElementById('sheetName').value.trim();
+    const startCell = document.getElementById('startCell').value.trim();
+
+    const opts = {
+      schoolYears: years,
+      genders: genders
+    };
+
+    if (sheetName) opts.sheetName = sheetName;
+    if (startCell) opts.startCell = startCell;
+
+    document.getElementById('status').textContent = 'Working…';
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        const lines = res.map(function(r) {
+          if (r.error) {
+            return r.tableName + ': ERROR - ' + r.error;
+          }
+          const tableMeta = r.structuredTable
+            ? (' [' + r.structuredTable.action + ' table name: ' + r.structuredTable.tableName + ']')
+            : '';
+          return 'Created table at sheet: ' + r.sheetName + ', cell reference: ' + r.headerA1 + ' / ' + r.dataA1 + tableMeta;
+        }).join('\n');
+        document.getElementById('status').textContent = 'Done.\n' + lines;
+        document.getElementById('status').className = 'success';
+      })
+      .withFailureHandler(function(err) {
+        document.getElementById('status').textContent = 'Error: ' + err.message;
+        document.getElementById('status').className = 'error';
+      })
+      .createTablesFromDialog(names, opts);
+  }
+
+  function bindEvents() {
+    const btn = document.getElementById('createTablesBtn');
+    if (!btn) {
+      document.getElementById('status').textContent = 'Error: Create button not found.';
+      document.getElementById('status').className = 'error';
+      return;
+    }
+    btn.addEventListener('click', createTables);
+    document.getElementById('status').textContent = 'Ready.';
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bindEvents);
+  } else {
+    bindEvents();
+  }
+</script>
+
+</body>
+</html>

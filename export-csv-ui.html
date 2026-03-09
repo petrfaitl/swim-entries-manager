@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+<?!= HtmlService.createHtmlOutputFromFile('shared-dialog-styles').getContent(); ?>
+</head>
+<body>
+
+<div class="header">
+  <p><strong>Auto-detects Event/Time columns</strong> (handles sheets with/without times)</p>
+</div>
+
+<div class="section">
+  <div class="section-label">Export Configuration</div>
+  <div class="field">
+    <label>Select the sheet to export</label>
+    <select id="sheetId">
+      <option value="">-- Select a sheet --</option>
+      <?!= sheetOptionsHtml ?>
+    </select>
+  </div>
+  <div class="field">
+    <label>Team Code Table <span class="small">(Team code is required for export)</span></label>
+    <select id="teamCodeTable">
+      <?!= tableOptionsHtml ?>
+    </select>
+  </div>
+</div>
+
+<button id="exportBtn" type="button">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+    <polyline points="7 10 12 15 17 10"/>
+    <line x1="12" y1="15" x2="12" y2="3"/>
+  </svg>
+  Export to CSV
+</button>
+
+<div id="status"></div>
+
+<script>
+  function exportSheet() {
+    const sheetId = document.getElementById('sheetId').value;
+    const teamCodeTable = document.getElementById('teamCodeTable').value;
+
+    if (!sheetId) {
+      alert('Please select a sheet.');
+      return;
+    }
+
+    if (!teamCodeTable) {
+      alert('No Team Code table available. Please create a table with team codes (e.g., "Schools") before exporting.');
+      return;
+    }
+
+    const btn = document.getElementById('exportBtn');
+    document.getElementById('status').textContent = 'Processing...';
+    btn.disabled = true;
+
+    google.script.run
+      .withSuccessHandler(function(fileUrl) {
+        document.getElementById('status').innerHTML =
+          'Success! <a href="' + fileUrl + '" target="_blank">Download CSV</a>';
+        document.getElementById('status').className = 'success';
+        btn.disabled = false;
+      })
+      .withFailureHandler(function(err) {
+        document.getElementById('status').textContent = 'Error: ' + err.message;
+        document.getElementById('status').className = 'error';
+        btn.disabled = false;
+      })
+      .processSheetToCSV(sheetId, teamCodeTable);
+  }
+
+  function bindEvents() {
+    const btn = document.getElementById('exportBtn');
+    if (!btn) {
+      document.getElementById('status').textContent = 'Error: Button not found.';
+      document.getElementById('status').className = 'error';
+      return;
+    }
+    btn.addEventListener('click', exportSheet);
+    document.getElementById('status').textContent = 'Ready.';
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bindEvents);
+  } else {
+    bindEvents();
+  }
+</script>
+
+</body>
+</html>

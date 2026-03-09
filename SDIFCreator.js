@@ -130,10 +130,11 @@ const SDIFCreator = (function() {
   }
 
   function showDialog() {
-    const html = HtmlService.createHtmlOutputFromFile('SDIFCreator_Dialog')
-        .setWidth(450)
-        .setHeight(450);
-    SpreadsheetApp.getUi().showModalDialog(html, 'Generate SDIF (.sd3) File');
+    const html = HtmlService.createTemplateFromFile('SDIFCreator_Dialog')
+        .evaluate()
+        .setWidth(500)
+        .setHeight(520);
+    SpreadsheetApp.getUi().showModalDialog(html, 'Export for Meet Manager');
   }
 
   /**
