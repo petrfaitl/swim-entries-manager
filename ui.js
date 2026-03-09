@@ -185,249 +185,466 @@ function showCreateRelayTablesDialog() {
   const html = HtmlService.createHtmlOutput(`
     
     <style>
-      body { font-family: 'Google Sans',Roboto,sans-serif; padding: 20px; line-height: 1.4; color: #333; }
-      h2 {margin: 0 0 8px;}
-      fieldset {border: 1px solid #ddd; padding: 10px; margin-bottom: 12px;}
-      legend {font-weight: bold;}
-      label {display:block; margin: 4px 0; font-size:smaller;}
-      .row {display:flex; gap:8px;}
-      .row > div {flex:1;}
-      select {padding: 8px; margin: 10px 0; width:100%;}
-      input {padding: 8px; margin: 10px 0;width: calc(100% - 20px);}
-      input[type="radio"] {margin:10px; width: auto;}
-      button { background: #0397B3; color: white; border: none; cursor: pointer;
-               border-radius: 14px;
-               padding-inline-start: 24px;
-               padding-inline-end: 24px;
-               min-inline-size: 250px;
-               padding: 8px; margin: 10px 0; font-size: 16px;
-             }
-      button:hover { box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.4); }
-      .small {font-size: 12px; color: #666}
-      .subtitle {margin-bottom: 14px;}
-      #status {margin-top:8px; white-space: pre-wrap; font-size: smaller;}
-      #eventNamesList {margin-top: 10px;}
-      .event-name-input {margin: 5px 0;}
-      .hidden {display: none;}
-    </style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap');
 
-    <div class="small">Create relay tables from team names in your spreadsheet.</div>
-    <div class="small subtitle">Tables can be placed on one sheet or separate sheets.</div>
+  *, *::before, *::after { box-sizing: border-box; }
 
-    <fieldset>
-      <legend>Team Data</legend>
-      <div>
-        <label>Sheet with team names</label>
-        <select id="sourceSheet"></select>
+  body {
+    font-family: 'DM Sans', 'Google Sans', sans-serif;
+    padding: 18px 16px 24px;
+    line-height: 1.5;
+    color: #1a1a2e;
+    background: #f7f8fc;
+    margin: 0;
+  }
+
+  /* Header */
+  .header { margin-bottom: 16px; }
+  .header h2 {
+    font-size: 15px;
+    font-weight: 600;
+    color: #1a1a2e;
+    margin: 0 0 3px;
+    letter-spacing: -0.2px;
+  }
+  .header p {
+    font-size: 11.5px;
+    color: #7b8299;
+    margin: 0;
+  }
+
+  /* Section cards */
+  .section {
+    background: #fff;
+    border: 1px solid #e8eaf0;
+    border-radius: 10px;
+    padding: 14px;
+    margin-bottom: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+
+  .section-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    color: #0397B3;
+    margin: 0 0 10px;
+  }
+
+  /* Fields */
+  .field { margin-bottom: 10px; }
+  .field:last-child { margin-bottom: 0; }
+
+  label {
+    display: block;
+    font-size: 11.5px;
+    font-weight: 500;
+    color: #4a5068;
+    margin-bottom: 4px;
+  }
+
+  label .hint {
+    font-weight: 400;
+    color: #a0a8bf;
+    font-size: 10.5px;
+  }
+
+  select, input[type="text"], input[type="number"] {
+    width: 100%;
+    padding: 7px 10px;
+    border: 1.5px solid #e0e3ed;
+    border-radius: 7px;
+    font-family: inherit;
+    font-size: 12.5px;
+    color: #1a1a2e;
+    background: #fafbfd;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+
+  select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%237b8299' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 28px;
+    cursor: pointer;
+  }
+
+  select:focus, input[type="text"]:focus, input[type="number"]:focus {
+    border-color: #0397B3;
+    box-shadow: 0 0 0 3px rgba(3, 151, 179, 0.1);
+    background: #fff;
+  }
+
+  .row { display: flex; gap: 8px; }
+  .row > .field { flex: 1; margin-bottom: 0; }
+
+  /* Divider */
+  .divider {
+    height: 1px;
+    background: #eef0f6;
+    margin: 10px 0;
+  }
+
+  /* Event name inputs — dynamically added */
+  #eventNamesList {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .event-name-input {
+    width: 100%;
+    padding: 7px 10px;
+    border: 1.5px solid #e0e3ed;
+    border-radius: 7px;
+    font-family: inherit;
+    font-size: 12.5px;
+    color: #1a1a2e;
+    background: #fafbfd;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+
+  .event-name-input:focus {
+    border-color: #0397B3;
+    box-shadow: 0 0 0 3px rgba(3, 151, 179, 0.1);
+    background: #fff;
+  }
+
+  /* Radio options */
+  .radio-group { display: flex; flex-direction: column; gap: 6px; }
+
+  .radio-option {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 8px 10px;
+    border: 1.5px solid #e0e3ed;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: #4a5068;
+    user-select: none;
+    margin: 0;
+  }
+
+  .radio-option:hover { background: #f4f6fc; }
+
+  .radio-option.selected {
+    border-color: #0397B3;
+    background: #f0fafc;
+    color: #1a1a2e;
+  }
+
+  .radio-option input[type="radio"] {
+    width: 14px;
+    height: 14px;
+    accent-color: #0397B3;
+    margin: 0;
+    flex-shrink: 0;
+    appearance: auto;
+    -webkit-appearance: auto;
+  }
+
+  #sameSheetOptions { margin-top: 10px; }
+  #sameSheetOptions.hidden { display: none; }
+
+  /* Button */
+  #createRelayTablesBtn {
+    width: 100%;
+    background: linear-gradient(135deg, #0397B3 0%, #027a92 100%);
+    color: white;
+    border: none;
+    cursor: pointer;
+    border-radius: 9px;
+    padding: 10px 16px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.1px;
+    margin-top: 4px;
+    transition: box-shadow 0.15s, transform 0.1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+  }
+
+  #createRelayTablesBtn:hover {
+    box-shadow: 0 4px 12px rgba(3, 151, 179, 0.35);
+    transform: translateY(-1px);
+  }
+
+  #createRelayTablesBtn:active { transform: translateY(0); }
+  #createRelayTablesBtn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+
+  #createRelayTablesBtn svg { width: 15px; height: 15px; flex-shrink: 0; }
+
+  /* Status */
+  #status {
+    margin-top: 10px;
+    white-space: pre-wrap;
+    font-size: 11.5px;
+    color: #4a5068;
+    padding: 0 2px;
+  }
+
+  #status.error { color: #c0392b; }
+  #status.success { color: #0397B3; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h2>Create Relay Tables</h2>
+  <p>Generate tables from team names. Place on one sheet or separate sheets.</p>
+</div>
+
+<!-- Team Data -->
+<div class="section">
+  <div class="section-label">Team Data</div>
+  <div class="field">
+    <label>Sheet with team names</label>
+    <select id="sourceSheet"></select>
+  </div>
+  <div class="field">
+    <label>Range with team names <span class="hint">e.g. A2:A8</span></label>
+    <input type="text" id="sourceRange" value="A2:A8" placeholder="A2:A8" />
+  </div>
+</div>
+
+<!-- Relay Events -->
+<div class="section">
+  <div class="section-label">Relay Events</div>
+  <div class="field">
+    <label>Number of relay events</label>
+    <input type="number" id="eventCount" value="3" min="1" />
+  </div>
+  <div id="eventNamesList"></div>
+  <div class="divider"></div>
+  <div class="field">
+    <label>School years <span class="hint">comma-separated</span></label>
+    <input type="text" id="years" value="Y5,Y6,Y7,Y8,Y9,Junior,Intermediate,Senior" />
+  </div>
+</div>
+
+<!-- Placement -->
+<div class="section">
+  <div class="section-label">Placement</div>
+  <div class="radio-group">
+    <label class="radio-option selected" id="opt-sameSheet">
+      <input type="radio" name="placement" value="sameSheet" checked />
+      Place all tables on one sheet
+    </label>
+    <label class="radio-option" id="opt-separateSheets">
+      <input type="radio" name="placement" value="separateSheets" />
+      Create separate sheet per event
+    </label>
+  </div>
+
+  <div id="sameSheetOptions">
+    <div class="divider"></div>
+    <div class="row">
+      <div class="field">
+        <label>Target sheet name</label>
+        <input type="text" id="targetSheetName" value="Relays" />
       </div>
-      <div>
-        <label>Range with team names <span class="small">(e.g. A2:A8)</span></label>
-        <input type="text" id="sourceRange" value="A2:A8" placeholder="A2:A8" />
+      <div class="field">
+        <label>Start cell <span class="hint">e.g. A1</span></label>
+        <input type="text" id="startCell" value="A1" />
       </div>
-    </fieldset>
+    </div>
+  </div>
+</div>
 
-    <fieldset>
-      <legend>Relay Events</legend>
-      <div>
-        <label>Number of relay events</label>
-        <input type="number" id="eventCount" value="3" min="1" />
-      </div>
-      <div id="eventNamesList"></div>
-      <div>
-        <label>School Years <span class="small">(comma-separated)</span></label>
-        <input type="text" id="years" value="Y5,Y6,Y7,Y8,Y9,Junior,Intermediate,Senior" />
-      </div>
-    </fieldset>
+<button id="createRelayTablesBtn" type="button">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="3" y="3" width="18" height="18" rx="2"/>
+    <line x1="3" y1="9" x2="21" y2="9"/>
+    <line x1="3" y1="15" x2="21" y2="15"/>
+    <line x1="9" y1="9" x2="9" y2="21"/>
+  </svg>
+  Create Relay Tables
+</button>
 
-    <fieldset>
-      <legend>Placement</legend>
-      <div>
-        <label>
-          <input type="radio" name="placement" value="sameSheet" checked /> Place all tables on one sheet
-        </label>
-        <label>
-          <input type="radio" name="placement" value="separateSheets" /> Create separate sheet per event
-        </label>
-      </div>
-      <div id="sameSheetOptions" style="margin-top: 10px;">
-        <div>
-          <label>Target sheet name</label>
-          <input type="text" id="targetSheetName" value="Relays" />
-        </div>
-        <div>
-          <label>Start cell <span class="small">(e.g A1)</span></label>
-          <input type="text" id="startCell" value="A1" />
-        </div>
-      </div>
-    </fieldset>
+<div id="status"></div>
 
-    <button id="createRelayTablesBtn" type="button">Create Relay Tables</button>
-    <div id="status"></div>
+<script>
+  let eventNames = [];
+  let relayDefaults = null;
 
-    <script>
-      let eventNames = [];
-      let relayDefaults = null;
+  function setStatus(text, type) {
+    const el = document.getElementById('status');
+    el.textContent = text;
+    el.className = type || '';
+  }
 
-      function loadSourceSheets() {
-        google.script.run
-          .withSuccessHandler(function(names) {
-            const select = document.getElementById('sourceSheet');
-            select.innerHTML = '';
-            if (!names || names.length === 0) {
-              select.innerHTML = '<option value="">No sheets found</option>';
-              return;
-            }
-            names.forEach(function(name) {
-              const option = document.createElement('option');
-              option.value = name;
-              option.textContent = name;
-              select.appendChild(option);
-            });
-          })
-          .withFailureHandler(function(err) {
-            alert('Error loading sheets: ' + err.message);
-          })
-          .getNonTemplateSheetNames();
-      }
-
-      function loadRelayDefaults() {
-        google.script.run
-          .withSuccessHandler(function(defaults) {
-            relayDefaults = defaults;
-            renderEventNameInputs();
-          })
-          .withFailureHandler(function(err) {
-            console.error('Error loading relay defaults:', err.message);
-            relayDefaults = { suggestedEventNames: [] };
-            renderEventNameInputs();
-          })
-          .getRelayDefaults();
-      }
-
-      function renderEventNameInputs() {
-        const count = parseInt(document.getElementById('eventCount').value) || 1;
-        const container = document.getElementById('eventNamesList');
-        container.innerHTML = '';
-
-        const defaults = (relayDefaults && relayDefaults.suggestedEventNames) || [];
-
-        for (let i = 0; i < count; i++) {
-          const input = document.createElement('input');
-          input.type = 'text';
-          input.className = 'event-name-input';
-          input.placeholder = 'Event ' + (i + 1) + ' name';
-          input.value = eventNames[i] || (i < defaults.length ? defaults[i] : '');
-          input.dataset.index = i;
-          input.addEventListener('input', function() {
-            eventNames[parseInt(this.dataset.index)] = this.value;
-          });
-          container.appendChild(input);
-        }
-      }
-
-      function updatePlacementOptions() {
-        const sameSheet = document.querySelector('input[name="placement"]:checked').value === 'sameSheet';
-        const sameSheetOptions = document.getElementById('sameSheetOptions');
-        sameSheetOptions.style.display = sameSheet ? 'block' : 'none';
-      }
-
-      function createRelayTables() {
-        const sourceSheet = document.getElementById('sourceSheet').value.trim();
-        const sourceRange = document.getElementById('sourceRange').value.trim();
-        const eventCount = parseInt(document.getElementById('eventCount').value);
-
-        if (!sourceSheet) {
-          alert('Please select a source sheet.');
+  function loadSourceSheets() {
+    google.script.run
+      .withSuccessHandler(function(names) {
+        const select = document.getElementById('sourceSheet');
+        select.innerHTML = '';
+        if (!names || names.length === 0) {
+          select.innerHTML = '<option value="">No sheets found</option>';
           return;
         }
-
-        if (!sourceRange) {
-          alert('Please enter a range with team names.');
-          return;
-        }
-
-        // Collect event names
-        const events = [];
-        const inputs = document.querySelectorAll('.event-name-input');
-        inputs.forEach(function(input) {
-          const label = input.value.trim();
-          if (label) {
-            events.push({ label: label });
-          }
+        names.forEach(function(name) {
+          const option = document.createElement('option');
+          option.value = name;
+          option.textContent = name;
+          select.appendChild(option);
         });
+      })
+      .withFailureHandler(function(err) {
+        alert('Error loading sheets: ' + err.message);
+      })
+      .getNonTemplateSheetNames();
+  }
 
-        if (events.length === 0) {
-          alert('Please enter at least one event name.');
-          return;
-        }
+  function loadRelayDefaults() {
+    google.script.run
+      .withSuccessHandler(function(defaults) {
+        relayDefaults = defaults;
+        renderEventNameInputs();
+      })
+      .withFailureHandler(function(err) {
+        console.error('Error loading relay defaults:', err.message);
+        relayDefaults = { suggestedEventNames: [] };
+        renderEventNameInputs();
+      })
+      .getRelayDefaults();
+  }
 
-        // Get school years
-        const yearsStr = document.getElementById('years').value.trim();
-        const years = yearsStr ? yearsStr.split(',').map(function(y) { return y.trim(); }).filter(function(y) { return y !== ''; }) : [];
+  function renderEventNameInputs() {
+    const count = parseInt(document.getElementById('eventCount').value) || 1;
+    const container = document.getElementById('eventNamesList');
+    container.innerHTML = '';
 
-        const sameSheet = document.querySelector('input[name="placement"]:checked').value === 'sameSheet';
-        const config = {
-          sourceSheet: sourceSheet,
-          sourceRange: sourceRange,
-          events: events,
-          years: years,
-          placement: {
-            sameSheet: sameSheet,
-            sheetName: sameSheet ? document.getElementById('targetSheetName').value.trim() : '',
-            startCell: sameSheet ? document.getElementById('startCell').value.trim() : ''
-          }
-        };
+    const defaults = (relayDefaults && relayDefaults.suggestedEventNames) || [];
 
-        document.getElementById('status').textContent = 'Creating relay tables…';
+    for (let i = 0; i < count; i++) {
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'event-name-input';
+      input.placeholder = 'Event ' + (i + 1) + ' name';
+      input.value = eventNames[i] || (i < defaults.length ? defaults[i] : '');
+      input.dataset.index = i;
+      input.addEventListener('input', function() {
+        eventNames[parseInt(this.dataset.index)] = this.value;
+      });
+      container.appendChild(input);
+    }
+  }
 
-        google.script.run
-          .withSuccessHandler(function(results) {
-            const lines = results.map(function(r) {
-              if (r.error) {
-                return r.eventLabel + ': ERROR - ' + r.error;
-              }
-              return 'Created: ' + r.eventLabel + ' on sheet "' + r.sheetName + '" (table: ' + r.sanitisedTableName + ')';
-            }).join('\\n');
+  function updatePlacementOptions() {
+    const isSameSheet = document.querySelector('input[name="placement"]:checked').value === 'sameSheet';
+    const sameSheetOptions = document.getElementById('sameSheetOptions');
+    sameSheetOptions.classList.toggle('hidden', !isSameSheet);
+  }
 
-            const successCount = results.filter(function(r) { return !r.error; }).length;
-            const message = sameSheet
-              ? 'Created ' + successCount + ' relay table(s) on sheet "' + config.placement.sheetName + '".'
-              : 'Created ' + successCount + ' relay table(s) on ' + successCount + ' separate sheet(s).';
+  function createRelayTables() {
+    const sourceSheet = document.getElementById('sourceSheet').value.trim();
+    const sourceRange = document.getElementById('sourceRange').value.trim();
 
-            document.getElementById('status').textContent = message + '\\n\\n' + lines;
-          })
-          .withFailureHandler(function(err) {
-            document.getElementById('status').textContent = 'Error: ' + err.message;
-          })
-          .createRelayTablesFromDialog(config);
+    if (!sourceSheet) { alert('Please select a source sheet.'); return; }
+    if (!sourceRange) { alert('Please enter a range with team names.'); return; }
+
+    const events = [];
+    document.querySelectorAll('.event-name-input').forEach(function(input) {
+      const label = input.value.trim();
+      if (label) events.push({ label: label });
+    });
+
+    if (events.length === 0) { alert('Please enter at least one event name.'); return; }
+
+    const yearsStr = document.getElementById('years').value.trim();
+    const years = yearsStr
+      ? yearsStr.split(',').map(function(y) { return y.trim(); }).filter(function(y) { return y !== ''; })
+      : [];
+
+    const sameSheet = document.querySelector('input[name="placement"]:checked').value === 'sameSheet';
+    const config = {
+      sourceSheet: sourceSheet,
+      sourceRange: sourceRange,
+      events: events,
+      years: years,
+      placement: {
+        sameSheet: sameSheet,
+        sheetName: sameSheet ? document.getElementById('targetSheetName').value.trim() : '',
+        startCell: sameSheet ? document.getElementById('startCell').value.trim() : ''
       }
+    };
 
-      function bindEvents() {
-        const btn = document.getElementById('createRelayTablesBtn');
-        if (!btn) {
-          document.getElementById('status').textContent = 'Error: Button not found.';
-          return;
-        }
-        btn.addEventListener('click', createRelayTables);
+    const btn = document.getElementById('createRelayTablesBtn');
+    btn.disabled = true;
+    setStatus('Creating relay tables…');
 
-        document.getElementById('eventCount').addEventListener('input', renderEventNameInputs);
-        document.querySelectorAll('input[name="placement"]').forEach(function(radio) {
-          radio.addEventListener('change', updatePlacementOptions);
+    google.script.run
+      .withSuccessHandler(function(results) {
+        btn.disabled = false;
+        const lines = results.map(function(r) {
+          return r.error
+            ? r.eventLabel + ': ERROR — ' + r.error
+            : 'Created: ' + r.eventLabel + ' on "' + r.sheetName + '"';
+        }).join('\\n');
+
+        const successCount = results.filter(function(r) { return !r.error; }).length;
+        const summary = sameSheet
+          ? 'Created ' + successCount + ' relay table(s) on sheet "' + config.placement.sheetName + '".'
+          : 'Created ' + successCount + ' relay table(s) on ' + successCount + ' separate sheet(s).';
+
+        setStatus(summary + '\\n\\n' + lines, 'success');
+      })
+      .withFailureHandler(function(err) {
+        btn.disabled = false;
+        setStatus('Error: ' + err.message, 'error');
+      })
+      .createRelayTablesFromDialog(config);
+  }
+
+  function bindEvents() {
+    const btn = document.getElementById('createRelayTablesBtn');
+    if (!btn) { setStatus('Error: Button not found.', 'error'); return; }
+
+    btn.addEventListener('click', createRelayTables);
+    document.getElementById('eventCount').addEventListener('input', renderEventNameInputs);
+
+    document.querySelectorAll('input[name="placement"]').forEach(function(radio) {
+      radio.addEventListener('change', function() {
+        document.querySelectorAll('.radio-option').forEach(function(el) {
+          el.classList.remove('selected');
         });
-
-        // Initialize
-        loadSourceSheets();
-        loadRelayDefaults();
+        radio.closest('.radio-option').classList.add('selected');
         updatePlacementOptions();
-        document.getElementById('status').textContent = 'Ready.';
-      }
+      });
+    });
 
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', bindEvents);
-      } else {
-        bindEvents();
-      }
-    </script>
+    loadSourceSheets();
+    loadRelayDefaults();
+    updatePlacementOptions();
+    setStatus('Ready.');
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bindEvents);
+  } else {
+    bindEvents();
+  }
+</script>
   `)
   .setWidth(520)
   .setHeight(720);
