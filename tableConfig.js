@@ -276,7 +276,7 @@ function getTableConfig(overrides) {
           },default: 'ACG'
         },
         'Event 1': {type: 'text', validation: {type: 'list', args: {values: ['25m Breaststroke','25m Freestyle','50m Backstroke','100m Freestyle','100m Individual Medley','50m Breaststroke']}},default:'25m Breaststroke'},
-        'Time 1 (m:s.S)': {type: 'text', default: '45.98'},
+        'Time 1 (m:s.S)': {type: 'text', default: '00:45.98'},
         'Event 2': {type: 'text', validation: {type: 'list', args: {values: ['25m Breaststroke','25m Freestyle','50m Backstroke','100m Freestyle','100m Individual Medley','50m Breaststroke']}},default:'50m Breaststroke'},
         'Time 2 (m:s.S)': {type: 'text', default: '01:01.20'},
         'Event 3': {type: 'text', validation: {type: 'list', args: {values: ['25m Breaststroke','25m Freestyle','50m Backstroke','100m Freestyle','100m Individual Medley','50m Breaststroke']}},default:'50m Backstroke'},
