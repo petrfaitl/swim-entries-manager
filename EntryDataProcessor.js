@@ -22,8 +22,18 @@
 function capitalizeNameSafely(name) {
   if (!name || typeof name !== 'string') return name;
 
-  const trimmed = name.trim();
+  let trimmed = name.trim();
   if (!trimmed) return trimmed;
+
+  // Replace problematic characters with proper equivalents
+  // Back-tick (`) -> apostrophe (')
+  // Smart quotes (",") -> straight quotes (")
+  // Various apostrophe-like characters -> standard apostrophe
+  trimmed = trimmed
+    .replace(/`/g, "'")           // Back-tick to apostrophe
+    .replace(/[\u2018\u2019]/g, "'")  // Smart single quotes to apostrophe
+    .replace(/[\u201C\u201D]/g, '"')  // Smart double quotes to straight quotes
+    .replace(/[\u02BC\u2032]/g, "'"); // Other apostrophe-like chars
 
   // Check if name is all uppercase or all lowercase
   const isAllUpper = trimmed === trimmed.toUpperCase() && trimmed !== trimmed.toLowerCase();
@@ -31,7 +41,7 @@ function capitalizeNameSafely(name) {
 
   // Only fix if entirely one case - preserve mixed case names
   if (!isAllUpper && !isAllLower) {
-    return name; // Already has mixed case, preserve it (handles Mac/Mc, O', etc.)
+    return trimmed; // Already has mixed case, preserve it (handles Mac/Mc, O', etc.)
   }
 
   // Convert to title case: capitalize first letter of each word
