@@ -83,19 +83,31 @@ function ensureStructuredTable_(sheet, tableName, tableCfg, headerRange, dataRan
 }
 
 function configureTableColumns_(table, tableCfg) {
-  if (!tableCfg || !tableCfg.headers || !tableCfg.columns) return;
+  if (!tableCfg || !tableCfg.headers || !tableCfg.columns) {
+    Logger.log('[configureTableColumns_] Missing tableCfg data: tableCfg=%s, headers=%s, columns=%s',
+      !!tableCfg, !!(tableCfg && tableCfg.headers), !!(tableCfg && tableCfg.columns));
+    return;
+  }
+
+  Logger.log('[configureTableColumns_] Configuring columns for table. Headers: %s', JSON.stringify(tableCfg.headers));
 
   const columnProperties = [];
 
   for (let i = 0; i < tableCfg.headers.length; i++) {
     const headerName = tableCfg.headers[i];
     const meta = tableCfg.columns[headerName];
-    if (!meta) continue;
+    if (!meta) {
+      Logger.log('[configureTableColumns_] No metadata for column "%s" at index %s', headerName, i);
+      continue;
+    }
 
     const colProp = {
       columnIndex: i,
       columnName: headerName
     };
+
+    Logger.log('[configureTableColumns_] Processing column "%s": type=%s, validation=%s',
+      headerName, meta.type, JSON.stringify(meta.validation));
 
     // Set column type and validation based on metadata
     if (meta.validation && meta.validation.type === 'list') {
@@ -111,6 +123,7 @@ function configureTableColumns_(table, tableCfg) {
             })
           }
         };
+        Logger.log('[configureTableColumns_] Column "%s": DROPDOWN with %s values', headerName, values.length);
       }
     } else if (meta.validation && meta.validation.type === 'range') {
       // Dropdown column with range reference
@@ -141,12 +154,15 @@ function configureTableColumns_(table, tableCfg) {
   }
 
   // Apply column properties to the table
+  Logger.log('[configureTableColumns_] Applying %s column properties to table "%s"', columnProperties.length, table.getName());
+  Logger.log('[configureTableColumns_] Column properties: %s', JSON.stringify(columnProperties));
+
   try {
     table.setColumnProperties(columnProperties, 'columnProperties');
-    Logger.log('[configureTableColumns_] Successfully configured %s columns for table "%s"', columnProperties.length, table.getName());
+    Logger.log('[configureTableColumns_] ✓ Successfully configured %s columns for table "%s"', columnProperties.length, table.getName());
   } catch (e) {
-    Logger.log('[configureTableColumns_] Failed to configure columns for table "%s": %s', table.getName(), e.message);
-    // Logger.log('[column properties] %s', e);
+    Logger.log('[configureTableColumns_] ✗ Failed to configure columns for table "%s": %s', table.getName(), e.message);
+    Logger.log('[configureTableColumns_] Error stack: %s', e.stack);
   }
 }
 
@@ -353,6 +369,10 @@ function sanitizeTableName_(label) {
  */
 function createRelayTable_(eventConfig, sheetTarget, startRow, startCol, teamNames, relayTableCfg, relayDefaults) {
   Logger.log('[createRelayTable_] Creating relay table "%s" at row %s, col %s', eventConfig.label, startRow, startCol);
+  Logger.log('[createRelayTable_] Received parameters: teamNames=%s, relayTableCfg.headers=%s, relayDefaults=%s',
+    JSON.stringify(teamNames),
+    JSON.stringify(relayTableCfg ? relayTableCfg.headers : null),
+    JSON.stringify(relayDefaults));
 
   const labelRow = startRow;
   const headerRow = startRow + 1;
@@ -363,6 +383,7 @@ function createRelayTable_(eventConfig, sheetTarget, startRow, startCol, teamNam
   // Build full header: fixed columns + team names
   const fullHeaders = relayTableCfg.headers.slice().concat(teamNames);
   const totalCols = fullHeaders.length;
+  Logger.log('[createRelayTable_] Full headers (%s columns): %s', totalCols, JSON.stringify(fullHeaders));
 
   // 1. Write label row (merged cell with event name)
   const labelRange = sheetTarget.getRange(labelRow, startCol, 1, totalCols);
@@ -398,9 +419,13 @@ function createRelayTable_(eventConfig, sheetTarget, startRow, startCol, teamNam
 
   // 4. Create structured table
   const sanitizedName = sanitizeTableName_(eventConfig.label);
+  Logger.log('[createRelayTable_] About to create structured table. Name: "%s", headerRange: %s, dataRange: %s',
+    sanitizedName, headerRange.getA1Notation(), dataRange.getA1Notation());
+
   const structuredTable = ensureStructuredTable_(sheetTarget, sanitizedName, relayTableCfg, headerRange, dataRange);
 
-  Logger.log('[createRelayTable_] Created relay table "%s" (structured name: "%s")', eventConfig.label, sanitizedName);
+  Logger.log('[createRelayTable_] Created relay table "%s" (structured name: "%s"). Result: %s',
+    eventConfig.label, sanitizedName, JSON.stringify(structuredTable));
 
   return {
     labelRow: labelRow,
@@ -432,6 +457,7 @@ function createRelayTables(config) {
   try {
     // 1. Get team names from source sheet
     const teamNames = getTeamNamesFromSheet(config.sourceSheet, config.sourceRange);
+    Logger.log('[createRelayTables] Retrieved %s team names: %s', teamNames.length, JSON.stringify(teamNames));
 
     if (teamNames.length === 0) {
       // Fallback to DEFAULT_CLUSTERS
@@ -444,14 +470,18 @@ function createRelayTables(config) {
     const overrides = {};
     if (config.years && config.years.length > 0) {
       overrides.schoolYears = config.years;
+      Logger.log('[createRelayTables] Using custom school years: %s', JSON.stringify(config.years));
     }
     const cfg = getTableConfig(overrides);
+    Logger.log('[createRelayTables] Table config retrieved. Available tables: %s', Object.keys(cfg.tables).join(', '));
+
     let relayTableCfg = null;
 
     // Find the table with tableType === 'relay'
     for (let tableName in cfg.tables) {
       if (cfg.tables[tableName].tableType === 'relay') {
         relayTableCfg = cfg.tables[tableName];
+        Logger.log('[createRelayTables] Found relay table config: %s', tableName);
         break;
       }
     }
@@ -460,7 +490,14 @@ function createRelayTables(config) {
       throw new Error('No relay table configuration found (tableType: relay)');
     }
 
+    Logger.log('[createRelayTables] Relay table config: headers=%s, hasColumns=%s',
+      JSON.stringify(relayTableCfg.headers),
+      !!(relayTableCfg.columns));
+
     const relayDefaults = cfg.relayDefaults;
+    Logger.log('[createRelayTables] Relay defaults: defaultRowsPerTable=%s, gapBetweenTables=%s',
+      relayDefaults.defaultRowsPerTable, relayDefaults.gapBetweenTables);
+
     const ss = SpreadsheetApp.getActive();
     const results = [];
 
@@ -468,20 +505,27 @@ function createRelayTables(config) {
     if (config.placement.sameSheet) {
       // All tables on one sheet
       const sheetName = config.placement.sheetName || 'Relays';
+      Logger.log('[createRelayTables] Creating all tables on sheet "%s"', sheetName);
+
       let sheet = ss.getSheetByName(sheetName);
 
       if (!sheet) {
         sheet = ss.insertSheet(sheetName);
         Logger.log('[createRelayTables] Created new sheet "%s"', sheetName);
+      } else {
+        Logger.log('[createRelayTables] Using existing sheet "%s"', sheetName);
       }
 
       // Parse start cell
       const startRange = sheet.getRange(config.placement.startCell || 'A1');
       let currentRow = startRange.getRow();
       const startCol = startRange.getColumn();
+      Logger.log('[createRelayTables] Starting position: row=%s, col=%s', currentRow, startCol);
 
       for (let i = 0; i < config.events.length; i++) {
         const event = config.events[i];
+        Logger.log('[createRelayTables] Processing event %s/%s: "%s" at row %s',
+          i+1, config.events.length, event.label, currentRow);
 
         try {
           const tableResult = createRelayTable_(
@@ -493,6 +537,8 @@ function createRelayTables(config) {
             relayTableCfg,
             relayDefaults
           );
+          Logger.log('[createRelayTables] Event "%s" created successfully. Result: %s',
+            event.label, JSON.stringify(tableResult));
 
           results.push({
             eventLabel: event.label,

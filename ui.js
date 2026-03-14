@@ -59,10 +59,7 @@ function showCreateRelayTablesDialog() {
 }
 
 function buildAdminSidebarCard() {
-  const imageBytes = DriveApp.getFileById('1PT-hMqaBpVTNpkN3KiocfgNa7QRWfmXw')
-                             .getBlob()
-                             .getBytes();
-  const encodedImageURL = `data:image/jpeg;base64,${Utilities.base64Encode(imageBytes)}`;
+  const encodedImageURL = "https://www.lvwasc.co.nz/wp-content/uploads/2026/03/icon_file_download.png";
 
   // ── Card 1: Templates ──────────────────────────────────────────────────
   const templatesCard = CardService.newCardBuilder()
@@ -208,10 +205,7 @@ function buildAdminSidebarCard() {
 }
 
 function buildExportCard() {
-  const imageBytes = DriveApp.getFileById('1DQZoQh-ya7I-rVsED3HJjVdobkEFwlvZ')
-                             .getBlob()
-                             .getBytes();
-  const encodedImageURL = `data:image/jpeg;base64,${Utilities.base64Encode(imageBytes)}`;
+  const encodedImageURL = "https://www.lvwasc.co.nz/wp-content/uploads/2026/03/icon_pool_swimmer.png";
 
   // ── Card 2: Export ─────────────────────────────────────────────────────
   const exportCard = CardService.newCardBuilder()

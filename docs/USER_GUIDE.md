@@ -790,8 +790,8 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines on contributing to the 
 Need help? Here are your options:
 
 - **Documentation**: You're reading it! Check other sections for specific topics
-- **GitHub Issues**: [Report bugs or request features](https://github.com/yourusername/swim-entries-manager/issues)
-- **GitHub Discussions**: [Ask questions or discuss usage](https://github.com/yourusername/swim-entries-manager/discussions)
+- **GitHub Issues**: [Report bugs or request features](https://github.com/petrfaitl/swim-entries-manager/issues)
+- **GitHub Discussions**: [Ask questions or discuss usage](https://github.com/petrfaitl/swim-entries-manager/discussions)
 - **Email Support**: recorder@lvwasc.co.nz
 
 ## Tips for Success
