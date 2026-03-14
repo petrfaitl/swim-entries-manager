@@ -901,9 +901,45 @@ const SDIFCreator = (function() {
 
   function saveToFile_(content, fileName, folderId) {
     const blob = Utilities.newBlob(content, 'text/plain', fileName);
-    const folder = folderId ? DriveApp.getFolderById(folderId) : DriveApp.getRootFolder();
-    const file = folder.createFile(blob);
-    return file.getDownloadUrl();
+    let fileId;
+    
+    // Construct metadata for Drive API v3
+    const fileMetadata = {
+      name: fileName,
+      mimeType: 'text/plain'
+    };
+    
+    if (folderId) {
+      fileMetadata.parents = [folderId];
+    }
+    
+    try {
+      // Use Advanced Drive Service (v3) which is more restrictive-scope friendly
+      const file = Drive.Files.create(fileMetadata, blob);
+      fileId = file.id;
+      Logger.log('[SDIFCreator] File created via Advanced Drive Service: %s (ID: %s)', fileName, fileId);
+    } catch (e) {
+      Logger.log('[SDIFCreator] Advanced Drive Service failed: %s. Falling back to DriveApp.', e.message);
+      
+      // Fallback to DriveApp for backward compatibility or if Advanced Service is misconfigured
+      let driveFile;
+      if (folderId) {
+        try {
+          const folder = DriveApp.getFolderById(folderId);
+          driveFile = folder.createFile(blob);
+        } catch (e2) {
+          Logger.log('[SDIFCreator] DriveApp folder save failed, falling back to root: %s', e2.message);
+          driveFile = DriveApp.createFile(blob);
+        }
+      } else {
+        driveFile = DriveApp.createFile(blob);
+      }
+      fileId = driveFile.getId();
+    }
+    
+    // In Drive API v3, webContentLink is the closest to getDownloadUrl()
+    // However, to keep it simple and consistent with previous behavior:
+    return "https://drive.google.com/uc?export=download&id=" + fileId;
   }
 
   function generateExceptionReport_(exceptions, counts, meetInfo, fileName, folderId) {

@@ -124,8 +124,22 @@ function processSheetToCSV(sheetId, teamCodeTableName) {
 
   const fileName = `${sheetName}.csv`;
   const blob = Utilities.newBlob(csvContent, MimeType.CSV, fileName);
-  const file = DriveApp.getRootFolder().createFile(blob);
+  
+  let fileId;
+  try {
+    // Use Advanced Drive Service for restricted scope compatibility
+    const file = Drive.Files.create({
+      name: fileName,
+      mimeType: MimeType.CSV
+    }, blob);
+    fileId = file.id;
+    Logger.log(`CSV created via Advanced Drive Service: ${fileName} (ID: ${fileId})`);
+  } catch (e) {
+    Logger.log(`Advanced Drive Service failed: ${e.message}. Falling back to DriveApp.`);
+    const file = DriveApp.createFile(blob);
+    fileId = file.getId();
+    Logger.log(`CSV created via DriveApp: ${fileName} (ID: ${fileId})`);
+  }
 
-  Logger.log(`CSV created: ${fileName} with ${outputRows.length - 1} data rows`);
-  return file.getDownloadUrl();
+  return "https://drive.google.com/uc?export=download&id=" + fileId;
 }
