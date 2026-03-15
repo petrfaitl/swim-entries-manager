@@ -22,8 +22,13 @@ function exportEntriesToCSV() {
   let hasSchoolsTable = false;
   try {
     const tableApp = TableApp.openById(ss.getId());
-    const tablesObj = tableApp.getTables();
-    Logger.log('[exportEntriesToCSV] getTables() returned: %s', JSON.stringify(tablesObj));
+    let tablesObj = null;
+    try {
+      tablesObj = tableApp.getTables();
+      Logger.log('[exportEntriesToCSV] getTables() returned: %s', JSON.stringify(tablesObj));
+    } catch (e) {
+      Logger.log('[exportEntriesToCSV] TableApp.getTables() failed: %s. Falling back to sheet names.', e.message);
+    }
 
     if (tablesObj && typeof tablesObj === 'object') {
       Object.keys(tablesObj).forEach(function(sheetName) {
@@ -36,15 +41,19 @@ function exportEntriesToCSV() {
           });
         }
       });
-      Logger.log('[exportEntriesToCSV] Extracted table names: %s', tableNames.join(', '));
-    } else {
-      Logger.log('[exportEntriesToCSV] Unexpected tables structure');
-      tableNames = [];
+      Logger.log('[exportEntriesToCSV] Extracted table names from TableApp: %s', tableNames.join(', '));
     }
+    
+    // Fallback: If no tables found or TableApp failed, use sheet names as potential table names
+    if (tableNames.length === 0) {
+      tableNames = ss.getSheets().map(s => s.getName());
+      Logger.log('[exportEntriesToCSV] Using sheet names as fallback table names: %s', tableNames.join(', '));
+    }
+    
     hasSchoolsTable = tableNames.includes('Schools');
   } catch (err) {
     Logger.log('[exportEntriesToCSV] Could not load tables: %s', err.message);
-    tableNames = [];
+    tableNames = ss.getSheets().map(s => s.getName());
   }
 
   // Build HTML for sheet dropdown

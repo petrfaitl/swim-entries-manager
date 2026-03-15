@@ -839,12 +839,26 @@ function processEntriesSheet(sheet, teamCodeTableName, spreadsheetId) {
   let teamCodeData = null;
   try {
     const tableApp = TableApp.openById(spreadsheetId);
-    const table = tableApp.getTableByName(teamCodeTableName);
+    let table = null;
+    try {
+      table = tableApp.getTableByName(teamCodeTableName);
+    } catch (e) {
+      Logger.log('[EntryDataProcessor] TableApp failed to find table by name: %s. Falling back to sheet search.', e.message);
+    }
+    
     if (table) {
       teamCodeData = table.getValues();
       Logger.log('[EntryDataProcessor] Successfully loaded team code data from table "%s" (%s rows)', teamCodeTableName, teamCodeData.length);
     } else {
-      Logger.log('[EntryDataProcessor] Warning: Table "%s" not found. All team codes will default to "UNS"', teamCodeTableName);
+      // Fallback: search sheets if TableApp fails or doesn't find the table
+      Logger.log('[EntryDataProcessor] Searching sheets for table data: %s', teamCodeTableName);
+      const targetSheet = sheet.getParent().getSheetByName(teamCodeTableName);
+      if (targetSheet) {
+        teamCodeData = targetSheet.getDataRange().getValues();
+        Logger.log('[EntryDataProcessor] Successfully loaded team code data from sheet "%s" (%s rows)', teamCodeTableName, teamCodeData.length);
+      } else {
+        Logger.log('[EntryDataProcessor] Warning: Table or Sheet "%s" not found. All team codes will default to "UNS"', teamCodeTableName);
+      }
     }
   } catch (err) {
     Logger.log('[EntryDataProcessor] Error loading team code table: %s. All team codes will default to "UNS"', err.message);
