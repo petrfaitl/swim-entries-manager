@@ -724,8 +724,8 @@ const SDIFCreator = (function() {
   function normaliseGender_(raw) {
     if (!raw) return "X";
     const s = String(raw).trim().toUpperCase();
-    if (s === "M" || s === "MALE" || s === "B" || s === "BOY") return "M";
-    if (s === "F" || s === "FEMALE" || s === "G" || s === "GIRL") return "F";
+    if (s === "M" || s === "MALE" || s === "B" || s === "BOY" || s === "BOYS") return "M";
+    if (s === "F" || s === "FEMALE" || s === "G" || s === "GIRL" || s === "GIRLS") return "F";
     Logger.log('[SDIFCreator] WARNING: Unrecognised gender "%s", using "X"', raw);
     return "X";
   }
@@ -902,17 +902,17 @@ const SDIFCreator = (function() {
   function saveToFile_(content, fileName, folderId) {
     const blob = Utilities.newBlob(content, 'text/plain', fileName);
     let fileId;
-    
+
     // Construct metadata for Drive API v3
     const fileMetadata = {
       name: fileName,
       mimeType: 'text/plain'
     };
-    
+
     if (folderId) {
       fileMetadata.parents = [folderId];
     }
-    
+
     try {
       // Use Advanced Drive Service (v3) which is more restrictive-scope friendly
       const file = Drive.Files.create(fileMetadata, blob);
@@ -920,7 +920,7 @@ const SDIFCreator = (function() {
       Logger.log('[SDIFCreator] File created via Advanced Drive Service: %s (ID: %s)', fileName, fileId);
     } catch (e) {
       Logger.log('[SDIFCreator] Advanced Drive Service failed: %s. Falling back to DriveApp.', e.message);
-      
+
       // Fallback to DriveApp for backward compatibility or if Advanced Service is misconfigured
       let driveFile;
       if (folderId) {
@@ -936,7 +936,7 @@ const SDIFCreator = (function() {
       }
       fileId = driveFile.getId();
     }
-    
+
     // In Drive API v3, webContentLink is the closest to getDownloadUrl()
     // However, to keep it simple and consistent with previous behavior:
     return "https://drive.google.com/uc?export=download&id=" + fileId;
