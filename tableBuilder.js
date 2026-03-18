@@ -53,6 +53,19 @@ function getStructuredTableName_(tableName, tableCfg) {
   return tableName;
 }
 
+function getUniqueTableName_(tableApp, baseName) {
+  let uniqueName = baseName;
+  let counter = 1;
+  while (tableApp.getTableByName(uniqueName)) {
+    // For table names, we should keep them simple and avoid spaces if possible,
+    // though TableApp seems to handle them. Since TableApp's create name
+    // might have restrictions, we follow the sanitize pattern.
+    uniqueName = baseName + '_' + counter;
+    counter++;
+  }
+  return uniqueName;
+}
+
 function ensureStructuredTable_(sheet, tableName, tableCfg, headerRange, dataRange) {
   const tableApp = getTableAppClient_();
   const structuredTableName = getStructuredTableName_(tableName, tableCfg);
@@ -60,8 +73,13 @@ function ensureStructuredTable_(sheet, tableName, tableCfg, headerRange, dataRan
   const endA1 = dataRange.getA1Notation().split(':')[1];
   const fullTableRangeA1 = toQuotedSheetA1_(sheet.getName(), startA1 + ':' + endA1);
 
+  // Check if we should reuse an existing table or create a new one with a unique name
   const existing = tableApp.getTableByName(structuredTableName);
-  if (existing) {
+  
+  // If the table exists on the SAME sheet, we update it.
+  // If it exists on a DIFFERENT sheet, we should probably create a new one with a unique name
+  // to avoid moving the existing table unexpectedly, especially if the user is creating multiple tables.
+  if (existing && existing.sheetName === sheet.getName()) {
     existing.setRange(fullTableRangeA1);
     configureTableColumns_(existing, tableCfg);
     return {
@@ -72,10 +90,13 @@ function ensureStructuredTable_(sheet, tableName, tableCfg, headerRange, dataRan
     };
   }
 
-  const created = tableApp.getRange(fullTableRangeA1).create(structuredTableName);
+  // If it doesn't exist, or exists on another sheet, create a new unique name
+  const finalTableName = existing ? getUniqueTableName_(tableApp, structuredTableName) : structuredTableName;
+
+  const created = tableApp.getRange(fullTableRangeA1).create(finalTableName);
   configureTableColumns_(created, tableCfg);
   return {
-    tableName: structuredTableName,
+    tableName: finalTableName,
     tableId: created.getId(),
     action: 'created',
     rangeA1: fullTableRangeA1

@@ -92,7 +92,7 @@ function getTableConfig(overrides) {
     gapBetweenTables: 3       // blank rows between tables when on same sheet
   };
 
-  const YEARS = (overrides && overrides.schoolYears) || ['Y5', 'Y6', 'Y7', 'Y8', 'Y9', 'Y10', 'Y11', 'Y12', 'Y13'];
+  const YEARS = (overrides && overrides.schoolYears) || ['Y5', 'Y6', 'Y7', 'Y8', 'Y9', 'Junior', 'Intermediate','Senior'];
   const GENDERS = (overrides && overrides.genders) || ['Female', 'Male'];
   const COUNTRIES = (overrides && overrides.country) || ['NZL', 'AUS', 'CAN', 'GBR', 'USA'];
   const REGIONS = (overrides && overrides.region) || ['AK', 'BP', 'CB', 'CO', 'ED', 'HP', 'MW', 'NL', 'NM', 'OT', 'SL', 'TR', 'WG', 'WK', 'WN', 'WP'];
