@@ -79,6 +79,27 @@ const SDIFCreator = (function() {
     Logger.log('[SDIFCreator] Processed %s swimmers', processedSwimmers.length);
 
     const meetInfo = getMeetInfo(meetTableName);
+
+    // Validate that Meet table is not empty
+    if (!meetInfo || Object.keys(meetInfo).length === 0) {
+      const exceptions = [{
+        type: 'ERROR',
+        category: 'Configuration Error',
+        swimmer: 'N/A',
+        teamCode: 'N/A',
+        field: 'Meet Table',
+        message: 'Meet table is empty or not found. Please verify the table name exists in your spreadsheet.'
+      }];
+
+      const counts = { swimmers: 0, skippedSwimmers: processedSwimmers.length, bRecords: 0, cRecords: 0, d0Records: 0, d1Records: 0, skippedEvents: 0 };
+      const reportFileName = 'SDIF_Exception_Report_' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyyMMdd_HHmmss") + '.txt';
+      const reportUrl = generateExceptionReport_(exceptions, counts, {}, reportFileName, config.outputFolderId);
+
+      const error = new Error("Meet table is empty or not found. Please verify the table name exists in your spreadsheet.");
+      error.exceptionReportUrl = reportUrl;
+      throw error;
+    }
+
     const teamLookup = getTeamLookup(schoolsTableName);
 
     let outputFileName = config.outputFileName;
@@ -856,7 +877,8 @@ const SDIFCreator = (function() {
   function readMeetInfo_(tableName) {
     const rows = readTableByName_(tableName);
     if (rows.length === 0) {
-      throw new Error("SDIFCreator: Meet table not found or empty");
+      Logger.log('[SDIFCreator] ERROR: Meet table "%s" not found or empty', tableName);
+      return {};
     }
 
     const row = rows[0];
