@@ -468,9 +468,20 @@ function formatAsMmSsSs(timeRaw) {
   if (/[a-zA-Z]/.test(s)) return "NT";
 
   // Handle serial time from Google Sheets (decimal < 1 represents fraction of a day)
-  // This is the ONLY case where we need to convert
-  if (typeof timeRaw === 'number' && timeRaw > 0 && timeRaw < 1) {
-    const totalSeconds = timeRaw * 86400;
+  // Special case: "decimal seconds" format where e.g. 0.17 means 17 seconds
+  // This can be passed as a number OR a string like "0.17"
+  const numericVal = Number(timeRaw);
+  if (!isNaN(numericVal) && numericVal > 0 && numericVal < 1) {
+    let totalSeconds;
+
+    if (numericVal >= 0.01) {
+      // Rule: values like 0.17 treated as 17 seconds (as per user request)
+      totalSeconds = numericVal * 100;
+    } else {
+      // Standard serial time (fraction of a day)
+      totalSeconds = numericVal * 86400;
+    }
+
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
 
@@ -500,6 +511,11 @@ function formatAsMmSsSs(timeRaw) {
     // Last colon should be treated as decimal point
     const lastColonIndex = s.lastIndexOf(':');
     workingStr = s.substring(0, lastColonIndex) + '.' + s.substring(lastColonIndex + 1);
+  } else if (dotCount === 2) {
+    // Three parts separated by dots: MM.SS.DD format
+    // First dot should be treated as a colon
+    const firstDotIndex = s.indexOf('.');
+    workingStr = s.substring(0, firstDotIndex) + ':' + s.substring(firstDotIndex + 1);
   } else if (colonCount === 1 && dotCount === 0) {
     // Single colon, no decimal: Could be MM:SS or SS:DD
     // Disambiguate based on the value after the colon
@@ -845,7 +861,7 @@ function processEntriesSheet(sheet, teamCodeTableName, spreadsheetId) {
     } catch (e) {
       Logger.log('[EntryDataProcessor] TableApp failed to find table by name: %s. Falling back to sheet search.', e.message);
     }
-    
+
     if (table) {
       teamCodeData = table.getValues();
       Logger.log('[EntryDataProcessor] Successfully loaded team code data from table "%s" (%s rows)', teamCodeTableName, teamCodeData.length);
