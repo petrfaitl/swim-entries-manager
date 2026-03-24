@@ -62,84 +62,84 @@ function formatDob(dob) {
  * Formats time coming from Google Sheets cell → "mm:ss.SS"
  * Handles: numbers, strings in many formats, and Date objects from Sheets
  */
-function formatAsMmSsSs(input) {
-  // ── 0. Handle Empty/Null ──────────────────────────────────────────────
-  if (input === "" || input == null) {
-    return "NT";
-  }
-
-  let totalSeconds = 0;
-
-  // ── 1. Handle Date object from Sheets time/duration cells ───────────
-  if (input instanceof Date) {
-    const hours   = input.getHours();
-    const minutes = input.getMinutes();
-    const seconds = input.getSeconds();
-    const ms      = input.getMilliseconds();
-    // Note: This resets every 24h. For strict durations > 24h,
-    // you would need the raw cell value, but this works for time-of-day.
-    totalSeconds = (hours * 3600) + (minutes * 60) + seconds + (ms / 1000);
-  }
-
-  // ── 2. Handle STRICT Numeric Input (Primitive Numbers Only) ─────────
-  // We use `typeof` to ensure we don't accidentally grab strings like "1:02"
-  else if (typeof input === 'number') {
-    let num = input;
-    // Heuristic: If < 1, Sheets treats it as a fraction of a day (e.g. 0.5 = 12:00pm)
-    // If > 1, we assume it is raw seconds.
-    totalSeconds = (num < 1 && num > 0) ? num * 86400 : num;
-  }
-
-  // ── 3. Handle String Inputs ─────────────────────────────────────────
-  else if (typeof input === 'string') {
-    const clean = input.trim().replace(/\s+/g, ''); // Remove whitespace
-
-    // Case A: Contains colon → parse as mm:ss[.sss]
-    if (clean.includes(':')) {
-      const parts = clean.split(':');
-
-      // Safety: If structure isn't x:y, return original
-      if (parts.length < 2) return clean;
-
-      const minStr = parts[0];
-      const secStr = parts[1];
-
-      const minutes = parseInt(minStr, 10) || 0;
-
-      // Simplify logic: Let parseFloat handle "02.3", "2.300", etc.
-      const secondsRaw = parseFloat(secStr) || 0;
-
-      totalSeconds = (minutes * 60) + secondsRaw;
-    }
-
-    // Case B: No colon, but looks like a number (e.g. "59.99", "123.45")
-    // We check !isNaN to ensure it is actually a number
-    else if (!isNaN(parseFloat(clean))) {
-      totalSeconds = parseFloat(clean);
-    }
-
-    // Fallback: Unknown format (e.g. "NT", "DNF")
-    else {
-      return clean;
-    }
-  }
-
-  // Fallback for objects/arrays that aren't Dates
-  else {
-    return String(input);
-  }
-
-  // ── 4. Final Formatting to "mm:ss.SS" ───────────────────────────────
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-
-  // .toFixed(2) handles the rounding/padding of the decimal part automatically
-  const secFormatted = seconds.toFixed(2).padStart(5, '0');
-
-  // PadStart ensures 01:05.00 format
-  return `${minutes.toString().padStart(2, '0')}:${secFormatted}`;
-}
-
+// function formatAsMmSsSs(input) {
+//   // ── 0. Handle Empty/Null ──────────────────────────────────────────────
+//   if (input === "" || input == null) {
+//     return "NT";
+//   }
+//
+//   let totalSeconds = 0;
+//
+//   // ── 1. Handle Date object from Sheets time/duration cells ───────────
+//   if (input instanceof Date) {
+//     const hours   = input.getHours();
+//     const minutes = input.getMinutes();
+//     const seconds = input.getSeconds();
+//     const ms      = input.getMilliseconds();
+//     // Note: This resets every 24h. For strict durations > 24h,
+//     // you would need the raw cell value, but this works for time-of-day.
+//     totalSeconds = (hours * 3600) + (minutes * 60) + seconds + (ms / 1000);
+//   }
+//
+//   // ── 2. Handle STRICT Numeric Input (Primitive Numbers Only) ─────────
+//   // We use `typeof` to ensure we don't accidentally grab strings like "1:02"
+//   else if (typeof input === 'number') {
+//     let num = input;
+//     // Heuristic: If < 1, Sheets treats it as a fraction of a day (e.g. 0.5 = 12:00pm)
+//     // If > 1, we assume it is raw seconds.
+//     totalSeconds = (num < 1 && num > 0) ? num * 86400 : num;
+//   }
+//
+//   // ── 3. Handle String Inputs ─────────────────────────────────────────
+//   else if (typeof input === 'string') {
+//     const clean = input.trim().replace(/\s+/g, ''); // Remove whitespace
+//
+//     // Case A: Contains colon → parse as mm:ss[.sss]
+//     if (clean.includes(':')) {
+//       const parts = clean.split(':');
+//
+//       // Safety: If structure isn't x:y, return original
+//       if (parts.length < 2) return clean;
+//
+//       const minStr = parts[0];
+//       const secStr = parts[1];
+//
+//       const minutes = parseInt(minStr, 10) || 0;
+//
+//       // Simplify logic: Let parseFloat handle "02.3", "2.300", etc.
+//       const secondsRaw = parseFloat(secStr) || 0;
+//
+//       totalSeconds = (minutes * 60) + secondsRaw;
+//     }
+//
+//     // Case B: No colon, but looks like a number (e.g. "59.99", "123.45")
+//     // We check !isNaN to ensure it is actually a number
+//     else if (!isNaN(parseFloat(clean))) {
+//       totalSeconds = parseFloat(clean);
+//     }
+//
+//     // Fallback: Unknown format (e.g. "NT", "DNF")
+//     else {
+//       return clean;
+//     }
+//   }
+//
+//   // Fallback for objects/arrays that aren't Dates
+//   else {
+//     return String(input);
+//   }
+//
+//   // ── 4. Final Formatting to "mm:ss.SS" ───────────────────────────────
+//   const minutes = Math.floor(totalSeconds / 60);
+//   const seconds = totalSeconds % 60;
+//
+//   // .toFixed(2) handles the rounding/padding of the decimal part automatically
+//   const secFormatted = seconds.toFixed(2).padStart(5, '0');
+//
+//   // PadStart ensures 01:05.00 format
+//   return `${minutes.toString().padStart(2, '0')}:${secFormatted}`;
+// }
+//
 function getSchoolCode(data, schoolName) {
   // 1. We skip the header row (index 0) using slice(1) to avoid false matches
   // 2. We search the remaining rows
