@@ -1,11 +1,8 @@
 /**
  * SDIFCreator — SDIF v3 Meet Entry File Generator
  *
- * Standalone module for Google Apps Script.
- * Can be used as a GAS Library (deploy → Manage Deployments → Library).
- * No external dependencies. Embed in project or import as library.
- *
- * Public API:
+
+ * API:
  *   generate(config)
  *   generateFromData(swimmerRows, meetInfo, teamLookup, outputFileName)
  *   buildSdifString(swimmerRows, meetInfo, teamLookup)
@@ -41,7 +38,7 @@ const SDIFCreator = (function() {
     rightJustifySeedTime: false
   };
 
-  // --- Public API ---
+  // --- API ---
 
   /**
    * @param {Object} config
