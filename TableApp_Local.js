@@ -24,6 +24,16 @@ function openById(spreadsheetId) {
  */
 class TableApp {
   /**
+   * Opens the TableApp for a specific Spreadsheet.
+   *
+   * @param {string} spreadsheetId The Spreadsheet ID.
+   * @return {TableApp} The TableApp instance.
+   */
+  static openById(spreadsheetId) {
+    return new TableApp(spreadsheetId);
+  }
+
+  /**
    * @param {string} spreadsheetId The Spreadsheet ID.
    */
   constructor(spreadsheetId) {
@@ -415,9 +425,11 @@ class Table {
     const fieldsToFetch =
       "sheets(properties(sheetId),data(rowData(values(userEnteredValue,textFormatRuns,chipRuns,userEnteredFormat,effectiveValue,hyperlink,note,dataValidation))))";
 
-    const obj = sget_(this.spreadsheetId, fieldsToFetch, [
-      this.rangeAsA1Notation,
-    ]);
+    // Use granular Sheets.Spreadsheets.get with range to comply with 'currentonly'
+    const obj = Sheets.Spreadsheets.get(this.spreadsheetId, {
+      fields: fieldsToFetch,
+      ranges: [this.rangeAsA1Notation]
+    });
     // @ts-ignore
     const f = obj.sheets.find(
       ({ properties: { sheetId } }) => sheetId == this.sheetId
@@ -450,21 +462,19 @@ class Table {
 
     const parsed = parseA1Notation_(a1Notation);
 
-    // Resolve Destination Sheet ID
-    const sheetsData = sget_(
-      this.spreadsheetId,
-      "sheets(properties(sheetId,title))"
-    );
+    // Use SpreadsheetApp for sheet metadata to comply with 'currentonly' scope
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheets = ss.getSheets();
+
     let destSheetId, destSheetName;
 
     if (parsed.sheetName) {
-      // @ts-ignore
-      const s = sheetsData.sheets.find(
-        ({ properties: { title } }) => title === parsed.sheetName
+      const s = sheets.find(
+        (s) => s.getName() === parsed.sheetName
       );
       if (s) {
-        destSheetId = s.properties.sheetId;
-        destSheetName = s.properties.title;
+        destSheetId = s.getSheetId();
+        destSheetName = s.getName();
       } else {
         throw new Error(`Destination sheet "${parsed.sheetName}" not found.`);
       }
@@ -524,18 +534,6 @@ class Table {
 /*                               PRIVATE HELPERS                              */
 /* -------------------------------------------------------------------------- */
 
-/**
- * Wrapper for Sheets.Spreadsheets.get
- *
- * @private
- * @param {string} spreadsheetId
- * @param {string} [fields="*"]
- * @param {Array<string>} [ranges=[]]
- * @return {Object} API response
- */
-function sget_(spreadsheetId, fields = "*", ranges = []) {
-  return Sheets.Spreadsheets.get(spreadsheetId, { fields, ranges });
-}
 
 /**
  * Wrapper for Sheets.Spreadsheets.batchUpdate
