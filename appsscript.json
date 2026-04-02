@@ -13,13 +13,7 @@
         "version": "v3"
       }
     ],
-    "libraries": [
-      {
-        "userSymbol": "TableApp",
-        "version": "1",
-        "libraryId": "1G4RVvyLtwPjQl6x_p8j3X65-yYVU3w2dMXxHDuzCgorucjs8P3Clv5Qt"
-      }
-    ]
+    "libraries": []
   },
   "exceptionLogging": "STACKDRIVER",
   "runtimeVersion": "V8",
