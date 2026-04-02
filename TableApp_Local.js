@@ -169,27 +169,24 @@ class TableApp {
     let targetSheetName =
       parsed && parsed.sheetName ? parsed.sheetName : this.sheetName;
 
-    // Fetch sheet metadata
-    const sheetsData = sget_(
-      this.spreadsheetId,
-      "sheets(properties(sheetId,title))"
-    );
+    // Use SpreadsheetApp for sheet metadata to comply with 'currentonly' scope
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheets = ss.getSheets();
+
     let targetSheetId = null;
 
     if (!targetSheetName) {
       // Default to first sheet if no specific sheet is defined
-      // @ts-ignore
-      targetSheetName = sheetsData.sheets[0].properties.title;
-      // @ts-ignore
-      targetSheetId = sheetsData.sheets[0].properties.sheetId;
+      const firstSheet = sheets[0];
+      targetSheetName = firstSheet.getName();
+      targetSheetId = firstSheet.getSheetId();
     } else {
-      // @ts-ignore
-      const found = sheetsData.sheets.find(
-        (s) => s.properties.title === targetSheetName
+      const found = sheets.find(
+        (s) => s.getName() === targetSheetName
       );
       if (!found)
         throw new Error(`Sheet with name "${targetSheetName}" not found.`);
-      targetSheetId = found.properties.sheetId;
+      targetSheetId = found.getSheetId();
     }
 
     // Convert to GridRange
@@ -594,7 +591,9 @@ function valuesUpdate_(spreadsheetId, values, range) {
  * @return {{tablesBySheetNames: Object, tablesByTableNames: Object, tablesByTableIds: Object}} Structured table data
  */
 function fetchAllTables_(spreadsheetId) {
-  const res = sget_(spreadsheetId, "sheets(properties(sheetId,title),tables)");
+  // Use SpreadsheetApp for sheet listing to comply with 'currentonly'
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheets = ss.getSheets();
 
   const result = {
     tablesBySheetNames: {},
@@ -602,14 +601,25 @@ function fetchAllTables_(spreadsheetId) {
     tablesByTableIds: {},
   };
 
-  // @ts-ignore
-  if (!res.sheets) return result;
+  sheets.forEach((sheet) => {
+    const title = sheet.getName();
+    const sheetId = sheet.getSheetId();
 
-  // @ts-ignore
-  res.sheets.forEach((sheet) => {
-    const title = sheet.properties.title;
-    const sheetId = sheet.properties.sheetId;
-    const apiTables = sheet.tables;
+    // Fetch only the 'tables' field for the current sheet using the Advanced Service
+    // This granular request is permitted under 'currentonly' for the active file.
+    let apiTables;
+    try {
+      const apiSheet = Sheets.Spreadsheets.get(spreadsheetId, {
+        ranges: [title],
+        fields: "sheets(tables)"
+      }).sheets[0];
+      apiTables = apiSheet.tables;
+    } catch (e) {
+      // If a sheet doesn't exist (e.g. name with special characters that API fails to resolve via range),
+      // we log it and move on.
+      Logger.log(`[TableApp] Skipping sheet "${title}": ${e.message}`);
+      return;
+    }
 
     if (apiTables && apiTables.length > 0) {
       // Create Table instances
