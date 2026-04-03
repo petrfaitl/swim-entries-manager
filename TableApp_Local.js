@@ -585,68 +585,66 @@ function valuesUpdate_(spreadsheetId, values, range) {
 
 /**
  * Fetch and categorize all tables in the spreadsheet.
+ * Refactored for 'currentonly' scope using the single-fetch pattern.
  *
  * @private
  * @param {string} spreadsheetId
  * @return {{tablesBySheetNames: Object, tablesByTableNames: Object, tablesByTableIds: Object}} Structured table data
  */
 function fetchAllTables_(spreadsheetId) {
-  // Use SpreadsheetApp for sheet listing to comply with 'currentonly'
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheets = ss.getSheets();
-
   const result = {
     tablesBySheetNames: {},
     tablesByTableNames: {},
     tablesByTableIds: {},
   };
 
-  sheets.forEach((sheet) => {
-    const title = sheet.getName();
-    const sheetId = sheet.getSheetId();
+  try {
+    // 1. Bulk fetch metadata and tables in a single call.
+    // By omitting 'ranges', we avoid the 'Entity Not Found' error caused by string-based range resolution.
+    const response = Sheets.Spreadsheets.get(spreadsheetId, {
+      fields: "sheets(properties(sheetId,title),tables)"
+    });
 
-    // Fetch only the 'tables' field for the current sheet using the Advanced Service
-    // This granular request is permitted under 'currentonly' for the active file.
-    let apiTables;
-    try {
-      const apiSheet = Sheets.Spreadsheets.get(spreadsheetId, {
-        ranges: [title],
-        fields: "sheets(tables)"
-      }).sheets[0];
-      apiTables = apiSheet.tables;
-    } catch (e) {
-      // If a sheet doesn't exist (e.g. name with special characters that API fails to resolve via range),
-      // we log it and move on.
-      Logger.log(`[TableApp] Skipping sheet "${title}": ${e.message}`);
-      return;
+    if (!response.sheets) {
+      return result;
     }
 
-    if (apiTables && apiTables.length > 0) {
-      // Create Table instances
-      const tableInstances = apiTables.map(
-        (t) =>
-          new Table({
-            spreadsheetId,
-            sheetName: title,
-            sheetId: sheetId,
-            table: t,
-          })
-      );
+    // 2. Iterate through the fetched sheet data locally
+    response.sheets.forEach((apiSheet) => {
+      const title = apiSheet.properties.title;
+      const sheetId = apiSheet.properties.sheetId;
+      const apiTables = apiSheet.tables || [];
 
-      // Organise by Sheet Name
-      result.tablesBySheetNames[title] = {
-        sheetId,
-        tables: tableInstances,
-      };
+      if (apiTables.length > 0) {
+        // Create Table instances
+        const tableInstances = apiTables.map(
+          (t) =>
+            new Table({
+              spreadsheetId,
+              sheetName: title,
+              sheetId: sheetId,
+              table: t,
+            })
+        );
 
-      // Organise by Table Name and ID
-      tableInstances.forEach((inst) => {
-        const name = inst.getName();
-        if (name) result.tablesByTableNames[name] = inst;
-        result.tablesByTableIds[inst.getId()] = inst;
-      });
-    }
-  });
+        // Organise by Sheet Name
+        result.tablesBySheetNames[title] = {
+          sheetId,
+          tables: tableInstances,
+        };
+
+        // Organise by Table Name and ID
+        tableInstances.forEach((inst) => {
+          const name = inst.getName();
+          if (name) result.tablesByTableNames[name] = inst;
+          result.tablesByTableIds[inst.getId()] = inst;
+        });
+      }
+    });
+
+  } catch (e) {
+    Logger.log(`[TableApp] Error fetching tables structure: ${e.message}`);
+  }
 
   return result;
 }
