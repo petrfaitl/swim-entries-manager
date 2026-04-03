@@ -815,9 +815,13 @@ const SDIFCreator = (function() {
     return s;
   }
 
-  function readTableByName_(tableName) {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-
+  function readTableByName_(tableName, spreadsheetId) {
+    let ss;
+    if (spreadsheetId && spreadsheetId !== SpreadsheetApp.getActiveSpreadsheet().getId()) {
+      ss = SpreadsheetApp.openById(spreadsheetId);
+    } else {
+      ss = SpreadsheetApp.getActiveSpreadsheet();
+    }
 
     // Try TableApp if available
     if (typeof TableApp !== 'undefined' && TableApp.openById) {
