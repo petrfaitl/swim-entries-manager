@@ -24,6 +24,16 @@ function openById(spreadsheetId) {
  */
 class TableApp {
   /**
+   * Opens the TableApp for a specific Spreadsheet.
+   *
+   * @param {string} spreadsheetId The Spreadsheet ID.
+   * @return {TableApp} The TableApp instance.
+   */
+  static openById(spreadsheetId) {
+    return new TableApp(spreadsheetId);
+  }
+
+  /**
    * @param {string} spreadsheetId The Spreadsheet ID.
    */
   constructor(spreadsheetId) {

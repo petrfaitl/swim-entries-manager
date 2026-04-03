@@ -7,11 +7,12 @@ function getTableAppClient_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const spreadsheetId = ss.getId();
 
-  if (typeof TableApp !== 'undefined' && TableApp && typeof TableApp.openById === 'function') {
-    return TableApp.openById(spreadsheetId);
+  // Prefer the class if available (for local usage)
+  if (typeof TableApp !== 'undefined') {
+    return new TableApp(spreadsheetId);
   }
 
-  throw new Error('TableApp library is not available. Ensure the TableApp library is imported in appsscript.json with userSymbol "TableApp".');
+  throw new Error('TableApp library is not available. Ensure TableApp_Local.js is included in your project or the library is imported.');
 }
 
 function toQuotedSheetA1_(sheetName, a1Range) {
