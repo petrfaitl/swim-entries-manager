@@ -3,7 +3,7 @@
 .claspignore
 
 # Reference files (optional - keep if useful for documentation)
-# TableApp_Local.js
+# TableApp.reference.js
 
 # Node modules (if using clasp)
 node_modules/
@@ -79,5 +79,6 @@ temp/
 # Backup files
 *.bak
 *.backup
+/TableApp.reference.js
 /docs/SDIFCreator_Spec.md
 
