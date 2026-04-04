@@ -3,6 +3,12 @@
  * Depends on getTableConfig() from tableConfig.js
  */
 
+/**
+ * Internal helper to get a TableApp instance for the current spreadsheet.
+ * 
+ * @private
+ * @return {TableApp} The TableApp instance.
+ */
 function getTableAppClient_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const spreadsheetId = ss.getId();
@@ -15,6 +21,13 @@ function getTableAppClient_() {
   throw new Error('TableApp library is not available. Ensure TableApp_Local.js is included in your project or the library is imported.');
 }
 
+/**
+ * Formats a sheet name and A1 range into a quoted A1 notation.
+ * 
+ * @param {string} sheetName - The name of the sheet.
+ * @param {string} a1Range - The A1 range (e.g., "A1:B5").
+ * @return {string} Quoted A1 notation (e.g., "'Sheet Name'!A1:B5").
+ */
 function toQuotedSheetA1_(sheetName, a1Range) {
   const escapedSheetName = String(sheetName).replace(/'/g, "''");
   return "'" + escapedSheetName + "'!" + a1Range;
@@ -22,6 +35,7 @@ function toQuotedSheetA1_(sheetName, a1Range) {
 
 /**
  * Creates a named range for a specific column in a table.
+ * 
  * @param {string} namedRangeName - Name for the named range
  * @param {Sheet} sheet - The sheet containing the table
  * @param {number} startRow - Starting row (data row, not header)
@@ -47,6 +61,13 @@ function createNamedRangeForColumn_(namedRangeName, sheet, startRow, columnIndex
   Logger.log('[createNamedRangeForColumn_] Created named range "%s" for %s', namedRangeName, range.getA1Notation());
 }
 
+/**
+ * Resolves the final table name based on configuration options.
+ * 
+ * @param {string} tableName - The base table name.
+ * @param {Object} tableCfg - The table configuration object.
+ * @return {string} The resolved table name.
+ */
 function getStructuredTableName_(tableName, tableCfg) {
   if (tableCfg && tableCfg.options && tableCfg.options.structuredTableName) {
     return tableCfg.options.structuredTableName;
@@ -54,19 +75,33 @@ function getStructuredTableName_(tableName, tableCfg) {
   return tableName;
 }
 
+/**
+ * Generates a unique table name if the desired name is already taken.
+ * 
+ * @param {TableApp} tableApp - The TableApp instance.
+ * @param {string} baseName - The desired table name.
+ * @return {string} A unique table name.
+ */
 function getUniqueTableName_(tableApp, baseName) {
   let uniqueName = baseName;
   let counter = 1;
   while (tableApp.getTableByName(uniqueName)) {
-    // For table names, we should keep them simple and avoid spaces if possible,
-    // though TableApp seems to handle them. Since TableApp's create name
-    // might have restrictions, we follow the sanitize pattern.
     uniqueName = baseName + '_' + counter;
     counter++;
   }
   return uniqueName;
 }
 
+/**
+ * Ensures a structured table exists in the specified range. Updates if exists, creates if not.
+ * 
+ * @param {Sheet} sheet - The sheet object.
+ * @param {string} tableName - The name for the table.
+ * @param {Object} tableCfg - The table configuration object.
+ * @param {Range} headerRange - The range containing headers.
+ * @param {Range} dataRange - The range containing data.
+ * @return {Object} Result metadata about the table created or updated.
+ */
 function ensureStructuredTable_(sheet, tableName, tableCfg, headerRange, dataRange) {
   const tableApp = getTableAppClient_();
   const structuredTableName = getStructuredTableName_(tableName, tableCfg);
@@ -74,13 +109,14 @@ function ensureStructuredTable_(sheet, tableName, tableCfg, headerRange, dataRan
   const endA1 = dataRange.getA1Notation().split(':')[1];
   const fullTableRangeA1 = toQuotedSheetA1_(sheet.getName(), startA1 + ':' + endA1);
 
-  // Check if we should reuse an existing table or create a new one with a unique name
+  // Ensure all previous SpreadsheetApp changes are visible to the Sheets API
+  SpreadsheetApp.flush();
+
+  // Check if we should reuse an existing table
   const existing = tableApp.getTableByName(structuredTableName);
   
-  // If the table exists on the SAME sheet, we update it.
-  // If it exists on a DIFFERENT sheet, we should probably create a new one with a unique name
-  // to avoid moving the existing table unexpectedly, especially if the user is creating multiple tables.
   if (existing && existing.sheetName === sheet.getName()) {
+    Logger.log('[ensureStructuredTable_] Updating existing table "%s" range to %s', structuredTableName, fullTableRangeA1);
     existing.setRange(fullTableRangeA1);
     configureTableColumns_(existing, tableCfg);
     return {
@@ -94,6 +130,7 @@ function ensureStructuredTable_(sheet, tableName, tableCfg, headerRange, dataRan
   // If it doesn't exist, or exists on another sheet, create a new unique name
   const finalTableName = existing ? getUniqueTableName_(tableApp, structuredTableName) : structuredTableName;
 
+  Logger.log('[ensureStructuredTable_] Creating new table "%s" at range %s', finalTableName, fullTableRangeA1);
   const created = tableApp.getRange(fullTableRangeA1).create(finalTableName);
   configureTableColumns_(created, tableCfg);
   return {
@@ -104,6 +141,12 @@ function ensureStructuredTable_(sheet, tableName, tableCfg, headerRange, dataRan
   };
 }
 
+/**
+ * Configures table columns (types and validations) based on metadata.
+ * 
+ * @param {Table} table - The Table instance.
+ * @param {Object} tableCfg - The configuration object containing column definitions.
+ */
 function configureTableColumns_(table, tableCfg) {
   if (!tableCfg || !tableCfg.headers || !tableCfg.columns) {
     Logger.log('[configureTableColumns_] Missing tableCfg data: tableCfg=%s, headers=%s, columns=%s',
@@ -131,9 +174,7 @@ function configureTableColumns_(table, tableCfg) {
     Logger.log('[configureTableColumns_] Processing column "%s": type=%s, validation=%s',
       headerName, meta.type, JSON.stringify(meta.validation));
 
-    // Set column type and validation based on metadata
     if (meta.validation && meta.validation.type === 'list') {
-      // Dropdown column with static list
       const values = meta.validation.args && meta.validation.args.values;
       if (values && values.length > 0) {
         colProp.columnType = 'DROPDOWN';
@@ -148,7 +189,6 @@ function configureTableColumns_(table, tableCfg) {
         Logger.log('[configureTableColumns_] Column "%s": DROPDOWN with %s values', headerName, values.length);
       }
     } else if (meta.validation && meta.validation.type === 'range') {
-      // Dropdown column with range reference
       const rangeA1 = meta.validation.args && meta.validation.args.rangeA1;
       if (rangeA1) {
         colProp.columnType = 'DROPDOWN';
@@ -160,24 +200,18 @@ function configureTableColumns_(table, tableCfg) {
         };
       }
     } else if (meta.validation && meta.validation.type === 'checkbox') {
-      // Checkbox column
       colProp.columnType = 'CHECKBOX';
     } else if (meta.type === 'number') {
-      // Number column
       colProp.columnType = 'DOUBLE';
     } else if (meta.type === 'date') {
-      // Date column
       colProp.columnType = 'DATE';
     } else {
-      // If no specific type is set, it defaults to TEXT
       colProp.columnType = 'TEXT';
     }
     columnProperties.push(colProp);
   }
 
-  // Apply column properties to the table
   Logger.log('[configureTableColumns_] Applying %s column properties to table "%s"', columnProperties.length, table.getName());
-  Logger.log('[configureTableColumns_] Column properties: %s', JSON.stringify(columnProperties));
 
   try {
     table.setColumnProperties(columnProperties, 'columnProperties');
@@ -190,6 +224,7 @@ function configureTableColumns_(table, tableCfg) {
 
 /**
  * Create or place a configured table.
+ * 
  * @param {string} tableName - Key from configuration (e.g., 'TeamOfficials')
  * @param {Object} [options]
  *  - sheetName: override target sheet name
@@ -197,7 +232,7 @@ function configureTableColumns_(table, tableCfg) {
  *  - clearMode: 'rebuild' | 'append'
  *  - schoolYears, genders: optional arrays to override validation lists
  *  - rows: approximate number of rows to pre-prepare for validation (default 50)
- * @return {{tableName:string, sheetName:string, headerA1:string, dataA1:string, rows:number, cols:number}}
+ * @return {Object} Placement and structure details.
  */
 function createConfiguredTable(tableName, options) {
   options = options || {};
@@ -207,7 +242,6 @@ function createConfiguredTable(tableName, options) {
     throw new Error('Unknown table name: ' + tableName);
   }
 
-  // Resolve placement
   const placement = Object.assign({}, tableCfg.options && tableCfg.options.placement || {});
   if (options.sheetName) placement.targetSheet = options.sheetName;
   if (options.startCell) placement.startCell = options.startCell;
@@ -215,73 +249,64 @@ function createConfiguredTable(tableName, options) {
   const startCell = placement.startCell || 'A1';
   const clearMode = options.clearMode || (tableCfg.options && tableCfg.options.clearMode) || 'rebuild';
   const numRows = options.rows || (tableCfg.options && tableCfg.options.rows) || 50;
-  const title = options.title ? options.title : tableName;
 
   const ss = SpreadsheetApp.getActive();
   let sheet = ss.getSheetByName(sheetName);
   if (!sheet) {
     sheet = ss.insertSheet(sheetName);
+    Logger.log('[createConfiguredTable] Created new sheet "%s"', sheetName);
+    // CRITICAL: Flush after insertSheet so the Sheets API (v4) can see the new sheetId
+    SpreadsheetApp.flush();
   }
 
   const startRange = sheet.getRange(startCell);
   const startRow = startRange.getRow();
   const startCol = startRange.getColumn();
 
-  // Prepare headers matrix
   const headers = tableCfg.headers.slice();
   const headerRange = sheet.getRange(startRow, startCol, 1, headers.length);
 
   if (clearMode === 'rebuild') {
-    // Clear the target area (headers + data columns for a reasonable number of rows)
+    Logger.log('[createConfiguredTable] Clearing target area for "%s"', tableName);
     const clearRange = sheet.getRange(startRow, startCol, numRows + 50, headers.length);
     clearRange.clear({ contentsOnly: true });
-    // Note: Do NOT clear validations or set number formats here - TableApp manages these
   }
 
-  // Write headers
   headerRange.setValues([headers]);
 
-  // Apply header formatting
   if (tableCfg.options) {
     if (tableCfg.options.headerBg) headerRange.setBackground(tableCfg.options.headerBg);
     if (typeof tableCfg.options.freezeHeader === 'number') {
-      // Freeze the header row relative to sheet
       sheet.setFrozenRows(Math.max(sheet.getFrozenRows(), startRow));
     }
   }
 
-  // Data range (below header)
   const dataStartRow = startRow + 1;
   const dataRange = sheet.getRange(dataStartRow, startCol, numRows, headers.length);
 
-  // Note: Column types and validations are managed by TableApp via configureTableColumns_
-  // We only set default values or formulas here if specified
   for (let c = 0; c < headers.length; c++) {
     const header = headers[c];
     const meta = (tableCfg.columns && tableCfg.columns[header]) || {};
-
-    // Apply formula if defined (will be copied down to all rows)
     if (meta.formula) {
       sheet.getRange(dataStartRow, startCol + c, numRows, 1).setFormula(meta.formula);
-    }
-    // Default values on first row (optional): if defined, pre-fill first row only
-    else if (meta.default != null) {
+    } else if (meta.default != null) {
       sheet.getRange(dataStartRow, startCol + c).setValue(meta.default);
     }
   }
 
+  // Ensure all SpreadsheetApp changes are flushed before handing off to TableApp (Sheets API)
+  SpreadsheetApp.flush();
+
   const structuredTable = ensureStructuredTable_(sheet, tableName, tableCfg, headerRange, dataRange);
 
-  // Create named ranges if configured in options
   if (tableCfg.options && tableCfg.options.namedRange) {
     const namedRangeConfig = tableCfg.options.namedRange;
     const columnIndex = headers.indexOf(namedRangeConfig.columnName);
-
     if (columnIndex !== -1) {
       createNamedRangeForColumn_(namedRangeConfig.name, sheet, dataStartRow, startCol + columnIndex, numRows);
     } else {
-      Logger.log('[createConfiguredTable] Warning: Column "%s" not found in table "%s" for named range "%s"',
-        namedRangeConfig.columnName, tableName, namedRangeConfig.name);
+      Logger.log('[createConfiguredTable] Warning: Column "%s" not found for named range "%s"',
+        namedRangeConfig.columnName, namedRangeConfig.name);
     }
   }
 
@@ -298,9 +323,10 @@ function createConfiguredTable(tableName, options) {
 
 /**
  * Convenience: create multiple tables and return a report.
- * @param {string[]} tableNames
- * @param {Object} [options] - passed to each createConfiguredTable
- * @return {Array<Object>} results
+ * 
+ * @param {string[]} tableNames - Array of table names to create.
+ * @param {Object} [options] - Options passed to createConfiguredTable.
+ * @return {Array<Object>} Results for each table.
  */
 function createConfiguredTables(tableNames, options) {
   const results = [];
@@ -321,10 +347,22 @@ function createConfiguredTables(tableNames, options) {
   return results;
 }
 
+/**
+ * Lists available tables for dialog selection.
+ * 
+ * @return {string[]} List of table names.
+ */
 function getTableNamesForDialog() {
   return listAvailableTables();
 }
 
+/**
+ * Creates multiple tables from dialog input.
+ * 
+ * @param {string[]} tableNames - Array of table names.
+ * @param {Object} [options] - Creation options.
+ * @return {Array<Object>} Results for each table.
+ */
 function createTablesFromDialog(tableNames, options) {
   Logger.log('[createTablesFromDialog] Requested tables: %s, options: %s', JSON.stringify(tableNames), JSON.stringify(options || {}));
   return createConfiguredTables(tableNames, options || {});
@@ -332,54 +370,47 @@ function createTablesFromDialog(tableNames, options) {
 
 /**
  * Reads team names from a specified range in a given sheet.
+ * 
  * @param {string} sheetName - Name of the sheet to read from
  * @param {string} rangeA1 - A1 notation range (e.g. "A2:A8")
  * @return {string[]} Array of team names (filters blanks)
  */
 function getTeamNamesFromSheet(sheetName, rangeA1) {
   Logger.log('[getTeamNamesFromSheet] Reading from sheet "%s", range %s', sheetName, rangeA1);
-
   const ss = SpreadsheetApp.getActive();
   const sheet = ss.getSheetByName(sheetName);
+  if (!sheet) throw new Error('Sheet "' + sheetName + '" does not exist');
 
-  if (!sheet) {
-    throw new Error('Sheet "' + sheetName + '" does not exist');
-  }
-
-  // Get values from the specified range
   const values = sheet.getRange(rangeA1).getValues();
-  const teamNames = values
-    .flat()
+  const teamNames = values.flat()
     .map(function(name) { return String(name).trim(); })
     .filter(function(name) { return name !== ''; });
 
-  Logger.log('[getTeamNamesFromSheet] Found %s team names: %s', teamNames.length, JSON.stringify(teamNames));
+  Logger.log('[getTeamNamesFromSheet] Found %s team names', teamNames.length);
   return teamNames;
 }
 
 /**
  * Sanitizes a string for use as a structured table name.
- * Strips characters not allowed: keeps only A-Z a-z 0-9 _ -
- * Replaces spaces with underscores, truncates to 50 chars.
+ * 
  * @param {string} label - Raw event label
  * @return {string} Sanitized table name
  */
 function sanitizeTableName_(label) {
   let sanitized = String(label)
-    .replace(/[^A-Za-z0-9_ -]/g, '')  // Remove invalid chars
-    .replace(/\s+/g, '_')              // Replace spaces with underscores
-    .substring(0, 50);                 // Truncate to 50 chars
+    .replace(/[^A-Za-z0-9_ -]/g, '')
+    .replace(/\s+/g, '_')
+    .substring(0, 50);
 
-  // Table names cannot start with a number - prefix with letter if needed
   if (sanitized && /^\d/.test(sanitized)) {
     sanitized = 'R_' + sanitized;
   }
-
   return sanitized;
 }
 
 /**
  * Creates a single relay table with label row, header, and data rows.
+ * 
  * @param {Object} eventConfig - { label: string }
  * @param {Sheet} sheetTarget - Target sheet object
  * @param {number} startRow - Row to start the label (1-based)
@@ -390,24 +421,16 @@ function sanitizeTableName_(label) {
  * @return {Object} { labelRow, headerRow, dataEndRow, cols, structuredTable }
  */
 function createRelayTable_(eventConfig, sheetTarget, startRow, startCol, teamNames, relayTableCfg, relayDefaults) {
-  Logger.log('[createRelayTable_] Creating relay table "%s" at row %s, col %s', eventConfig.label, startRow, startCol);
-  Logger.log('[createRelayTable_] Received parameters: teamNames=%s, relayTableCfg.headers=%s, relayDefaults=%s',
-    JSON.stringify(teamNames),
-    JSON.stringify(relayTableCfg ? relayTableCfg.headers : null),
-    JSON.stringify(relayDefaults));
-
+  Logger.log('[createRelayTable_] Creating relay table "%s" at row %s', eventConfig.label, startRow);
   const labelRow = startRow;
   const headerRow = startRow + 1;
   const dataStartRow = headerRow + 1;
   const rowsPerTable = relayDefaults.defaultRowsPerTable;
   const dataEndRow = dataStartRow + rowsPerTable - 1;
 
-  // Build full header: fixed columns + team names
   const fullHeaders = relayTableCfg.headers.slice().concat(teamNames);
   const totalCols = fullHeaders.length;
-  Logger.log('[createRelayTable_] Full headers (%s columns): %s', totalCols, JSON.stringify(fullHeaders));
 
-  // 1. Write label row (merged cell with event name)
   const labelRange = sheetTarget.getRange(labelRow, startCol, 1, totalCols);
   labelRange.merge();
   labelRange.setValue(eventConfig.label);
@@ -416,7 +439,6 @@ function createRelayTable_(eventConfig, sheetTarget, startRow, startCol, teamNam
   labelRange.setFontWeight('bold');
   labelRange.setHorizontalAlignment('center');
 
-  // 2. Write header row
   const headerRange = sheetTarget.getRange(headerRow, startCol, 1, totalCols);
   headerRange.setValues([fullHeaders]);
   if (relayTableCfg.options && relayTableCfg.options.headerBg) {
@@ -425,29 +447,21 @@ function createRelayTable_(eventConfig, sheetTarget, startRow, startCol, teamNam
   headerRange.setFontWeight('bold');
   headerRange.setFontColor('#ffffff');
 
-  // 3. Write data rows for fixed columns only (Order, School Year, Gender)
   const dataRange = sheetTarget.getRange(dataStartRow, startCol, rowsPerTable, totalCols);
 
-  // Pre-fill fixed column data with validation (Order, School Year, Gender)
   for (let c = 0; c < relayTableCfg.headers.length; c++) {
     const header = relayTableCfg.headers[c];
     const meta = relayTableCfg.columns[header];
-
     if (meta && meta.default != null) {
-      // Set default value in first row if defined
       sheetTarget.getRange(dataStartRow, startCol + c).setValue(meta.default);
     }
   }
 
-  // 4. Create structured table
+  // Ensure all SpreadsheetApp changes are flushed before handing off to TableApp (Sheets API)
+  SpreadsheetApp.flush();
+
   const sanitizedName = sanitizeTableName_(eventConfig.label);
-  Logger.log('[createRelayTable_] About to create structured table. Name: "%s", headerRange: %s, dataRange: %s',
-    sanitizedName, headerRange.getA1Notation(), dataRange.getA1Notation());
-
   const structuredTable = ensureStructuredTable_(sheetTarget, sanitizedName, relayTableCfg, headerRange, dataRange);
-
-  Logger.log('[createRelayTable_] Created relay table "%s" (structured name: "%s"). Result: %s',
-    eventConfig.label, sanitizedName, JSON.stringify(structuredTable));
 
   return {
     labelRow: labelRow,
@@ -460,108 +474,61 @@ function createRelayTable_(eventConfig, sheetTarget, startRow, startCol, teamNam
 
 /**
  * Creates multiple relay tables based on configuration.
+ * 
  * @param {Object} config - {
  *   sourceSheet: string,
  *   sourceRange: string (A1 notation, e.g. "A2:A8"),
  *   events: [{ label: string }],
- *   years: [string] (optional, e.g. ['Y5', 'Y6', ...]),
- *   placement: {
- *     sameSheet: boolean,
- *     sheetName: string,
- *     startCell: string (A1 notation)
- *   }
+ *   years: [string] (optional),
+ *   placement: { sameSheet: boolean, sheetName: string, startCell: string }
  * }
- * @return {Array} Results for each relay table created
+ * @return {Array<Object>} Results for each relay table created.
  */
 function createRelayTables(config) {
-  Logger.log('[createRelayTables] Starting relay table creation with config: %s', JSON.stringify(config));
-
+  Logger.log('[createRelayTables] Starting relay table creation');
   try {
-    // 1. Get team names from source sheet
     const teamNames = getTeamNamesFromSheet(config.sourceSheet, config.sourceRange);
-    Logger.log('[createRelayTables] Retrieved %s team names: %s', teamNames.length, JSON.stringify(teamNames));
-
     if (teamNames.length === 0) {
-      // Fallback to DEFAULT_CLUSTERS
       const cfg = getTableConfig();
-      Logger.log('[createRelayTables] No team names found, using default clusters');
+      Logger.log('[createRelayTables] No team names found, using defaults');
       teamNames.push.apply(teamNames, cfg.defaultClusters);
     }
 
-    // 2. Get relay table config with custom years if provided
     const overrides = {};
     if (config.years && config.years.length > 0) {
       overrides.schoolYears = config.years;
-      Logger.log('[createRelayTables] Using custom school years: %s', JSON.stringify(config.years));
     }
     const cfg = getTableConfig(overrides);
-    Logger.log('[createRelayTables] Table config retrieved. Available tables: %s', Object.keys(cfg.tables).join(', '));
 
     let relayTableCfg = null;
-
-    // Find the table with tableType === 'relay'
     for (let tableName in cfg.tables) {
       if (cfg.tables[tableName].tableType === 'relay') {
         relayTableCfg = cfg.tables[tableName];
-        Logger.log('[createRelayTables] Found relay table config: %s', tableName);
         break;
       }
     }
-
-    if (!relayTableCfg) {
-      throw new Error('No relay table configuration found (tableType: relay)');
-    }
-
-    Logger.log('[createRelayTables] Relay table config: headers=%s, hasColumns=%s',
-      JSON.stringify(relayTableCfg.headers),
-      !!(relayTableCfg.columns));
+    if (!relayTableCfg) throw new Error('No relay table configuration found');
 
     const relayDefaults = cfg.relayDefaults;
-    Logger.log('[createRelayTables] Relay defaults: defaultRowsPerTable=%s, gapBetweenTables=%s',
-      relayDefaults.defaultRowsPerTable, relayDefaults.gapBetweenTables);
-
     const ss = SpreadsheetApp.getActive();
     const results = [];
 
-    // 3. Process each event
     if (config.placement.sameSheet) {
-      // All tables on one sheet
       const sheetName = config.placement.sheetName || 'Relays';
-      Logger.log('[createRelayTables] Creating all tables on sheet "%s"', sheetName);
-
       let sheet = ss.getSheetByName(sheetName);
-
       if (!sheet) {
         sheet = ss.insertSheet(sheetName);
-        Logger.log('[createRelayTables] Created new sheet "%s"', sheetName);
-      } else {
-        Logger.log('[createRelayTables] Using existing sheet "%s"', sheetName);
+        SpreadsheetApp.flush();
       }
 
-      // Parse start cell
       const startRange = sheet.getRange(config.placement.startCell || 'A1');
       let currentRow = startRange.getRow();
       const startCol = startRange.getColumn();
-      Logger.log('[createRelayTables] Starting position: row=%s, col=%s', currentRow, startCol);
 
       for (let i = 0; i < config.events.length; i++) {
         const event = config.events[i];
-        Logger.log('[createRelayTables] Processing event %s/%s: "%s" at row %s',
-          i+1, config.events.length, event.label, currentRow);
-
         try {
-          const tableResult = createRelayTable_(
-            event,
-            sheet,
-            currentRow,
-            startCol,
-            teamNames,
-            relayTableCfg,
-            relayDefaults
-          );
-          Logger.log('[createRelayTables] Event "%s" created successfully. Result: %s',
-            event.label, JSON.stringify(tableResult));
-
+          const tableResult = createRelayTable_(event, sheet, currentRow, startCol, teamNames, relayTableCfg, relayDefaults);
           results.push({
             eventLabel: event.label,
             sanitisedTableName: sanitizeTableName_(event.label),
@@ -571,43 +538,23 @@ function createRelayTables(config) {
             dataRange: sheet.getRange(tableResult.headerRow + 1, startCol, relayDefaults.defaultRowsPerTable, tableResult.cols).getA1Notation(),
             structuredTable: tableResult.structuredTable
           });
-
-          // Advance currentRow: label + header + data rows + gap
           currentRow = tableResult.dataEndRow + 1 + relayDefaults.gapBetweenTables;
-
         } catch (err) {
-          Logger.log('[createRelayTables] Failed to create table for event "%s": %s', event.label, err.message);
-          results.push({
-            eventLabel: event.label,
-            error: err.message
-          });
+          Logger.log('[createRelayTables] Failed for event "%s": %s', event.label, err.message);
+          results.push({ eventLabel: event.label, error: err.message });
         }
       }
-
     } else {
-      // Separate sheet per event
       for (let i = 0; i < config.events.length; i++) {
         const event = config.events[i];
         const sheetName = sanitizeTableName_(event.label);
-
         try {
           let sheet = ss.getSheetByName(sheetName);
-
           if (!sheet) {
             sheet = ss.insertSheet(sheetName);
-            Logger.log('[createRelayTables] Created new sheet "%s"', sheetName);
+            SpreadsheetApp.flush();
           }
-
-          const tableResult = createRelayTable_(
-            event,
-            sheet,
-            1,  // Start at A1
-            1,
-            teamNames,
-            relayTableCfg,
-            relayDefaults
-          );
-
+          const tableResult = createRelayTable_(event, sheet, 1, 1, teamNames, relayTableCfg, relayDefaults);
           results.push({
             eventLabel: event.label,
             sanitisedTableName: sanitizeTableName_(event.label),
@@ -617,20 +564,13 @@ function createRelayTables(config) {
             dataRange: sheet.getRange(tableResult.headerRow + 1, 1, relayDefaults.defaultRowsPerTable, tableResult.cols).getA1Notation(),
             structuredTable: tableResult.structuredTable
           });
-
         } catch (err) {
-          Logger.log('[createRelayTables] Failed to create table for event "%s": %s', event.label, err.message);
-          results.push({
-            eventLabel: event.label,
-            error: err.message
-          });
+          Logger.log('[createRelayTables] Failed for event "%s": %s', event.label, err.message);
+          results.push({ eventLabel: event.label, error: err.message });
         }
       }
     }
-
-    Logger.log('[createRelayTables] Completed: %s tables created', results.length);
     return results;
-
   } catch (err) {
     Logger.log('[createRelayTables] Fatal error: %s', err.message);
     throw err;
@@ -638,11 +578,12 @@ function createRelayTables(config) {
 }
 
 /**
- * Wrapper function called from the dialog.
+ * Wrapper function called from the dialog to create relay tables.
+ * 
  * @param {Object} config - Same as createRelayTables
- * @return {Array} Results
+ * @return {Array<Object>} Results
  */
 function createRelayTablesFromDialog(config) {
-  Logger.log('[createRelayTablesFromDialog] Called with config: %s', JSON.stringify(config));
+  Logger.log('[createRelayTablesFromDialog] Called');
   return createRelayTables(config);
 }
