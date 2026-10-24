@@ -111,7 +111,7 @@ class TableApp {
     const sid = this._getSid();
     // Flush changes before batchUpdate to ensure new sheets/ranges are recognized
     SpreadsheetApp.flush();
-    
+
     const response = batchUpdate_(sid, requests);
     const newTableObj = response.replies[0].addTable.table;
 
@@ -187,7 +187,7 @@ class TableApp {
     } catch (e) {
       ss = SpreadsheetApp.getActiveSpreadsheet();
     }
-    
+
     const sheets = ss.getSheets();
     let targetSheetId = null;
 
@@ -292,54 +292,119 @@ class Table {
     return `${this.table.name} was successfully deleted.`;
   }
 
+  // reverse() {
+  //   const fieldsToFetch = "sheets(properties(sheetId),data(rowData(values(userEnteredValue,textFormatRuns,chipRuns,userEnteredFormat,effectiveValue,hyperlink,note,dataValidation))))";
+  //   const obj = sget_(this.spreadsheetId, fieldsToFetch, [this.rangeAsA1Notation]);
+  //   const f = obj.sheets.find(({ properties: { sheetId } }) => sheetId == this.sheetId);
+  //   if (f) {
+  //     this.remove();
+  //     const rows = f.data[0].rowData;
+  //     const requests = [{ updateCells: { rows, range: this.table.range, fields: "*" } }];
+  //     batchUpdate_(this.spreadsheetId, requests);
+  //   } else {
+  //     throw new Error("Sheet not found during reverse operation.");
+  //   }
+  //   return `${this.table.name} was successfully reversed.`;
+  // }
+
   reverse() {
-    const fieldsToFetch = "sheets(properties(sheetId),data(rowData(values(userEnteredValue,textFormatRuns,chipRuns,userEnteredFormat,effectiveValue,hyperlink,note,dataValidation))))";
-    const obj = sget_(this.spreadsheetId, fieldsToFetch, [this.rangeAsA1Notation]);
+    // Instead of sget_ with a range (which triggers 404), fetch the structure
+    // and find the data for this specific sheet.
+    const fieldsToFetch = "sheets(properties(sheetId),data(rowData(values(userEnteredValue,userEnteredFormat,effectiveValue))))";
+
+    // Fetch the whole structure (discovery-free)
+    const obj = Sheets.Spreadsheets.get(this.spreadsheetId, { fields: fieldsToFetch });
+
+    // Find the data locally by sheetId
     const f = obj.sheets.find(({ properties: { sheetId } }) => sheetId == this.sheetId);
-    if (f) {
+
+    if (f && f.data && f.data[0].rowData) {
       this.remove();
       const rows = f.data[0].rowData;
-      const requests = [{ updateCells: { rows, range: this.table.range, fields: "*" } }];
+      // Filter rows to only include those within the table's range
+      const tableRows = rows.slice(this.table.range.startRowIndex, this.table.range.endRowIndex);
+
+      const requests = [{
+        updateCells: {
+          rows: tableRows,
+          range: this.table.range,
+          fields: "userEnteredValue,userEnteredFormat"
+        }
+      }];
       batchUpdate_(this.spreadsheetId, requests);
     } else {
-      throw new Error("Sheet not found during reverse operation.");
+      throw new Error("Could not retrieve table data for reverse operation.");
     }
     return `${this.table.name} was successfully reversed.`;
   }
 
+  // copyTo(a1Notation) {
+  //   const parsed = parseA1Notation_(a1Notation);
+  //   const sheetsData = sget_(this.spreadsheetId, "sheets(properties(sheetId,title))");
+  //   let destSheetId, destSheetName;
+  //
+  //   if (parsed.sheetName) {
+  //     const s = sheetsData.sheets.find(({ properties: { title } }) => title === parsed.sheetName);
+  //     if (s) {
+  //       destSheetId = s.properties.sheetId;
+  //       destSheetName = s.properties.title;
+  //     } else {
+  //       throw new Error(`Destination sheet "${parsed.sheetName}" not found.`);
+  //     }
+  //   } else {
+  //     destSheetId = this.sheetId;
+  //     destSheetName = this.sheetName;
+  //   }
+  //
+  //   const destination = convA1NotationToGridRange_(parsed.range, destSheetId);
+  //   const requests = [{ copyPaste: { source: this.table.range, destination } }];
+  //   batchUpdate_(this.spreadsheetId, requests);
+  //
+  //   const tablesData = fetchAllTables_(this.spreadsheetId);
+  //   const copiedTableObj = tablesData.tablesBySheetNames[destSheetName]?.tables?.find((t) => {
+  //     const tr = t.getMetadata().range;
+  //     return (tr.sheetId || 0) === (destSheetId || 0) &&
+  //            tr.startRowIndex === destination.startRowIndex &&
+  //            tr.startColumnIndex === destination.startColumnIndex;
+  //   });
+  //
+  //   if (!copiedTableObj) throw new Error("Table copied, but could not retrieve instance.");
+  //   return copiedTableObj;
+  // }
+
   copyTo(a1Notation) {
     const parsed = parseA1Notation_(a1Notation);
-    const sheetsData = sget_(this.spreadsheetId, "sheets(properties(sheetId,title))");
-    let destSheetId, destSheetName;
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let destSheet;
 
+    // Use SpreadsheetApp to find the sheet—this is compliant with 'currentonly'
     if (parsed.sheetName) {
-      const s = sheetsData.sheets.find(({ properties: { title } }) => title === parsed.sheetName);
-      if (s) {
-        destSheetId = s.properties.sheetId;
-        destSheetName = s.properties.title;
-      } else {
-        throw new Error(`Destination sheet "${parsed.sheetName}" not found.`);
-      }
+      destSheet = ss.getSheetByName(parsed.sheetName);
+      if (!destSheet) throw new Error(`Destination sheet "${parsed.sheetName}" not found.`);
     } else {
-      destSheetId = this.sheetId;
-      destSheetName = this.sheetName;
+      destSheet = ss.getSheetByName(this.sheetName);
     }
 
+    const destSheetId = destSheet.getSheetId();
     const destination = convA1NotationToGridRange_(parsed.range, destSheetId);
+
     const requests = [{ copyPaste: { source: this.table.range, destination } }];
     batchUpdate_(this.spreadsheetId, requests);
 
+    // Refresh tables and return the new instance
+    this.cachedTables = null;
     const tablesData = fetchAllTables_(this.spreadsheetId);
     const copiedTableObj = tablesData.tablesBySheetNames[destSheetName]?.tables?.find((t) => {
       const tr = t.getMetadata().range;
       return (tr.sheetId || 0) === (destSheetId || 0) &&
-             tr.startRowIndex === destination.startRowIndex &&
-             tr.startColumnIndex === destination.startColumnIndex;
+        tr.startRowIndex === destination.startRowIndex &&
+        tr.startColumnIndex === destination.startColumnIndex;
     });
 
     if (!copiedTableObj) throw new Error("Table copied, but could not retrieve instance.");
     return copiedTableObj;
   }
+
 
   _updateTable(requests) {
     try {
@@ -368,12 +433,27 @@ function sget_(spreadsheetId, fields = "*", ranges = []) {
   return Sheets.Spreadsheets.get(sid, options);
 }
 
+// /**
+//  * Wrapper for Sheets.Spreadsheets.batchUpdate
+//  * @private
+//  */
+// function batchUpdate_(spreadsheetId, requests) {
+//   const sid = spreadsheetId || SpreadsheetApp.getActiveSpreadsheet().getId();
+//   return Sheets.Spreadsheets.batchUpdate({ requests }, sid);
+// }
+
 /**
  * Wrapper for Sheets.Spreadsheets.batchUpdate
  * @private
  */
 function batchUpdate_(spreadsheetId, requests) {
-  const sid = spreadsheetId || SpreadsheetApp.getActiveSpreadsheet().getId();
+  // CRITICAL: Under 'currentonly', we must ensure the ID used is the active one
+  // to validate the OAuth token for this specific file.
+  const activeId = SpreadsheetApp.getActiveSpreadsheet().getId();
+
+  // If the passed ID doesn't match the active ID, 'currentonly' will throw a 404.
+  const sid = (spreadsheetId && spreadsheetId === activeId) ? spreadsheetId : activeId;
+
   return Sheets.Spreadsheets.batchUpdate({ requests }, sid);
 }
 
