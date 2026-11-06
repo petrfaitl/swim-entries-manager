@@ -24,12 +24,14 @@ Before creating bug reports, please check existing issues to avoid duplicates. W
 - **Environment details** (Browser, Google Sheets version, etc.)
 
 **Bug Report Template:**
+
 ```markdown
 **Describe the bug**
 A clear description of what the bug is.
 
 **To Reproduce**
 Steps to reproduce the behavior:
+
 1. Go to '...'
 2. Click on '....'
 3. See error
@@ -41,8 +43,9 @@ What you expected to happen.
 If applicable, add screenshots.
 
 **Environment:**
- - Browser: [e.g. Chrome, Firefox]
- - Add-on Version: [e.g. 1.0.0]
+
+- Browser: [e.g. Chrome, Firefox]
+- Add-on Version: [e.g. 1.0.0]
 ```
 
 ### Suggesting Enhancements
@@ -74,35 +77,40 @@ Enhancement suggestions are tracked as GitHub issues. When creating an enhanceme
 ### Setup Steps
 
 1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/yourusername/swim-entries-manager.git
-   cd swim-entries-manager
-   ```
+
+    ```bash
+    git clone https://github.com/yourusername/swim-entries-manager.git
+    cd swim-entries-manager
+    ```
 
 2. **Install clasp:**
-   ```bash
-   npm install -g @google/clasp
-   ```
+
+    ```bash
+    npm install -g @google/clasp
+    ```
 
 3. **Login to clasp:**
-   ```bash
-   clasp login
-   ```
+
+    ```bash
+    clasp login
+    ```
 
 4. **Create a new Apps Script project:**
-   ```bash
-   clasp create --type sheets --title "Swim Entries Manager Dev"
-   ```
+
+    ```bash
+    clasp create --type sheets --title "Swim Entries Manager Dev"
+    ```
 
 5. **Push the code:**
-   ```bash
-   clasp push
-   ```
+
+    ```bash
+    clasp push
+    ```
 
 6. **Open in Apps Script editor:**
-   ```bash
-   clasp open
-   ```
+    ```bash
+    clasp open
+    ```
 
 ## Code Style Guidelines
 
@@ -132,23 +140,36 @@ Enhancement suggestions are tracked as GitHub issues. When creating an enhanceme
  * @param {number} columnIndex - Column index (1-based)
  * @param {number} numRows - Number of data rows
  */
-function createNamedRangeForColumn_(namedRangeName, sheet, startRow, columnIndex, numRows) {
-  const ss = SpreadsheetApp.getActive();
+function createNamedRangeForColumn_(
+	namedRangeName,
+	sheet,
+	startRow,
+	columnIndex,
+	numRows,
+) {
+	const ss = SpreadsheetApp.getActive();
 
-  // Remove existing named range if it exists
-  const existingRanges = ss.getNamedRanges();
-  for (let i = 0; i < existingRanges.length; i++) {
-    if (existingRanges[i].getName() === namedRangeName) {
-      existingRanges[i].remove();
-      Logger.log('[createNamedRangeForColumn_] Removed existing named range: %s', namedRangeName);
-      break;
-    }
-  }
+	// Remove existing named range if it exists
+	const existingRanges = ss.getNamedRanges();
+	for (let i = 0; i < existingRanges.length; i++) {
+		if (existingRanges[i].getName() === namedRangeName) {
+			existingRanges[i].remove();
+			Logger.log(
+				"[createNamedRangeForColumn_] Removed existing named range: %s",
+				namedRangeName,
+			);
+			break;
+		}
+	}
 
-  // Create the range for the column (excluding header)
-  const range = sheet.getRange(startRow, columnIndex, numRows, 1);
-  ss.setNamedRange(namedRangeName, range);
-  Logger.log('[createNamedRangeForColumn_] Created named range "%s" for %s', namedRangeName, range.getA1Notation());
+	// Create the range for the column (excluding header)
+	const range = sheet.getRange(startRow, columnIndex, numRows, 1);
+	ss.setNamedRange(namedRangeName, range);
+	Logger.log(
+		'[createNamedRangeForColumn_] Created named range "%s" for %s',
+		namedRangeName,
+		range.getA1Notation(),
+	);
 }
 ```
 
@@ -192,11 +213,11 @@ SwimEntriesManager/
 1. **Create a test spreadsheet**
 2. **Deploy as test deployment**
 3. **Test each feature**:
-   - Create core tables
-   - Verify validations work
-   - Test named ranges
-   - Duplicate sheets
-   - Export to CSV
+    - Create core tables
+    - Verify validations work
+    - Test named ranges
+    - Duplicate sheets
+    - Export to CSV
 
 ### Test Functions
 
@@ -204,16 +225,19 @@ Add test functions in `tests.js`:
 
 ```javascript
 function testTableCreation() {
-  const result = createConfiguredTable('Schools');
-  Logger.log('Test result: %s', JSON.stringify(result));
-  // Verify table was created correctly
+	const result = createConfiguredTable("Schools");
+	Logger.log("Test result: %s", JSON.stringify(result));
+	// Verify table was created correctly
 }
 
 function testNamedRanges() {
-  const ss = SpreadsheetApp.getActive();
-  const namedRanges = ss.getNamedRanges();
-  Logger.log('Named ranges: %s', namedRanges.map(r => r.getName()));
-  // Verify SchoolsList and EventsList exist
+	const ss = SpreadsheetApp.getActive();
+	const namedRanges = ss.getNamedRanges();
+	Logger.log(
+		"Named ranges: %s",
+		namedRanges.map((r) => r.getName()),
+	);
+	// Verify SchoolsList and EventsList exist
 }
 ```
 
@@ -222,21 +246,22 @@ function testNamedRanges() {
 ### Adding a New Table
 
 1. **Define in tableConfig.js:**
-   ```javascript
-   MyNewTable: {
-     title: 'My New Table',
-     headers: ['Column1', 'Column2'],
-     columns: {
-       'Column1': { type: 'text' },
-       'Column2': { type: 'number' }
-     },
-     options: {
-       freezeHeader: 1,
-       headerBg: '#356853',
-       placement: { targetSheet: "MyNewTable", startCell: 'A1' }
-     }
-   }
-   ```
+
+    ```javascript
+    MyNewTable: {
+      title: 'My New Table',
+      headers: ['Column1', 'Column2'],
+      columns: {
+        'Column1': { type: 'text' },
+        'Column2': { type: 'number' }
+      },
+      options: {
+        freezeHeader: 1,
+        headerBg: '#356853',
+        placement: { targetSheet: "MyNewTable", startCell: 'A1' }
+      }
+    }
+    ```
 
 2. **Test the table creation**
 3. **Update documentation**
@@ -244,6 +269,7 @@ function testNamedRanges() {
 ### Adding Named Ranges
 
 Configure in table options:
+
 ```javascript
 options: {
   // ... other options
@@ -271,6 +297,7 @@ Use clear, descriptive commit messages:
 - **chore**: Maintenance (e.g., `chore: update dependencies`)
 
 **Example:**
+
 ```
 feat: add automatic time conversion for 33m pools
 
@@ -294,7 +321,7 @@ feat: add automatic time conversion for 33m pools
 
 - **GitHub Discussions**: For questions and general discussion
 - **GitHub Issues**: For bugs and feature requests
-- **Email**: support@example.com
+- **Email**: petr@riveroaks.xyz
 
 ## License
 
