@@ -8,7 +8,7 @@ function onOpen(e) {
     Logger.log("Not enough permissions to create menu yet.");
     menu.addItem('Start Add-on', 'showSidebar');
   } else {
-    menu.addItem('Create Core Tables', 'showCreateTablesDialog')
+    menu.addItem('Meet Setup', 'showMeetSetupDialog')
         .addItem('Create Sheets from Template', 'showCreateSheetsDialog')
         .addItem('Create Relay Tables', 'showCreateRelayTablesDialog')
         .addSeparator()
@@ -29,23 +29,7 @@ function showHomepage(e) {
 }
 
 function showCreateTablesDialog() {
-  const tables = listAvailableTables();
-  Logger.log('[showCreateTablesDialog] tables payload: %s', JSON.stringify(tables));
-
-  const template = HtmlService.createTemplateFromFile('core-tables-ui');
-  template.tableListHtml = tables.length
-    ? tables.map(function (table) {
-        return '<label style="display:flex; align-items:center; gap:6px; margin:4px 0; font-size:11.5px; cursor:pointer;"><input type="checkbox" value="' + table.name + '" style="width:auto; cursor:pointer;"> <span>' + table.title + '</span></label>';
-      }).join('')
-    : 'No tables available.';
-  template.tableCount = tables.length;
-
-  const html = template.evaluate()
-                       .setWidth(520)
-                       .setHeight(600);
-
-  SpreadsheetApp.getUi()
-                .showModalDialog(html, 'Create Core Tables');
+  return showMeetSetupDialog();
 }
 
 function showCreateRelayTablesDialog() {
@@ -70,9 +54,9 @@ function buildAdminSidebarCard() {
                                                 .setImageUrl(encodedImageURL)
                                    );
 
-  // Section 1: Create Core Tables
+  // Section 1: Meet Setup
   const createTablesSection = CardService.newCardSection()
-                                         .setHeader('Create Core Tables')
+                                         .setHeader('Meet Setup')
                                          .setCollapsible(true)
                                          .addWidget(
                                            CardService.newDecoratedText()
@@ -85,17 +69,17 @@ function buildAdminSidebarCard() {
                                          )
                                          .addWidget(
                                            CardService.newTextParagraph()
-                                                      .setText('Generate core tables from a list of tables.')
+                                                      .setText('Configure vital meet parameters and automatically generate tailored sheets.')
                                          )
                                          .addWidget(
                                            CardService.newButtonSet()
                                                       .addButton(
                                                         CardService.newTextButton()
-                                                                   .setText('Create Core Tables')
+                                                                   .setText('Meet Setup')
                                                                    .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
                                                                    .setBackgroundColor('#0397B3')
                                                                    .setOnClickAction(CardService.newAction()
-                                                                                                .setFunctionName('showCreateTablesDialog'))
+                                                                                                .setFunctionName('showMeetSetupDialog'))
                                                       )
                                          );
 

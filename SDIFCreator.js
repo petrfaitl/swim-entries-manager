@@ -52,7 +52,7 @@ const SDIFCreator = (function() {
   function generate(config) {
     config = config || {};
     const meetTableName = config.meetTableName || "Meet";
-    const schoolsTableName = config.schoolsTableName || "Schools";
+    let schoolsTableName = config.schoolsTableName || "Schools";
     const entriesSheetName = config.entriesSheetName;
 
     if (!entriesSheetName) {
@@ -63,6 +63,13 @@ const SDIFCreator = (function() {
     const entriesSheet = ss.getSheetByName(entriesSheetName);
     if (!entriesSheet) {
       throw new Error("SDIFCreator: Sheet '" + entriesSheetName + "' not found");
+    }
+
+    // Auto-detect Schools vs Teams table if default was passed
+    if (!config.schoolsTableName) {
+      if (!ss.getSheetByName("Schools") && ss.getSheetByName("Teams")) {
+        schoolsTableName = "Teams";
+      }
     }
 
     // Use shared processing logic from EntryDataProcessor.js
@@ -390,6 +397,15 @@ const SDIFCreator = (function() {
     const startDate = dateToMMDDYYYY_(meetInfo.startDate);
     const endDate = dateToMMDDYYYY_(meetInfo.endDate);
 
+    let meetType = meetInfo.meetType;
+    if (!meetType && meetInfo.competitionType) {
+      const preset = typeof getCompetitionTypePreset === 'function' ? getCompetitionTypePreset(meetInfo.competitionType) : null;
+      if (preset && preset.sdifCode) {
+        meetType = preset.sdifCode;
+      }
+    }
+    meetType = meetType || SDIF_MEET_TYPE;
+
     return buildRecord_([
       pad_("B1", 2),
       pad_(SDIF_ORG_CODE, 1),
@@ -401,7 +417,7 @@ const SDIFCreator = (function() {
       pad_(meetInfo.region || "", 2),
       pad_(meetInfo.postcode || "", 10),
       pad_(meetInfo.country || SDIF_COUNTRY, 3),
-      pad_(meetInfo.meetType || SDIF_MEET_TYPE, 1),
+      pad_(meetType, 1),
       pad_(startDate, 8),
       pad_(endDate, 8),
       pad_("0", 4, true), // Altitude
@@ -872,7 +888,7 @@ const SDIFCreator = (function() {
   }
 
   function readMeetInfo_(tableName) {
-    const rows = readTableByName_(tableName);
+    let rows = readTableByName_(tableName);
     if (rows.length === 0) {
       Logger.log('[SDIFCreator] ERROR: Meet table "%s" not found or empty', tableName);
       return {};
@@ -885,8 +901,10 @@ const SDIFCreator = (function() {
     Object.keys(row).forEach(function(key) {
       const k = key.toLowerCase().replace(/\s/g, '');
       if (k === 'meetname') info.meetName = row[key];
+      else if (k === 'competitiontype' || k === 'meettype') info.competitionType = row[key];
       else if (k === 'startdate') info.startDate = row[key];
       else if (k === 'enddate') info.endDate = row[key];
+      else if (k === 'ageupdate') info.ageUpDate = row[key];
       else if (k === 'venue') info.venue = row[key];
       else if (k === 'venueaddress1') info.address1 = row[key];
       else if (k === 'city') info.city = row[key];
@@ -896,15 +914,24 @@ const SDIFCreator = (function() {
       else if (k === 'course') info.course = row[key];
       else if (k === 'contactname') info.contactName = row[key];
       else if (k === 'contactphone') info.contactPhone = row[key];
-      else if (k === 'meettype') info.meetType = row[key];
       else if (k === 'eventagecode') info.eventAgeCode = row[key];
     });
+
+    if (info.competitionType) {
+      const preset = typeof getCompetitionTypePreset === 'function' ? getCompetitionTypePreset(info.competitionType) : null;
+      if (preset && preset.sdifCode) {
+        info.meetType = preset.sdifCode;
+      }
+    }
 
     return info;
   }
 
   function buildTeamLookup_(tableName) {
-    const rows = readTableByName_(tableName);
+    let rows = readTableByName_(tableName);
+    if ((!rows || rows.length === 0) && tableName === 'Schools') {
+      rows = readTableByName_('Teams');
+    }
     return rows.map(function(row) {
       const info = { code: "", teamName: "", regionCode: "" };
       Object.keys(row).forEach(function(key) {
@@ -912,7 +939,7 @@ const SDIFCreator = (function() {
         if (k === 'code') info.code = String(row[key]);
         else if (k === 'teamname') info.teamName = String(row[key]);
         else if (k === 'regioncode') info.regionCode = String(row[key]);
-        else if (k === 'school' && !info.teamName) info.teamName = String(row[key]);
+        else if ((k === 'school' || k === 'team') && !info.teamName) info.teamName = String(row[key]);
       });
       return info;
     });

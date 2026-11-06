@@ -164,11 +164,10 @@ function detectColumnMapping(headerRow) {
   if (mapping.lastName === -1) mapping.lastName = 1 + offset;
   if (mapping.dob === -1) mapping.dob = 2 + offset;
   if (mapping.gender === -1) mapping.gender = 3 + offset;
-  if (mapping.schoolYear === -1) mapping.schoolYear = 4 + offset;
-  if (mapping.school === -1) mapping.school = 5 + offset;
+  if (mapping.school === -1) mapping.school = mapping.schoolYear !== -1 ? 5 + offset : 4 + offset;
 
   // Event columns typically start after school column
-  mapping.eventStartCol = Math.max(mapping.school + 1, 6 + offset);
+  mapping.eventStartCol = mapping.school !== -1 ? mapping.school + 1 : (6 + offset);
 
   Logger.log(`[EntryDataProcessor] Column mapping detected: hasNumberColumn=${mapping.hasNumberColumn}, firstName=${mapping.firstName}, lastName=${mapping.lastName}, dob=${mapping.dob}, gender=${mapping.gender}, schoolYear=${mapping.schoolYear}, school=${mapping.school}, eventStartCol=${mapping.eventStartCol}`);
 
@@ -599,25 +598,35 @@ function parseEventDistance(eventStr) {
 }
 
 /**
- * Looks up school code from team code data
- * @param {Array} teamCodeData - Array of rows from Schools table
- * @param {string} schoolName - School name to lookup
+ * Looks up school/team code from team code data
+ * @param {Array} teamCodeData - Array of rows from Schools or Teams table
+ * @param {string} schoolName - School or team name to lookup
  * @return {string} Team code or "UNS" if not found
  */
 function getSchoolCode(teamCodeData, schoolName) {
-  if (!teamCodeData || !schoolName) return "UNS";
+  if (!teamCodeData || !schoolName || teamCodeData.length < 2) return "UNS";
 
   const normalizedSchoolName = String(schoolName).trim().toLowerCase();
   if (!normalizedSchoolName) return "UNS";
 
+  const headers = (teamCodeData[0] || []).map(h => String(h || '').trim().toLowerCase());
+  let codeCol = headers.indexOf('code');
+  if (codeCol === -1) codeCol = 0; // fallback
+
+  let nameCol = headers.indexOf('school');
+  if (nameCol === -1) nameCol = headers.indexOf('team');
+  if (nameCol === -1) nameCol = headers.indexOf('team name');
+  if (nameCol === -1) nameCol = 1;
+
   // Find matching row (case-insensitive)
   for (let i = 1; i < teamCodeData.length; i++) {
     const row = teamCodeData[i];
-    if (!row || row.length < 2) continue;
+    if (!row) continue;
 
-    const tableName = String(row[1] || "").trim().toLowerCase();
-    if (tableName === normalizedSchoolName) {
-      const code = String(row[0] || "").trim();
+    const nameVal = String(row[nameCol] || "").trim().toLowerCase();
+    const teamNameVal = String(row[0] || "").trim().toLowerCase();
+    if (nameVal === normalizedSchoolName || teamNameVal === normalizedSchoolName) {
+      const code = String(row[codeCol] || "").trim();
       return code || "UNS";
     }
   }
@@ -652,7 +661,7 @@ function processEntryRow(row, eventTimePairs, convertColumnIndex, teamCodeData, 
   const lastName = capitalizeNameSafely(lastNameRaw);
   const dobRaw = getSafeValue(row, columnMapping.dob);
   const gender = getSafeValue(row, columnMapping.gender);
-  const schoolYearRaw = getSafeValue(row, columnMapping.schoolYear);
+  const schoolYearRaw = columnMapping.schoolYear !== -1 ? getSafeValue(row, columnMapping.schoolYear) : '';
   const schoolName = getSafeValue(row, columnMapping.school);
 
   // Normalize school year to SDIF 2-character format

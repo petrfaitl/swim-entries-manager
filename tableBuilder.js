@@ -230,13 +230,14 @@ function configureTableColumns_(table, tableCfg) {
  *  - sheetName: override target sheet name
  *  - startCell: override start cell (A1)
  *  - clearMode: 'rebuild' | 'append'
+ *  - competitionType: 'school' | 'college' | 'age_group' | 'open' | 'masters'
  *  - schoolYears, genders: optional arrays to override validation lists
  *  - rows: approximate number of rows to pre-prepare for validation (default 50)
  * @return {Object} Placement and structure details.
  */
 function createConfiguredTable(tableName, options) {
   options = options || {};
-  const cfg = getTableConfig({ schoolYears: options.schoolYears, genders: options.genders });
+  const cfg = getTableConfig(options);
   const tableCfg = cfg.tables[tableName];
   if (!tableCfg) {
     throw new Error('Unknown table name: ' + tableName);
@@ -345,6 +346,104 @@ function createConfiguredTables(tableNames, options) {
     }
   });
   return results;
+}
+
+/**
+ * Opens the Meet Setup modal dialog.
+ */
+function showMeetSetupDialog() {
+  const html = HtmlService.createTemplateFromFile('meet-setup-ui')
+                          .evaluate()
+                          .setWidth(540)
+                          .setHeight(640);
+
+  SpreadsheetApp.getUi()
+                .showModalDialog(html, 'Meet Setup');
+}
+
+/**
+ * Legacy alias for showMeetSetupDialog.
+ */
+function showCreateTablesDialog() {
+  return showMeetSetupDialog();
+}
+
+/**
+ * Saves meet setup vital information and generates all required sheets.
+ * 
+ * @param {Object} formData - Meet setup form data
+ * @return {Object} Status message and details
+ */
+function saveAndGenerateMeetSetup(formData) {
+  Logger.log('[saveAndGenerateMeetSetup] Received payload: %s', JSON.stringify(formData));
+  if (!formData || !formData.meetName) {
+    throw new Error('Meet Name is required.');
+  }
+
+  const preset = getCompetitionTypePreset(formData.competitionType);
+  const compTypeKey = preset.id;
+  const ss = SpreadsheetApp.getActive();
+
+  // Options for table configuration
+  const configOptions = {
+    competitionType: compTypeKey,
+    schoolYears: preset.schoolYears
+  };
+
+  // 1. Create Meet Table & Populate Data
+  createConfiguredTable('Meet', configOptions);
+  const meetSheet = ss.getSheetByName('Meet');
+  if (meetSheet) {
+    const meetRowData = [
+      formData.meetName || '',
+      preset.name,
+      formData.startDate || '',
+      formData.endDate || '',
+      formData.ageUpDate || '',
+      formData.course || 'S',
+      formData.contactName || '',
+      formData.contactPhone || '',
+      formData.venue || '',
+      formData.address1 || '',
+      formData.city || '',
+      formData.region || 'BP',
+      formData.postcode || '',
+      formData.country || 'NZL'
+    ];
+    meetSheet.getRange(2, 1, 1, meetRowData.length).setValues([meetRowData]);
+  }
+
+  // 2. Create Events Table & Populate Default Events
+  createConfiguredTable('EventsForTemplate', Object.assign({}, configOptions, {
+    rows: Math.max(15, (preset.defaultEvents || []).length + 5)
+  }));
+  const eventsSheet = ss.getSheetByName('Events');
+  if (eventsSheet && preset.defaultEvents && preset.defaultEvents.length > 0) {
+    const eventRows = preset.defaultEvents.map(function(ev, idx) {
+      const rowNum = idx + 2;
+      return [ev.distance, ev.discipline, '=IF(AND(B' + rowNum + '<>"",A' + rowNum + '<>""),A' + rowNum + '&" "&B' + rowNum + ',"")'];
+    });
+    eventsSheet.getRange(2, 1, eventRows.length, 3).setValues(eventRows);
+  }
+
+  // 3. Create Schools / Teams Table
+  const orgTableName = preset.orgSheetName; // 'Schools' or 'Teams'
+  createConfiguredTable(orgTableName, configOptions);
+
+  // 4. Create Individual Events Template Table
+  createConfiguredTable('IndividualEventsTemplate', configOptions);
+
+  // 5. Optionally create Team Officials Table
+  if (formData.includeOfficials) {
+    createConfiguredTable('TeamOfficials', configOptions);
+  }
+
+  SpreadsheetApp.flush();
+
+  return {
+    success: true,
+    message: 'Meet Setup complete! Generated sheets for ' + preset.name + ' meet.'
+  };
 }
 
 /**

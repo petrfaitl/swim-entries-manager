@@ -11,6 +11,7 @@
  *  - list: args.values (array of strings) OR args.rangeA1 (string) for range-driven lists
  *  - numberRange: args.min, args.max, args.allowInvalid (default false)
  *  - date: args.condition ('DATE_IS_VALID' | 'DATE_BEFORE' | 'DATE_AFTER'), args.value (Date or string)
+ *  - range: args.rangeA1 (string formula/named range reference e.g. '=SchoolsList')
  *  - checkbox: args.checkedValue, args.uncheckedValue
  *  - text: no validation
  *
@@ -22,6 +23,127 @@
  *  - 'rebuild' (default): clears whole sheet/area and rebuilds header and formats
  *  - 'append': keeps existing header/format; positions cursor at first empty row (not yet used by UI)
  */
+
+const COMPETITION_TYPES = {
+  SCHOOL: {
+    id: 'school',
+    name: 'School',
+    orgSheetName: 'Schools',
+    orgLabel: 'School',
+    sdifCode: '7',
+    hasSchoolYear: true,
+    hasAgeUpDate: false,
+    schoolYears: ['Y5', 'Y6', 'Y7', 'Y8'],
+    defaultEvents: [
+      { distance: '25m', discipline: 'Freestyle' },
+      { distance: '25m', discipline: 'Backstroke' },
+      { distance: '25m', discipline: 'Breaststroke' },
+      { distance: '25m', discipline: 'Butterfly' },
+      { distance: '50m', discipline: 'Freestyle' },
+      { distance: '50m', discipline: 'Backstroke' },
+      { distance: '50m', discipline: 'Breaststroke' },
+      { distance: '50m', discipline: 'Butterfly' },
+      { distance: '100m', discipline: 'Freestyle' },
+      { distance: '100m', discipline: 'Backstroke' },
+      { distance: '100m', discipline: 'Breaststroke' },
+      { distance: '100m', discipline: 'Individual Medley' }
+    ]
+  },
+  COLLEGE: {
+    id: 'college',
+    name: 'College',
+    orgSheetName: 'Schools',
+    orgLabel: 'School',
+    sdifCode: '7',
+    hasSchoolYear: true,
+    hasAgeUpDate: true,
+    schoolYears: ['Y9', 'Junior', 'Intermediate', 'Senior'],
+    defaultEvents: [
+      { distance: '50m', discipline: 'Freestyle' },
+      { distance: '50m', discipline: 'Backstroke' },
+      { distance: '50m', discipline: 'Breaststroke' },
+      { distance: '50m', discipline: 'Butterfly' },
+      { distance: '100m', discipline: 'Freestyle' },
+      { distance: '100m', discipline: 'Backstroke' },
+      { distance: '100m', discipline: 'Breaststroke' },
+      { distance: '100m', discipline: 'Individual Medley' },
+      { distance: '200m', discipline: 'Freestyle' },
+      { distance: '200m', discipline: 'Individual Medley' }
+    ]
+  },
+  AGE_GROUP: {
+    id: 'age_group',
+    name: 'Age Group',
+    orgSheetName: 'Teams',
+    orgLabel: 'Team',
+    sdifCode: '1',
+    hasSchoolYear: false,
+    hasAgeUpDate: true,
+    defaultEvents: [
+      { distance: '50m', discipline: 'Freestyle' },
+      { distance: '50m', discipline: 'Backstroke' },
+      { distance: '50m', discipline: 'Breaststroke' },
+      { distance: '50m', discipline: 'Butterfly' },
+      { distance: '100m', discipline: 'Freestyle' },
+      { distance: '100m', discipline: 'Backstroke' },
+      { distance: '100m', discipline: 'Breaststroke' },
+      { distance: '100m', discipline: 'Butterfly' },
+      { distance: '200m', discipline: 'Freestyle' },
+      { distance: '200m', discipline: 'Individual Medley' }
+    ]
+  },
+  OPEN: {
+    id: 'open',
+    name: 'Open',
+    orgSheetName: 'Teams',
+    orgLabel: 'Team',
+    sdifCode: '0',
+    hasSchoolYear: false,
+    hasAgeUpDate: false,
+    defaultEvents: [
+      { distance: '50m', discipline: 'Freestyle' },
+      { distance: '50m', discipline: 'Backstroke' },
+      { distance: '50m', discipline: 'Breaststroke' },
+      { distance: '50m', discipline: 'Butterfly' },
+      { distance: '100m', discipline: 'Freestyle' }
+    ]
+  },
+  MASTERS: {
+    id: 'masters',
+    name: 'Masters',
+    orgSheetName: 'Teams',
+    orgLabel: 'Club',
+    sdifCode: '8',
+    hasSchoolYear: false,
+    hasAgeUpDate: true,
+    defaultEvents: [
+      { distance: "50m", discipline: "Freestyle" },
+      { distance: "100m", discipline: "Backstroke" },
+      { distance: "50m", discipline: "Butterfly" },
+      { distance: "100m", discipline: "Freestyle" },
+      { distance: "50m", discipline: "Breaststroke" },
+      { distance: "200m", discipline: "Freestyle" },
+      { distance: "100m", discipline: "Breaststroke" },
+      { distance: "25m", discipline: "Butterfly" },
+      { distance: "100m", discipline: "Individual Medley" },
+      { distance: "50m", discipline: "Backstroke" },
+      { distance: "25m", discipline: "Freestyle" },
+      { distance: "400m", discipline: "Freestyle" },
+      { distance: "800m", discipline: "Freestyle" },
+      { distance: "1500m", discipline: "Freestyle" }
+    ]
+  }
+};
+
+function getCompetitionTypes() {
+  return COMPETITION_TYPES;
+}
+
+function getCompetitionTypePreset(typeKey) {
+  if (!typeKey) return COMPETITION_TYPES.SCHOOL;
+  const key = String(typeKey).trim().toUpperCase().replace(/[\s-]+/g, '_');
+  return COMPETITION_TYPES[key] || COMPETITION_TYPES.SCHOOL;
+}
 
 function getTableConfig(overrides) {
   const DEFAULT_CLUSTERS = [
@@ -92,23 +214,60 @@ function getTableConfig(overrides) {
     gapBetweenTables: 3       // blank rows between tables when on same sheet
   };
 
-  const YEARS = (overrides && overrides.schoolYears) || ['Y5', 'Y6', 'Y7', 'Y8', 'Y9', 'Junior', 'Intermediate','Senior'];
-  const GENDERS = (overrides && overrides.genders) || ['Female', 'Male'];
+  const compPreset = getCompetitionTypePreset(overrides && overrides.competitionType);
+  const YEARS = (overrides && overrides.schoolYears) || compPreset.schoolYears || ['Y5', 'Y6', 'Y7', 'Y8'];
+  const GENDERS = ['Female', 'Male'];
   const COUNTRIES = (overrides && overrides.country) || ['NZL', 'AUS', 'CAN', 'GBR', 'USA'];
   const REGIONS = (overrides && overrides.region) || ['AK', 'BP', 'CB', 'CO', 'ED', 'HP', 'MW', 'NL', 'NM', 'OT', 'SL', 'TR', 'WG', 'WK', 'WN', 'WP'];
 
   /** Utility to build a map from headers for concise config */
   const toCols = (spec) => spec; // pass-through for readability
 
+  const hasSchoolYear = (overrides && overrides.hasSchoolYear !== undefined) ? overrides.hasSchoolYear : compPreset.hasSchoolYear;
+  const orgColName = compPreset.orgSheetName === 'Schools' ? 'School' : 'Team';
+  const orgNamedRange = compPreset.orgSheetName === 'Schools' ? '=SchoolsList' : '=TeamsList';
+
+  // Build Individual Events Template headers and columns dynamically
+  let indTemplateHeaders = ['#', 'First Name', 'Last Name', 'Date of Birth', 'Gender'];
+  const indTemplateCols = {
+    '#': {type: 'number'},
+    'First Name': {type: 'text'},
+    'Last Name': {type: 'text'},
+    'Date of Birth': {type: 'date', validation: {type: 'date', args: {condition: 'DATE_IS_VALID'}}},
+    'Gender': {type: 'text', validation: {type: 'list', args: {values: GENDERS}}}
+  };
+
+  if (hasSchoolYear) {
+    indTemplateHeaders.push('School Year');
+    indTemplateCols['School Year'] = {type: 'text', validation: {type: 'list', args: {values: YEARS}}};
+  }
+  indTemplateHeaders.push(orgColName);
+  indTemplateCols[orgColName] = {type: 'text', validation: {type: 'range', args: {rangeA1: orgNamedRange}}};
+
+  for (let i = 1; i <= 9; i++) {
+    indTemplateHeaders.push('Event ' + i);
+    indTemplateHeaders.push('Time ' + i + ' (m:s.S)');
+    indTemplateCols['Event ' + i] = {type: 'text', validation: {type: 'range', args: {rangeA1: '=EventsList'}}};
+    indTemplateCols['Time ' + i + ' (m:s.S)'] = {type: 'text'};
+  }
+  indTemplateHeaders.push('Convert times');
+  indTemplateCols['Convert times'] = {
+    type: 'text',
+    validation: {type: 'list', args: {values: ['From 33m pool', 'From 18m pool', 'No']}},
+    default: ''
+  };
+
   const config = {
     Meet: {
       tableType: 'core',
       title: 'Meet Details*',
-      headers: ['Meet Name', 'Start Date', 'End Date', 'Course', 'Contact Name', 'Contact Phone', 'Venue', 'Venue Address1', 'City', 'Region', 'Postcode', 'Country'],
+      headers: ['Meet Name', 'Competition Type', 'Start Date', 'End Date', 'Age-up Date', 'Course', 'Contact Name', 'Contact Phone', 'Venue', 'Venue Address1', 'City', 'Region', 'Postcode', 'Country'],
       columns: toCols({
         'Meet Name': {type: 'text'},
+        'Competition Type': {type: 'text', validation: {type: 'list', args: {values: ['School', 'College', 'Age Group', 'Open', 'Masters']}}, default: 'School'},
         'Start Date': {type: 'date', validation: {type: 'date', args: {condition: 'DATE_IS_VALID'}}},
         'End Date': {type: 'date', validation: {type: 'date', args: {condition: 'DATE_IS_VALID'}}},
+        'Age-up Date': {type: 'text', validation: {type: 'list', args: {values: ['Start Date', '1st January', '31st December']}}},
         'Course': {type: 'text', validation: {type: 'list', args: {values: ['S', 'L']}}, default: 'S'},
         'Contact Name': {type: 'text'},
         'Contact Phone': {type: 'text'},
@@ -161,13 +320,12 @@ function getTableConfig(overrides) {
       notes: 'All events with detailed information.'
     },
 
-
     EventsForTemplate: {
       tableType: 'core',
       title: 'Events*',
       headers: ['Distance', 'Discipline', 'Events'],
       columns: toCols({
-        'Distance': {type: 'text', validation: {type: 'list', args: {values: ['25m', '50m', '100m', '200m', '400m']}}},
+        'Distance': {type: 'text', validation: {type: 'list', args: {values: ['25m', '50m', '100m', '200m', '400m', '800m', '1500m']}}},
         'Discipline': {
           type: 'text',
           validation: {
@@ -179,7 +337,7 @@ function getTableConfig(overrides) {
       }),
       options: {
         freezeHeader: 1, headerBg: '#356853',
-        rows: 10, required: true,
+        rows: 15, required: true,
         placement: {targetSheet: "Events", startCell: 'A1'}, clearMode: 'rebuild',
         namedRange: {name: 'EventsList', columnName: 'Events'}
       },
@@ -204,48 +362,32 @@ function getTableConfig(overrides) {
       }
     },
 
+    Teams: {
+      tableType: 'core',
+      title: 'Teams*',
+      headers: ['Team Name', 'Team', 'Code', 'Region Code'],
+      columns: toCols({
+        'Team Name': {type: 'text', default: 'Team Name'},
+        'Team': {type: 'text', default: 'Team / Club Name'},
+        'Code': {type: 'text', default: 'UNSP'},
+        'Region Code': {type: 'text', validation: {type: 'list', args: {values: REGIONS}}, default: 'BP'},
+      }),
+      options: {
+        freezeHeader: 1, headerBg: '#356853', rows: 30, required: true,
+        placement: {targetSheet: "Teams", startCell: 'A1'}, clearMode: 'rebuild',
+        namedRange: {name: 'TeamsList', columnName: 'Team'}
+      }
+    },
+
     IndividualEventsTemplate: {
       tableType: 'core',
       title: 'Individual Events Template*',
-      headers: ['#', 'First Name', 'Last Name', 'Date of Birth', 'Gender', 'School Year', 'School',
-        'Event 1', 'Time 1 (m:s.S)', 'Event 2', 'Time 2 (m:s.S)', 'Event 3', 'Time 3 (m:s.S)', 'Event 4', 'Time 4 (m:s.S)', 'Event 5', 'Time 5 (m:s.S)', 'Event 6', 'Time 6 (m:s.S)', 'Event 7', 'Time 7 (m:s.S)', 'Event 8', 'Time 8 (m:s.S)', 'Event 9', 'Time 9 (m:s.S)', 'Convert times'
-      ],
-      columns: toCols({
-        '#': {type: 'number'},
-        'First Name': {type: 'text'},
-        'Last Name': {type: 'text'},
-        'Date of Birth': {type: 'date', validation: {type: 'date', args: {condition: 'DATE_IS_VALID'}}},
-        'Gender': {type: 'text', validation: {type: 'list', args: {values: GENDERS}}},
-        'School Year': {type: 'text', validation: {type: 'list', args: {values: YEARS}}},
-        'School': {type: 'text', validation: {type: 'range', args: {rangeA1: '=SchoolsList'}}},
-        'Event 1': {type: 'text', validation: {type: 'range', args: {rangeA1: '=EventsList'}}},
-        'Time 1 (m:s.S)': {type: 'text'},
-        'Event 2': {type: 'text', validation: {type: 'range', args: {rangeA1: '=EventsList'}}},
-        'Time 2 (m:s.S)': {type: 'text'},
-        'Event 3': {type: 'text', validation: {type: 'range', args: {rangeA1: '=EventsList'}}},
-        'Time 3 (m:s.S)': {type: 'text'},
-        'Event 4': {type: 'text', validation: {type: 'range', args: {rangeA1: '=EventsList'}}},
-        'Time 4 (m:s.S)': {type: 'text'},
-        'Event 5': {type: 'text', validation: {type: 'range', args: {rangeA1: '=EventsList'}}},
-        'Time 5 (m:s.S)': {type: 'text'},
-        'Event 6': {type: 'text', validation: {type: 'range', args: {rangeA1: '=EventsList'}}},
-        'Time 6 (m:s.S)': {type: 'text'},
-        'Event 7': {type: 'text', validation: {type: 'range', args: {rangeA1: '=EventsList'}}},
-        'Time 7 (m:s.S)': {type: 'text'},
-        'Event 8': {type: 'text', validation: {type: 'range', args: {rangeA1: '=EventsList'}}},
-        'Time 8 (m:s.S)': {type: 'text'},
-        'Event 9': {type: 'text', validation: {type: 'range', args: {rangeA1: '=EventsList'}}},
-        'Time 9 (m:s.S)': {type: 'text'},
-        'Convert times': {
-          type: 'text',
-          validation: {type: 'list', args: {values: ['From 33m pool', 'From 18m pool', 'No']}},
-          default: ''
-        }
-      }),
+      headers: indTemplateHeaders,
+      columns: toCols(indTemplateCols),
       options: {
         conversions: POOL_CONVERSIONS,  // Reference to pool conversion configuration
         freezeHeader: 1, headerBg: '#356853', title: "Individual Entries Template", rows: 30, required: true,
-        placement: {targetSheet: 'INDIVIDUAL_EVENTS_TEMPLATE', startCell: 'A1'}, clearMode: 'rebuild'
+        placement: {targetSheet: 'Individual Events Template', startCell: 'A1'}, clearMode: 'rebuild'
       },
       notes: 'Template for duplication into per-cluster sheets.'
     },

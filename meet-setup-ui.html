@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <?!= HtmlService.createHtmlOutputFromFile('shared-dialog-styles').getContent(); ?>
+  <style>
+    .date-row, .two-col {
+      display: flex;
+      gap: 10px;
+    }
+    .date-row .field, .two-col .field {
+      flex: 1;
+    }
+    input[type="date"] {
+      width: 100%;
+      padding: 7px 10px;
+      border: 1.5px solid #e0e3ed;
+      border-radius: 7px;
+      font-family: inherit;
+      font-size: 13px;
+      color: #1a1a2e;
+      background: #fafbfd;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    input[type="date"]:focus {
+      border-color: #0397B3;
+      background: #fff;
+      box-shadow: 0 0 0 3px rgba(3, 151, 179, 0.12);
+    }
+    .checkbox-field {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+      cursor: pointer;
+      font-size: 12.5px;
+      font-weight: 500;
+      color: #2c3248;
+    }
+    .checkbox-field input[type="checkbox"] {
+      cursor: pointer;
+      width: 16px;
+      height: 16px;
+    }
+    #ageUpContainer {
+      transition: all 0.2s ease-in-out;
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h2>Meet Setup</h2>
+  <p>Configure vital meet parameters and automatically generate tailored sheets and entry templates.</p>
+</div>
+
+<form id="meetSetupForm" onsubmit="event.preventDefault(); submitMeetSetup();">
+  <div class="section">
+    <div class="section-label">Competition Details</div>
+    
+    <div class="two-col">
+      <div class="field">
+        <label for="competitionType">Competition Type <span class="required">*</span></label>
+        <select id="competitionType" required onchange="handleCompTypeChange()">
+          <option value="school" selected>School</option>
+          <option value="college">College</option>
+          <option value="age_group">Age Group</option>
+          <option value="open">Open</option>
+          <option value="masters">Masters</option>
+        </select>
+      </div>
+
+      <div class="field" id="ageUpContainer" style="display: none;">
+        <label for="ageUpDate">Age-up Date <span class="required">*</span></label>
+        <select id="ageUpDate">
+          <option value="Start Date" selected>Start Date</option>
+          <option value="1st January">1st January</option>
+          <option value="31st December">31st December</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="meetName">Meet Name <span class="required">*</span></label>
+      <input type="text" id="meetName" placeholder="e.g. Regional Interschool Championship 2026" required />
+    </div>
+
+    <div class="date-row">
+      <div class="field">
+        <label for="startDate">Start Date <span class="required">*</span></label>
+        <input type="date" id="startDate" required />
+      </div>
+      <div class="field">
+        <label for="endDate">End Date <span class="required">*</span></label>
+        <input type="date" id="endDate" required />
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Venue & Course</div>
+    
+    <div class="two-col">
+      <div class="field">
+        <label for="course">Course <span class="required">*</span></label>
+        <select id="course" required>
+          <option value="S" selected>Short Course (25m - S)</option>
+          <option value="L">Long Course (50m - L)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="region">Region <span class="required">*</span></label>
+        <select id="region" required>
+          <option value="AK">AK - Auckland</option>
+          <option value="BP" selected>BP - Bay of Plenty</option>
+          <option value="CB">CB - Canterbury</option>
+          <option value="CO">CO - Counties Manukau</option>
+          <option value="ED">ED - Eastern Districts</option>
+          <option value="HP">HP - Hawke's Bay / Poverty Bay</option>
+          <option value="MW">MW - Manawatu</option>
+          <option value="NL">NL - Northland</option>
+          <option value="NM">NM - Nelson Marlborough</option>
+          <option value="OT">OT - Otago</option>
+          <option value="SL">SL - Southland</option>
+          <option value="TR">TR - Taranaki</option>
+          <option value="WG">WG - Wanganui</option>
+          <option value="WK">WK - Waikato</option>
+          <option value="WN">WN - Wellington</option>
+          <option value="WP">WP - West Coast</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="field">
+        <label for="venue">Venue (Pool Name) <span class="required">*</span></label>
+        <input type="text" id="venue" placeholder="e.g. Baywave Aquatic Centre" required />
+      </div>
+      <div class="field">
+        <label for="city">City <span class="required">*</span></label>
+        <input type="text" id="city" placeholder="e.g. Mount Maunganui" required />
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Setup Options</div>
+    <label class="checkbox-field">
+      <input type="checkbox" id="includeOfficials" />
+      <span>Include Team Officials sheet</span>
+    </label>
+  </div>
+
+  <button id="submitBtn" type="submit">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+      <polyline points="22 4 12 14.01 9 11.01"/>
+    </svg>
+    Save & Generate Meet
+  </button>
+</form>
+
+<div id="status"></div>
+
+<script>
+  function handleCompTypeChange() {
+    const compType = document.getElementById('competitionType').value;
+    const ageUpContainer = document.getElementById('ageUpContainer');
+    const ageUpDate = document.getElementById('ageUpDate');
+
+    if (compType === 'college' || compType === 'age_group' || compType === 'masters') {
+      ageUpContainer.style.display = 'block';
+      ageUpDate.required = true;
+    } else {
+      ageUpContainer.style.display = 'none';
+      ageUpDate.required = false;
+    }
+  }
+
+  function formatDateToDisplay(dateVal) {
+    if (!dateVal) return '';
+    // Expected dateVal format: YYYY-MM-DD from input[type="date"]
+    const parts = dateVal.split('-');
+    if (parts.length === 3) {
+      return parts[2] + '/' + parts[1] + '/' + parts[0]; // DD/MM/YYYY
+    }
+    return dateVal;
+  }
+
+  function submitMeetSetup() {
+    const compType = document.getElementById('competitionType').value;
+    const meetName = document.getElementById('meetName').value.trim();
+    const startDateRaw = document.getElementById('startDate').value;
+    const endDateRaw = document.getElementById('endDate').value;
+    const course = document.getElementById('course').value;
+    const region = document.getElementById('region').value;
+    const venue = document.getElementById('venue').value.trim();
+    const city = document.getElementById('city').value.trim();
+    const ageUpDate = document.getElementById('ageUpDate').value;
+    const includeOfficials = document.getElementById('includeOfficials').checked;
+    const statusDiv = document.getElementById('status');
+    const submitBtn = document.getElementById('submitBtn');
+
+    if (!meetName || !startDateRaw || !endDateRaw || !venue || !city || !course || !region || !compType) {
+      statusDiv.textContent = 'Please fill in all required fields.';
+      statusDiv.className = 'error';
+      return;
+    }
+
+    if (new Date(startDateRaw) > new Date(endDateRaw)) {
+      statusDiv.textContent = 'Start Date cannot be after End Date.';
+      statusDiv.className = 'error';
+      return;
+    }
+
+    const payload = {
+      meetName: meetName,
+      competitionType: compType,
+      startDate: formatDateToDisplay(startDateRaw),
+      endDate: formatDateToDisplay(endDateRaw),
+      course: course,
+      region: region,
+      venue: venue,
+      city: city,
+      ageUpDate: (compType === 'college' || compType === 'age_group' || compType === 'masters') ? ageUpDate : '',
+      includeOfficials: includeOfficials
+    };
+
+    submitBtn.disabled = true;
+    statusDiv.textContent = 'Generating meet tables and templates... please wait.';
+    statusDiv.className = '';
+
+    google.script.run
+      .withSuccessHandler(function(result) {
+        statusDiv.textContent = result.message || 'Meet setup generated successfully!';
+        statusDiv.className = 'success';
+        submitBtn.disabled = false;
+      })
+      .withFailureHandler(function(err) {
+        statusDiv.textContent = 'Error: ' + (err.message || String(err));
+        statusDiv.className = 'error';
+        submitBtn.disabled = false;
+      })
+      .saveAndGenerateMeetSetup(payload);
+  }
+
+  // Initialize
+  document.addEventListener('DOMContentLoaded', function() {
+    handleCompTypeChange();
+  });
+</script>
+
+</body>
+</html>
