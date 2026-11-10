@@ -526,6 +526,94 @@ function testSDIFExportOptionsFiltering() {
   return true;
 }
 
+function testCSVExportFileNameAndResolution() {
+  const sheet1 = {
+    getName: () => 'Takapuna Primary',
+    getSheetId: () => 12345
+  };
+  const sheet2 = {
+    getName: () => 'Aquablazers',
+    getSheetId: () => 67890
+  };
+
+  const mockSpreadsheet = {
+    getSheetByName: name => {
+      if (name === 'Takapuna Primary') return sheet1;
+      if (name === 'Aquablazers') return sheet2;
+      return null;
+    },
+    getSheetById: id => {
+      if (id === 12345) return sheet1;
+      if (id === 67890) return sheet2;
+      return null;
+    },
+    getSheets: () => [sheet1, sheet2]
+  };
+
+  // Test name resolution
+  const resolvedByName = resolveSheet_(mockSpreadsheet, 'Takapuna Primary');
+  if (!resolvedByName || resolvedByName.getName() !== 'Takapuna Primary') {
+    throw new Error('resolveSheet_ failed by exact name');
+  }
+
+  // Test ID resolution (number and string)
+  const resolvedByIdNum = resolveSheet_(mockSpreadsheet, 12345);
+  if (!resolvedByIdNum || resolvedByIdNum.getName() !== 'Takapuna Primary') {
+    throw new Error('resolveSheet_ failed by numerical ID');
+  }
+
+  const resolvedByIdStr = resolveSheet_(mockSpreadsheet, '67890');
+  if (!resolvedByIdStr || resolvedByIdStr.getName() !== 'Aquablazers') {
+    throw new Error('resolveSheet_ failed by string ID');
+  }
+
+  // Test case-insensitive resolution
+  const resolvedCaseInsensitive = resolveSheet_(mockSpreadsheet, 'takapuna primary');
+  if (!resolvedCaseInsensitive || resolvedCaseInsensitive.getName() !== 'Takapuna Primary') {
+    throw new Error('resolveSheet_ failed case-insensitively');
+  }
+
+  // Test not found
+  const notFound = resolveSheet_(mockSpreadsheet, 'NonExistentSheet');
+  if (notFound !== null) {
+    throw new Error('resolveSheet_ should return null for non-existent sheet');
+  }
+
+  // Test empty/null
+  if (resolveSheet_(mockSpreadsheet, null) !== null || resolveSheet_(mockSpreadsheet, '') !== null) {
+    throw new Error('resolveSheet_ should return null for empty/null input');
+  }
+
+  // Test output file name formatting
+  function formatCsvFileName(fileName, sheetName) {
+    let outputFileName = (fileName || '').trim();
+    if (outputFileName) {
+      if (!outputFileName.toLowerCase().endsWith('.csv')) {
+        outputFileName += '.csv';
+      }
+    } else {
+      outputFileName = `${sheetName}.csv`;
+    }
+    return outputFileName;
+  }
+
+  if (formatCsvFileName('', 'Takapuna Primary') !== 'Takapuna Primary.csv') {
+    throw new Error('formatCsvFileName failed for blank filename');
+  }
+  if (formatCsvFileName('Hamilton_Primary', 'Takapuna Primary') !== 'Hamilton_Primary.csv') {
+    throw new Error('formatCsvFileName failed to append .csv');
+  }
+  if (formatCsvFileName('Hamilton_Primary.csv', 'Takapuna Primary') !== 'Hamilton_Primary.csv') {
+    throw new Error('formatCsvFileName produced duplicate extension');
+  }
+  if (formatCsvFileName('Hamilton_Primary.CSV', 'Takapuna Primary') !== 'Hamilton_Primary.CSV') {
+    throw new Error('formatCsvFileName failed case-preserving .CSV');
+  }
+
+  Logger.log('✓ testCSVExportFileNameAndResolution passed');
+  return true;
+}
+
 function runAllDiagnosticTests() {
   testCompetitionTypesRegistry();
   testAgeBracketsTableSchema();
@@ -537,6 +625,7 @@ function runAllDiagnosticTests() {
   testSDIFMeetTypeResolution();
   testSDIFAgeAndMockDobEmission();
   testSDIFExportOptionsFiltering();
+  testCSVExportFileNameAndResolution();
   testFlexibleTimeParsing();
   Logger.log('=== ALL DIAGNOSTIC TESTS PASSED ===');
 }

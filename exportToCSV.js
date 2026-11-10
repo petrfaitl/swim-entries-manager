@@ -6,98 +6,30 @@
  * Integrates with Custom Tools menu (only for owner)
  */
 function exportEntriesToCSV() {
-  const ss = SpreadsheetApp.getActive();
-  const ui = SpreadsheetApp.getUi();
+  const html = HtmlService.createTemplateFromFile('export-csv-ui')
+      .evaluate()
+      .setWidth(500)
+      .setHeight(520);
 
-  // Get all sheets that are NOT hidden
-  const visibleSheets = ss.getSheets().filter(sheet => !sheet.isSheetHidden());
-
-  if (visibleSheets.length === 0) {
-    ui.alert("No visible sheets found in this spreadsheet.");
-    return;
-  }
-
-  // Get available tables for team code lookup
-  let tableNames = [];
-  let hasSchoolsTable = false;
-  try {
-    const tableApp = TableApp.openById(ss.getId());
-    let tablesObj = null;
-    try {
-      tablesObj = tableApp.getTables();
-      Logger.log('[exportEntriesToCSV] getTables() returned: %s', JSON.stringify(tablesObj));
-    } catch (e) {
-      Logger.log('[exportEntriesToCSV] TableApp.getTables() failed: %s. Falling back to sheet names.', e.message);
-    }
-
-    if (tablesObj && typeof tablesObj === 'object') {
-      Object.keys(tablesObj).forEach(function(sheetName) {
-        const sheetData = tablesObj[sheetName];
-        if (sheetData && sheetData.tables && Array.isArray(sheetData.tables)) {
-          sheetData.tables.forEach(function(tableWrapper) {
-            if (tableWrapper && tableWrapper.table && tableWrapper.table.name) {
-              tableNames.push(tableWrapper.table.name);
-            }
-          });
-        }
-      });
-      Logger.log('[exportEntriesToCSV] Extracted table names from TableApp: %s', tableNames.join(', '));
-    }
-    
-    // Fallback: If no tables found or TableApp failed, use sheet names as potential table names
-    if (tableNames.length === 0) {
-      tableNames = ss.getSheets().map(s => s.getName());
-      Logger.log('[exportEntriesToCSV] Using sheet names as fallback table names: %s', tableNames.join(', '));
-    }
-    
-    hasSchoolsTable = tableNames.includes('Schools');
-  } catch (err) {
-    Logger.log('[exportEntriesToCSV] Could not load tables: %s', err.message);
-    tableNames = ss.getSheets().map(s => s.getName());
-  }
-
-  // Build HTML for sheet dropdown
-  const sheetOptionsHtml = visibleSheets.map(sheet =>
-    `<option value="${sheet.getSheetId()}">${sheet.getName()}</option>`
-  ).join('');
-
-  // Build HTML for table dropdown
-  let tableOptionsHtml = '';
-  if (tableNames.length === 0) {
-    tableOptionsHtml = '<option value="">No tables found</option>';
-  } else {
-    tableOptionsHtml = tableNames.map(name => {
-      const selected = (name === 'Schools' && hasSchoolsTable) ? ' selected' : '';
-      return `<option value="${name}"${selected}>${name}</option>`;
-    }).join('');
-  }
-
-  const template = HtmlService.createTemplateFromFile('export-csv-ui');
-  template.sheetOptionsHtml = sheetOptionsHtml;
-  template.tableOptionsHtml = tableOptionsHtml;
-
-  const html = template.evaluate()
-                       .setWidth(480)
-                       .setHeight(450);
-
-  ui.showModalDialog(html, 'Export Entries to CSV');
+  SpreadsheetApp.getUi().showModalDialog(html, 'Export Entries to CSV');
 }
 
 /**
  * Main processing function: reads the selected sheet and creates CSV
  * AUTO-DETECTS Event/Time columns from header row (J:AA or wherever they are)
- * @param {string} sheetId - ID of the sheet to process
- * @param {string} teamCodeTableName - Name of the table to use for team code lookup (default: "Schools")
+ * @param {string|number} sheetNameOrId - Name or ID of the sheet to process
+ * @param {string} [teamCodeTableName] - Name of the table to use for team code lookup (default: "Schools")
+ * @param {string} [fileName] - Optional custom output file name
  * @return {string} URL to the created CSV file
  */
-function processSheetToCSV(sheetId, teamCodeTableName) {
+function processSheetToCSV(sheetNameOrId, teamCodeTableName, fileName) {
   teamCodeTableName = teamCodeTableName || "Schools"; // Default if not provided
   const ss = SpreadsheetApp.getActive();
-  const sheet = ss.getSheetById(sheetId);
+  const sheet = resolveSheet_(ss, sheetNameOrId);
   const spreadsheetId = ss.getId();
 
   if (!sheet) {
-    throw new Error(`Sheet with ID ${sheetId} not found`);
+    throw new Error(`Sheet "${sheetNameOrId}" not found`);
   }
 
   const sheetName = sheet.getName();
@@ -131,24 +63,67 @@ function processSheetToCSV(sheetId, teamCodeTableName) {
     row.map(cell => `"${(cell || "").toString().replace(/"/g, '""')}"`).join(",")
   ).join("\n");
 
-  const fileName = `${sheetName}.csv`;
-  const blob = Utilities.newBlob(csvContent, MimeType.CSV, fileName);
+  let outputFileName = (fileName || "").trim();
+  if (outputFileName) {
+    if (!outputFileName.toLowerCase().endsWith(".csv")) {
+      outputFileName += ".csv";
+    }
+  } else {
+    outputFileName = `${sheetName}.csv`;
+  }
+
+  const blob = Utilities.newBlob(csvContent, MimeType.CSV, outputFileName);
   
   let fileId;
   try {
     // Use Advanced Drive Service for restricted scope compatibility
     const file = Drive.Files.create({
-      name: fileName,
+      name: outputFileName,
       mimeType: MimeType.CSV
     }, blob);
     fileId = file.id;
-    Logger.log(`CSV created via Advanced Drive Service: ${fileName} (ID: ${fileId})`);
+    Logger.log(`CSV created via Advanced Drive Service: ${outputFileName} (ID: ${fileId})`);
   } catch (e) {
     Logger.log(`Advanced Drive Service failed: ${e.message}. Falling back to DriveApp.`);
     const file = DriveApp.createFile(blob);
     fileId = file.getId();
-    Logger.log(`CSV created via DriveApp: ${fileName} (ID: ${fileId})`);
+    Logger.log(`CSV created via DriveApp: ${outputFileName} (ID: ${fileId})`);
   }
 
   return "https://drive.google.com/uc?export=download&id=" + fileId;
+}
+
+/**
+ * Resolves a sheet by name, ID, or case-insensitive match.
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss
+ * @param {string|number} sheetNameOrId
+ * @return {GoogleAppsScript.Spreadsheet.Sheet|null}
+ */
+function resolveSheet_(ss, sheetNameOrId) {
+  if (sheetNameOrId === null || sheetNameOrId === undefined || sheetNameOrId === '') {
+    return null;
+  }
+
+  if (typeof sheetNameOrId === 'string') {
+    const sheetByName = ss.getSheetByName(sheetNameOrId);
+    if (sheetByName) return sheetByName;
+  }
+
+  const idNum = Number(sheetNameOrId);
+  if (!isNaN(idNum)) {
+    const sheetById = ss.getSheetById(idNum);
+    if (sheetById) return sheetById;
+  }
+
+  if (typeof sheetNameOrId === 'string') {
+    const trimmed = sheetNameOrId.trim().toLowerCase();
+    const sheets = ss.getSheets();
+    for (let i = 0; i < sheets.length; i++) {
+      if (sheets[i].getName().trim().toLowerCase() === trimmed) {
+        return sheets[i];
+      }
+    }
+  }
+
+  return null;
 }

@@ -80,9 +80,13 @@ The system shall export swimmer entry data to traditional CSV format for custom 
 
 **Requirements:**
 
+- The system shall read swimmer entries from candidate entry sheets
+- The system shall filter available export sheets in the dialog to exclude non-entry system/core sheets (`Meet`, `Events`, `Schools`, `Teams`, `Team Officials`, `Sheet1`, hidden sheets) while detecting sheets with swimmer entry headers
+- The system shall auto-detect available school/team tables in the spreadsheet (`Schools` vs `Teams`) and provide a dynamic `School/Team Table Name` selector
+- The system shall support custom output file naming (defaulting to `<SheetName>.csv` if left blank)
 - The system shall export processed swimmer data with consistent column structure
 - The system shall support the same entry format auto-detection as SDIF export
-- The system shall create the CSV file in Google Drive
+- The system shall create the CSV file in Google Drive and provide a styled download link
 
 ### 6. Data Processing & Validation
 

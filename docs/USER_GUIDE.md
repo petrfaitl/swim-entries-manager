@@ -338,9 +338,10 @@ Use this option if you need CSV format for custom processing or other tools.
    - Click **"Export to CSV"** button
    - A dialog will appear
 
-3. **Select Sheet and Table**
-   - **Sheet**: Choose the sheet to export
-   - **Team Code Table**: Select the table for team code lookup (default: "Schools")
+3. **Configure Export Options**
+   - **Entries Sheet**: Select the sheet containing swimmer entries (system sheets like `Meet`, `Events`, `Schools`, `Teams`, `Team Officials`, and default sheets like `Sheet1` are automatically filtered out)
+   - **School/Team Table Name**: Select the schools or teams table from the dropdown (automatically detects and pre-selects `Schools` or `Teams` based on your workbook)
+   - **Output File Name**: Leave blank for auto-generated name (`<SheetName>.csv`), or specify a custom name
 
 4. **Export**
    - Click **"Export to CSV"**
@@ -348,11 +349,10 @@ Use this option if you need CSV format for custom processing or other tools.
      - Auto-detect Event and Time columns
      - Format times correctly
      - Look up team codes
-     - Generate CSV file
+     - Generate CSV file in Google Drive
 
 5. **Download CSV**
-   - Click the download link
-   - Save with a descriptive name (e.g., "Hamilton_East_Entries.csv")
+   - Click the styled **"Download File"** link that appears below the status message
 
 #### CSV Format
 

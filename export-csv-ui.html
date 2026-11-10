@@ -1,28 +1,30 @@
 <!DOCTYPE html>
 <html>
-<head>
+  <head>
+    <base target="_top">
 <?!= HtmlService.createHtmlOutputFromFile('shared-dialog-styles').getContent(); ?>
-</head>
-<body>
+  </head>
+  <body>
 
 <div class="header">
-  <p><strong>Auto-detects Event/Time columns</strong> (handles sheets with/without times)</p>
+  <p>Export swimmer entries to CSV format for manual processing or external tools.</p>
 </div>
 
 <div class="section">
-  <div class="section-label">Export Configuration</div>
+  <div class="section-label">Export</div>
   <div class="field">
-    <label>Select the sheet to export</label>
-    <select id="sheetId">
-      <option value="">-- Select a sheet --</option>
-      <?!= sheetOptionsHtml ?>
-    </select>
+    <label for="sheetSelect">Entries Sheet</label>
+    <select id="sheetSelect"></select>
   </div>
+
   <div class="field">
-    <label>Team Code Table <span class="small">(Team code is required for export)</span></label>
-    <select id="teamCodeTable">
-      <?!= tableOptionsHtml ?>
-    </select>
+    <label for="schoolsTable">School/Team Table Name</label>
+    <select id="schoolsTable"></select>
+  </div>
+
+  <div class="field">
+    <label for="fileName">Output File Name <span class="hint">auto-generated if blank</span></label>
+    <input type="text" id="fileName" placeholder="Leave blank for auto-generation">
   </div>
 </div>
 
@@ -37,57 +39,94 @@
 
 <div id="status"></div>
 
+<div id="downloadLink" class="download-link">
+  <a href="#" id="fileUrl" target="_blank">Download File</a>
+</div>
+
 <script>
-  function exportSheet() {
-    const sheetId = document.getElementById('sheetId').value;
-    const teamCodeTable = document.getElementById('teamCodeTable').value;
+  const exportBtn = document.getElementById('exportBtn');
+  const status = document.getElementById('status');
+  const downloadLink = document.getElementById('downloadLink');
+  const fileUrl = document.getElementById('fileUrl');
+  const sheetSelect = document.getElementById('sheetSelect');
+  const schoolsTableSelect = document.getElementById('schoolsTable');
 
-    if (!sheetId) {
-      alert('Please select a sheet.');
+  // Initialize export options (filtered entry sheets and School/Team tables)
+  google.script.run.withSuccessHandler(options => {
+    sheetSelect.innerHTML = '';
+    schoolsTableSelect.innerHTML = '';
+
+    // Populate entry sheets
+    if (options && options.entrySheets && options.entrySheets.length > 0) {
+      options.entrySheets.forEach(sheet => {
+        const opt = document.createElement('option');
+        opt.value = sheet;
+        opt.textContent = sheet;
+        sheetSelect.appendChild(opt);
+      });
+    } else {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = '-- No entry sheets found --';
+      sheetSelect.appendChild(opt);
+    }
+
+    // Populate School/Team tables
+    if (options && options.schoolTeamTables && options.schoolTeamTables.length > 0) {
+      options.schoolTeamTables.forEach(tableName => {
+        const opt = document.createElement('option');
+        opt.value = tableName;
+        opt.textContent = tableName;
+        if (tableName === options.defaultSchoolTeamTable) {
+          opt.selected = true;
+        }
+        schoolsTableSelect.appendChild(opt);
+      });
+    } else {
+      ['Schools', 'Teams'].forEach(tableName => {
+        const opt = document.createElement('option');
+        opt.value = tableName;
+        opt.textContent = tableName;
+        if (tableName === 'Schools') opt.selected = true;
+        schoolsTableSelect.appendChild(opt);
+      });
+    }
+  }).withFailureHandler(err => {
+    status.textContent = "Error loading export options: " + err.message;
+    status.className = "error";
+  }).getSDIFExportOptions();
+
+  exportBtn.addEventListener('click', () => {
+    const sheetName = sheetSelect.value;
+    const schoolsTable = schoolsTableSelect.value;
+    const fileName = document.getElementById('fileName').value;
+
+    if (!sheetName) {
+      status.textContent = "Please select an entries sheet.";
+      status.className = "error";
       return;
     }
 
-    if (!teamCodeTable) {
-      alert('No Team Code table available. Please create a table with team codes (e.g., "Schools") before exporting.');
-      return;
-    }
-
-    const btn = document.getElementById('exportBtn');
-    document.getElementById('status').textContent = 'Processing...';
-    btn.disabled = true;
+    exportBtn.disabled = true;
+    status.textContent = "Exporting entries to CSV... please wait.";
+    status.className = "";
+    downloadLink.style.display = "none";
 
     google.script.run
-      .withSuccessHandler(function(fileUrl) {
-        document.getElementById('status').innerHTML =
-          'Success! <a href="' + fileUrl + '" target="_blank">Download CSV</a>';
-        document.getElementById('status').className = 'success';
-        btn.disabled = false;
+      .withSuccessHandler(url => {
+        status.textContent = "Successfully exported!";
+        status.className = "success";
+        fileUrl.href = url;
+        downloadLink.style.display = "block";
+        exportBtn.disabled = false;
       })
-      .withFailureHandler(function(err) {
-        document.getElementById('status').textContent = 'Error: ' + err.message;
-        document.getElementById('status').className = 'error';
-        btn.disabled = false;
+      .withFailureHandler(err => {
+        status.textContent = "Error: " + (err.message || String(err));
+        status.className = "error";
+        exportBtn.disabled = false;
       })
-      .processSheetToCSV(sheetId, teamCodeTable);
-  }
-
-  function bindEvents() {
-    const btn = document.getElementById('exportBtn');
-    if (!btn) {
-      document.getElementById('status').textContent = 'Error: Button not found.';
-      document.getElementById('status').className = 'error';
-      return;
-    }
-    btn.addEventListener('click', exportSheet);
-    document.getElementById('status').textContent = 'Ready.';
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', bindEvents);
-  } else {
-    bindEvents();
-  }
+      .processSheetToCSV(sheetName, schoolsTable, fileName);
+  });
 </script>
-
 </body>
 </html>
