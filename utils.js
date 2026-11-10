@@ -57,6 +57,152 @@ function formatDob(dob) {
   return dob.toString().trim();
 }
 
+/**
+ * Parses date inputs (Date instance, serial number, DD/MM/YYYY or YYYY-MM-DD string) to a Date object.
+ * @param {any} dateVal - Date value to parse
+ * @return {Date|null} Date object or null if invalid
+ */
+function parseDateValue(dateVal) {
+  if (!dateVal) return null;
+  if (dateVal instanceof Date && !isNaN(dateVal.getTime())) return dateVal;
+  if (typeof dateVal === 'number' && !isNaN(dateVal)) {
+    return new Date((dateVal - 25569) * 86400 * 1000);
+  }
+  if (typeof dateVal === 'string') {
+    const cleaned = dateVal.trim();
+    if (!cleaned) return null;
+    if (/^\d{4}-\d{2}-\d{2}/.test(cleaned)) {
+      const parts = cleaned.split('-');
+      return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+    }
+    const parts = cleaned.split(/[-\/.]/);
+    if (parts.length === 3) {
+      let [d, m, y] = parts.map(p => parseInt(p.trim(), 10));
+      if (y < 50) y += 2000;
+      else if (y < 100) y += 1900;
+      if (!isNaN(d) && !isNaN(m) && !isNaN(y)) {
+        return new Date(y, m - 1, d);
+      }
+    }
+    const d = new Date(cleaned);
+    if (!isNaN(d.getTime())) return d;
+  }
+  return null;
+}
+
+/**
+ * Calculates completed integer age in years between dob and refDate.
+ *
+ * @param {any} dob - Swimmer date of birth (Date, string, or number)
+ * @param {any} refDate - Cutoff date / Age-up Date (Date, string, or number)
+ * @return {number} Age in full integer years
+ */
+function calculateExactAge(dob, refDate) {
+  const dobDate = parseDateValue(dob);
+  const referenceDate = parseDateValue(refDate) || new Date();
+  if (!dobDate) return 0;
+
+  let age = referenceDate.getFullYear() - dobDate.getFullYear();
+  const m = referenceDate.getMonth() - dobDate.getMonth();
+  if (m < 0 || (m === 0 && referenceDate.getDate() < dobDate.getDate())) {
+    age--;
+  }
+  return Math.max(0, age);
+}
+
+/**
+ * Generates a randomized mock Date of Birth such that the swimmer's exact age
+ * on ageUpDate falls strictly within [minAge, maxAge].
+ *
+ * Specifically, mock birthdates are chosen in the date range:
+ * [ageUpDate - (maxAge + 1) years + 1 day, ageUpDate - minAge years]
+ *
+ * @param {number} minAge - Minimum eligible age
+ * @param {number} maxAge - Maximum eligible age
+ * @param {any} ageUpDate - Meet age-up cutoff date
+ * @return {Date} Randomized mock Date object
+ */
+function generateMockDob(minAge, maxAge, ageUpDate) {
+  const refDate = parseDateValue(ageUpDate) || new Date();
+  const minDate = new Date(
+    refDate.getFullYear() - (maxAge + 1),
+    refDate.getMonth(),
+    refDate.getDate() + 1
+  );
+  const maxDate = new Date(
+    refDate.getFullYear() - minAge,
+    refDate.getMonth(),
+    refDate.getDate()
+  );
+  const minTime = minDate.getTime();
+  const maxTime = maxDate.getTime();
+  const randomTime = minTime + Math.random() * (maxTime - minTime);
+  const randomDate = new Date(randomTime);
+  return new Date(randomDate.getFullYear(), randomDate.getMonth(), randomDate.getDate());
+}
+
+/**
+ * Resolves school year to minAge and maxAge based on brackets map or DEFAULT_AGE_BRACKETS.
+ *
+ * @param {string} schoolYear - Raw or normalized school year
+ * @param {Object} [bracketsMap] - Optional map read from sheet table
+ * @return {{minAge: number, maxAge: number, schoolYear: string}}
+ */
+function resolveAgeBracket(schoolYear, bracketsMap) {
+  if (!schoolYear) {
+    return { minAge: 10, maxAge: 10, schoolYear: '' };
+  }
+
+  const rawUpper = String(schoolYear).trim().toUpperCase();
+  const norm = (typeof normalizeSchoolYear === 'function' ? normalizeSchoolYear(schoolYear) : schoolYear).toUpperCase();
+
+  // 1. Check bracketsMap if provided
+  if (bracketsMap && Object.keys(bracketsMap).length > 0) {
+    if (bracketsMap[rawUpper]) return bracketsMap[rawUpper];
+    if (bracketsMap[norm]) return bracketsMap[norm];
+    for (const key of Object.keys(bracketsMap)) {
+      if (key.toUpperCase() === rawUpper || key.toUpperCase() === norm) {
+        return bracketsMap[key];
+      }
+    }
+  }
+
+  // 2. Check DEFAULT_AGE_BRACKETS
+  const defaults = (typeof DEFAULT_AGE_BRACKETS !== 'undefined') ? DEFAULT_AGE_BRACKETS : {
+    school: [
+      { schoolYear: 'Y5', minAge: 9, maxAge: 9 },
+      { schoolYear: 'Y6', minAge: 10, maxAge: 10 },
+      { schoolYear: 'Y7', minAge: 11, maxAge: 11 },
+      { schoolYear: 'Y8', minAge: 12, maxAge: 12 }
+    ],
+    college: [
+      { schoolYear: 'Junior', minAge: 13, maxAge: 13 },
+      { schoolYear: 'Intermediate', minAge: 14, maxAge: 15 },
+      { schoolYear: 'Senior', minAge: 16, maxAge: 18 }
+    ]
+  };
+
+  const allDefaults = (defaults.school || []).concat(defaults.college || []);
+  for (let i = 0; i < allDefaults.length; i++) {
+    const item = allDefaults[i];
+    const itemUpper = item.schoolYear.toUpperCase();
+    const itemNorm = (typeof normalizeSchoolYear === 'function' ? normalizeSchoolYear(item.schoolYear) : item.schoolYear).toUpperCase();
+    if (itemUpper === rawUpper || itemNorm === norm || itemUpper === norm || itemNorm === rawUpper) {
+      return item;
+    }
+  }
+
+  // Numeric fallback if like "Y9", "9", etc.
+  const numMatch = rawUpper.match(/\d+/);
+  if (numMatch) {
+    const n = parseInt(numMatch[0], 10);
+    const age = n + 4; // approximate age for Year n (e.g. Y5 -> 9)
+    return { schoolYear: schoolYear, minAge: age, maxAge: age };
+  }
+
+  return { schoolYear: schoolYear, minAge: 10, maxAge: 10 };
+}
+
 
 /**
  * Formats time coming from Google Sheets cell → "mm:ss.SS"

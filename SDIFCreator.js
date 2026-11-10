@@ -350,7 +350,7 @@ const SDIFCreator = (function() {
         }
 
         // D1
-        lines.push(emitD1_(swimmer, regionCode));
+        lines.push(emitD1_(swimmer, regionCode, meetInfo));
         counts.d1Records++;
         counts.swimmers++;
       });
@@ -458,6 +458,16 @@ const SDIFCreator = (function() {
     const meetStartDate = dateToMMDDYYYY_(meetInfo.startDate);
     const eventAgeCode = meetInfo.eventAgeCode || "13UN";
 
+    let ageOrYear = swimmer.schoolYear || "";
+    if (!ageOrYear) {
+      if (swimmer.age != null && swimmer.age !== '') {
+        ageOrYear = String(swimmer.age);
+      } else if (swimmer.dob && typeof calculateExactAge === 'function') {
+        const computedAge = calculateExactAge(swimmer.dob, meetInfo.ageUpDate || meetInfo.startDate);
+        ageOrYear = computedAge > 0 ? String(computedAge) : "";
+      }
+    }
+
     return buildRecord_([
       pad_("D0", 2),
       pad_(SDIF_ORG_CODE, 1),
@@ -467,7 +477,7 @@ const SDIFCreator = (function() {
       pad_("", 1), // Attach
       pad_("", 3),
       pad_(dob, 8),
-      pad_(swimmer.schoolYear || "", 2),
+      pad_(ageOrYear, 2),
       pad_(swimmer.gender, 1),
       pad_(SDIF_EVENT_SEX, 1),
       pad_(event.distance, 4),
@@ -481,12 +491,22 @@ const SDIFCreator = (function() {
     ]);
   }
 
-  function emitD1_(swimmer, regionCode) {
+  function emitD1_(swimmer, regionCode, meetInfo) {
     const mmNumber = buildMMNumber_(swimmer.teamCode, swimmer.lastName, swimmer.firstName, swimmer.dob);
     const fullName = (swimmer.lastName + ", " + swimmer.firstName).substring(0, 28);
     const dob = dateToMMDDYYYY_(swimmer.dob);
     let fullTeamCode = (regionCode || "").substring(0, 2) + swimmer.teamCode.substring(0, 4);
     fullTeamCode = pad_(fullTeamCode, 6);
+
+    let ageOrYear = swimmer.schoolYear || "";
+    if (!ageOrYear) {
+      if (swimmer.age != null && swimmer.age !== '') {
+        ageOrYear = String(swimmer.age);
+      } else if (swimmer.dob && meetInfo && typeof calculateExactAge === 'function') {
+        const computedAge = calculateExactAge(swimmer.dob, meetInfo.ageUpDate || meetInfo.startDate);
+        ageOrYear = computedAge > 0 ? String(computedAge) : "";
+      }
+    }
 
     return buildRecord_([
       pad_("D1", 2),
@@ -500,7 +520,7 @@ const SDIFCreator = (function() {
       pad_("", 1), // Attach
       pad_(SDIF_CITIZEN, 3),
       pad_(dob, 8),
-      pad_(swimmer.schoolYear || "", 2),
+      pad_(ageOrYear, 2),
       pad_(swimmer.gender, 1),
       pad_("", 86)
     ]);
@@ -789,6 +809,7 @@ const SDIFCreator = (function() {
       s.events     = row.eventsStr;     // Already formatted as comma-separated string
       s.times      = row.timesStr;      // Already formatted as comma-separated string
       s.schoolYear = row.schoolYear;    // Already normalized
+      s.age        = row.age;           // Integer age
     }
 
     // Critical validations

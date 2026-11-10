@@ -71,9 +71,9 @@
         </select>
       </div>
 
-      <div class="field" id="ageUpContainer" style="display: none;">
+      <div class="field" id="ageUpContainer">
         <label for="ageUpDate">Age-up Date <span class="required">*</span></label>
-        <input type="date" id="ageUpDate" />
+        <input type="date" id="ageUpDate" required />
       </div>
     </div>
 
@@ -161,18 +161,7 @@
 
 <script>
   function handleCompTypeChange() {
-    const compType = document.getElementById('competitionType').value;
-    const ageUpContainer = document.getElementById('ageUpContainer');
-    const ageUpDate = document.getElementById('ageUpDate');
-
-    if (compType === 'college' || compType === 'age_group' || compType === 'masters') {
-      ageUpContainer.style.display = 'block';
-      ageUpDate.required = true;
-    } else {
-      ageUpContainer.style.display = 'none';
-      ageUpDate.required = false;
-      ageUpDate.value = '';
-    }
+    // Age-up Date is applicable and required across all competition types
   }
 
   function formatDateToDisplay(dateVal) {
@@ -199,9 +188,7 @@
     const statusDiv = document.getElementById('status');
     const submitBtn = document.getElementById('submitBtn');
 
-    const hasAgeUp = (compType === 'college' || compType === 'age_group' || compType === 'masters');
-
-    if (!meetName || !startDateRaw || !endDateRaw || !venue || !city || !course || !region || !compType || (hasAgeUp && !ageUpDateRaw)) {
+    if (!meetName || !startDateRaw || !endDateRaw || !ageUpDateRaw || !venue || !city || !course || !region || !compType) {
       statusDiv.textContent = 'Please fill in all required fields.';
       statusDiv.className = 'error';
       return;
@@ -222,7 +209,7 @@
       region: region,
       venue: venue,
       city: city,
-      ageUpDate: hasAgeUp ? formatDateToDisplay(ageUpDateRaw) : '',
+      ageUpDate: formatDateToDisplay(ageUpDateRaw),
       includeOfficials: includeOfficials
     };
 

@@ -413,6 +413,21 @@ function saveAndGenerateMeetSetup(formData) {
     meetSheet.getRange(2, 1, 1, meetRowData.length).setValues([meetRowData]);
   }
 
+  // 1b. Create Age Brackets Table & Populate Default Brackets for School/College
+  if (preset.hasSchoolYear) {
+    const defaultBrackets = (typeof DEFAULT_AGE_BRACKETS !== 'undefined' && DEFAULT_AGE_BRACKETS[compTypeKey]) ||
+      (typeof DEFAULT_AGE_BRACKETS !== 'undefined' && DEFAULT_AGE_BRACKETS.school) || [];
+    createConfiguredTable('AgeBrackets', Object.assign({}, configOptions, {
+      rows: defaultBrackets.length || 4
+    }));
+    if (meetSheet && defaultBrackets && defaultBrackets.length > 0) {
+      const bracketRows = defaultBrackets.map(function(b) {
+        return [b.schoolYear, b.minAge, b.maxAge];
+      });
+      meetSheet.getRange(5, 1, bracketRows.length, 3).setValues(bracketRows);
+    }
+  }
+
   // 2. Create Events Table & Populate Default Events
   createConfiguredTable('EventsForTemplate', Object.assign({}, configOptions, {
     rows: Math.max(15, (preset.defaultEvents || []).length + 5)
@@ -432,6 +447,17 @@ function saveAndGenerateMeetSetup(formData) {
 
   // 4. Create Individual Events Template Table
   createConfiguredTable('IndividualEventsTemplate', configOptions);
+  if (compTypeKey === 'school' || compTypeKey === 'college' || preset.hasSchoolYear) {
+    const templateSheet = ss.getSheetByName('Individual Events Template');
+    if (templateSheet && typeof templateSheet.hideColumns === 'function') {
+      const cfg = getTableConfig(configOptions);
+      const headers = cfg.tables.IndividualEventsTemplate.headers;
+      const dobColIndex = headers.indexOf('Date of Birth') + 1; // 1-based column index
+      if (dobColIndex > 0) {
+        templateSheet.hideColumns(dobColIndex);
+      }
+    }
+  }
 
   // 5. Optionally create Team Officials Table
   if (formData.includeOfficials) {

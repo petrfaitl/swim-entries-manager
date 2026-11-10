@@ -12,7 +12,8 @@ The system shall provide a set of predefined table templates that can be created
 
 **Tables:**
 
-- **Meet**: Meet details (name, dates, course, venue, contact info)
+- **Meet**: Meet details (name, competition type, start date, end date, age-up date, course, venue, contact info)
+- **Age Brackets**: School year to min/max age mapping proxy table for School and College meets
 - **Team Officials**: Team/school/cluster official details
 - **Events for Individual Entries Template**: Event definitions (distance, discipline, auto-generated event names)
 - **Schools or Teams for Individual Entries Template**: School/Team registrations with team codes
@@ -89,6 +90,9 @@ The system shall provide shared data processing logic for entry validation and t
 
 - The system shall capitalize swimmer names
 - The system shall normalize school years, for school and college competition
+- The system shall compute exact integer swimmer age as of the Age-up Date for Age Group meets and output in SDIF D0 positions 64–65
+- The system shall generate randomized mock dates of birth for School and College meets constrained by the Age Brackets table as of the Age-up Date and write back computed dates to entry sheets
+- The system shall hide the Date of Birth column in School and College entry templates to prevent manual entry and protect student privacy
 - The system shall validate team codes against the Schools/Teams table
 - The system shall convert pool times using configured conversion tables
 - The system shall detect and report critical data issues before export

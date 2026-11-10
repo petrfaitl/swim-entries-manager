@@ -635,6 +635,80 @@ function getSchoolCode(teamCodeData, schoolName) {
 }
 
 /**
+ * Reads the AgeBrackets table from the spreadsheet or Meet sheet.
+ *
+ * @param {string} spreadsheetId - Spreadsheet ID
+ * @return {Object} Map of uppercase school year to { schoolYear, minAge, maxAge }
+ */
+function readAgeBrackets(spreadsheetId) {
+  const bracketsMap = {};
+  try {
+    if (typeof TableApp !== 'undefined' && spreadsheetId) {
+      try {
+        const tableApp = TableApp.openById(spreadsheetId);
+        const table = tableApp.getTableByName('AgeBrackets') || tableApp.getTableByName('School Year Age Brackets');
+        if (table) {
+          const values = table.getValues();
+          if (values && values.length > 1) {
+            const headers = values[0];
+            const syIdx = headers.findIndex(function(h) { return /school\s*year/i.test(String(h)); });
+            const minIdx = headers.findIndex(function(h) { return /min\s*age/i.test(String(h)); });
+            const maxIdx = headers.findIndex(function(h) { return /max\s*age/i.test(String(h)); });
+            for (let i = 1; i < values.length; i++) {
+              const r = values[i];
+              const sy = String(r[syIdx] || '').trim();
+              const min = parseInt(r[minIdx], 10);
+              const max = parseInt(r[maxIdx], 10);
+              if (sy && !isNaN(min) && !isNaN(max)) {
+                bracketsMap[sy.toUpperCase()] = { schoolYear: sy, minAge: min, maxAge: max };
+              }
+            }
+          }
+        }
+      } catch (e) {
+        Logger.log('[EntryDataProcessor] TableApp age brackets lookup: %s', e.message);
+      }
+    }
+
+    if (Object.keys(bracketsMap).length === 0 && typeof SpreadsheetApp !== 'undefined') {
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      if (ss) {
+        const meetSheet = ss.getSheetByName('Meet');
+        if (meetSheet) {
+          const data = meetSheet.getDataRange().getValues();
+          let headerRowIdx = -1;
+          for (let r = 0; r < data.length; r++) {
+            const rowStr = data[r].map(function(c) { return String(c).trim().toLowerCase(); }).join(' ');
+            if (rowStr.includes('school year') && rowStr.includes('min age')) {
+              headerRowIdx = r;
+              break;
+            }
+          }
+          if (headerRowIdx !== -1) {
+            const headers = data[headerRowIdx];
+            const syIdx = headers.findIndex(function(h) { return /school\s*year/i.test(String(h)); });
+            const minIdx = headers.findIndex(function(h) { return /min\s*age/i.test(String(h)); });
+            const maxIdx = headers.findIndex(function(h) { return /max\s*age/i.test(String(h)); });
+            for (let r = headerRowIdx + 1; r < data.length; r++) {
+              const row = data[r];
+              const sy = String(row[syIdx] || '').trim();
+              const min = parseInt(row[minIdx], 10);
+              const max = parseInt(row[maxIdx], 10);
+              if (sy && !isNaN(min) && !isNaN(max)) {
+                bracketsMap[sy.toUpperCase()] = { schoolYear: sy, minAge: min, maxAge: max };
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch (err) {
+    Logger.log('[EntryDataProcessor] Error reading age brackets: %s', err.message);
+  }
+  return bracketsMap;
+}
+
+/**
  * Process a single row from the entries sheet into structured data
  * Handles both METHOD_1 (Event/Time pairs) and METHOD_2 (Yes/NT indicators)
  *
@@ -643,9 +717,10 @@ function getSchoolCode(teamCodeData, schoolName) {
  * @param {number} convertColumnIndex - Index of convert column, or -1
  * @param {Array} teamCodeData - Team code lookup data
  * @param {Object} columnMapping - Column indices mapping (from detectColumnMapping)
- * @return {Object} Processed swimmer data with: teamCode, firstName, lastName, dobFormatted, gender, eventsStr, timesStr, schoolYear
+ * @param {Object} [context] - Context containing ageUpDate and ageBracketsMap
+ * @return {Object} Processed swimmer data with: teamCode, firstName, lastName, dobFormatted, gender, eventsStr, timesStr, schoolYear, age
  */
-function processEntryRow(row, eventTimePairs, convertColumnIndex, teamCodeData, columnMapping) {
+function processEntryRow(row, eventTimePairs, convertColumnIndex, teamCodeData, columnMapping, context) {
   // Skip empty rows (no first name) - use dynamic column index
   const firstNameRaw = getSafeValue(row, columnMapping.firstName);
   if (firstNameRaw === "" || firstNameRaw == null) {
@@ -666,7 +741,25 @@ function processEntryRow(row, eventTimePairs, convertColumnIndex, teamCodeData, 
 
   // Normalize school year to SDIF 2-character format
   const schoolYear = normalizeSchoolYear(schoolYearRaw);
-  const dobFormatted = formatDob(dobRaw);
+  let dobFormatted = formatDob(dobRaw);
+  let age = null;
+  let generatedMockDob = false;
+
+  const ageUpDate = (context && context.ageUpDate) || null;
+  const ageBracketsMap = (context && context.ageBracketsMap) || null;
+
+  if (dobFormatted) {
+    // Exact age for swimmers with DOB
+    age = calculateExactAge(dobRaw, ageUpDate);
+  } else if (schoolYearRaw || schoolYear) {
+    // Generate mock DOB for swimmers without DOB but with school year
+    const bracket = resolveAgeBracket(schoolYearRaw || schoolYear, ageBracketsMap);
+    const mockDob = generateMockDob(bracket.minAge, bracket.maxAge, ageUpDate);
+    dobFormatted = formatDob(mockDob);
+    age = calculateExactAge(mockDob, ageUpDate);
+    generatedMockDob = true;
+  }
+
   let convertTimes = false;
 
   if (convertColumnIndex !== -1) {
@@ -800,7 +893,9 @@ function processEntryRow(row, eventTimePairs, convertColumnIndex, teamCodeData, 
     gender: gender,
     eventsStr: eventsStr,
     timesStr: timesStr,
-    schoolYear: schoolYear
+    schoolYear: schoolYear,
+    age: age,
+    generatedMockDob: generatedMockDob
   };
 }
 
@@ -866,7 +961,7 @@ function processEntriesSheet(sheet, teamCodeTableName, spreadsheetId) {
     } else {
       // Fallback: search sheets if TableApp fails or doesn't find the table
       Logger.log('[EntryDataProcessor] Searching sheets for table data: %s', teamCodeTableName);
-      const targetSheet = sheet.getParent().getSheetByName(teamCodeTableName);
+      const targetSheet = sheet.getParent ? sheet.getParent().getSheetByName(teamCodeTableName) : null;
       if (targetSheet) {
         teamCodeData = targetSheet.getDataRange().getValues();
         Logger.log('[EntryDataProcessor] Successfully loaded team code data from sheet "%s" (%s rows)', teamCodeTableName, teamCodeData.length);
@@ -878,13 +973,66 @@ function processEntriesSheet(sheet, teamCodeTableName, spreadsheetId) {
     Logger.log('[EntryDataProcessor] Error loading team code table: %s. All team codes will default to "UNS"', err.message);
   }
 
+  // --- FETCH MEET INFO & AGE BRACKETS
+  let meetInfo = {};
+  try {
+    if (typeof readMeetInfo_ === 'function') {
+      meetInfo = readMeetInfo_('Meet');
+    } else if (typeof getMeetInfo === 'function') {
+      meetInfo = getMeetInfo('Meet');
+    } else if (typeof SpreadsheetApp !== 'undefined') {
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      const meetSheet = ss && ss.getSheetByName('Meet');
+      if (meetSheet) {
+        const mData = meetSheet.getDataRange().getValues();
+        if (mData && mData.length > 1) {
+          const mHeaders = mData[0];
+          const mRow = mData[1];
+          mHeaders.forEach(function(h, idx) {
+            const hk = String(h).toLowerCase().replace(/\s/g, '');
+            if (hk === 'ageupdate') meetInfo.ageUpDate = mRow[idx];
+            else if (hk === 'startdate') meetInfo.startDate = mRow[idx];
+            else if (hk === 'competitiontype') meetInfo.competitionType = mRow[idx];
+          });
+        }
+      }
+    }
+  } catch (e) {
+    Logger.log('[EntryDataProcessor] Error loading meet info: %s', e.message);
+  }
+
+  const ageBracketsMap = readAgeBrackets(spreadsheetId);
+  const context = {
+    ageUpDate: meetInfo.ageUpDate || meetInfo.startDate,
+    ageBracketsMap: ageBracketsMap
+  };
+
   // Process each data row (skip header)
   const processedRows = [];
+  const dobUpdates = [];
   for (let i = 1; i < data.length; i++) {
     const row = data[i];
-    const processed = processEntryRow(row, eventTimePairs, convertColumnIndex, teamCodeData, columnMapping);
+    const processed = processEntryRow(row, eventTimePairs, convertColumnIndex, teamCodeData, columnMapping, context);
     if (processed) {
       processedRows.push(processed);
+      if (processed.generatedMockDob && columnMapping.dob !== -1) {
+        dobUpdates.push({ row: i + 1, col: columnMapping.dob + 1, value: processed.dobFormatted });
+      }
+    }
+  }
+
+  // Write mock DOBs back to sheet
+  if (dobUpdates.length > 0 && sheet && typeof sheet.getRange === 'function') {
+    Logger.log('[EntryDataProcessor] Writing back %s mock DOBs to sheet', dobUpdates.length);
+    dobUpdates.forEach(function(u) {
+      try {
+        sheet.getRange(u.row, u.col).setValue(u.value);
+      } catch (err) {
+        Logger.log('[EntryDataProcessor] Error writing mock DOB cell (%s, %s): %s', u.row, u.col, err.message);
+      }
+    });
+    if (typeof SpreadsheetApp !== 'undefined' && SpreadsheetApp.flush) {
+      SpreadsheetApp.flush();
     }
   }
 
