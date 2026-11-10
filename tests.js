@@ -87,6 +87,10 @@ function testTableConfigGeneration() {
   if (!meetHeaders.includes('Competition Type') || !meetHeaders.includes('Age-up Date')) {
     throw new Error('Meet table headers missing Competition Type or Age-up Date');
   }
+  const ageUpCol = schoolCfg.tables.Meet.columns['Age-up Date'];
+  if (!ageUpCol || ageUpCol.type !== 'date' || !ageUpCol.validation || ageUpCol.validation.args.condition !== 'DATE_IS_VALID') {
+    throw new Error('Meet table Age-up Date column configuration invalid or missing date validation');
+  }
 
   Logger.log('✓ testTableConfigGeneration passed');
   return true;

@@ -73,11 +73,7 @@
 
       <div class="field" id="ageUpContainer" style="display: none;">
         <label for="ageUpDate">Age-up Date <span class="required">*</span></label>
-        <select id="ageUpDate">
-          <option value="Start Date" selected>Start Date</option>
-          <option value="1st January">1st January</option>
-          <option value="31st December">31st December</option>
-        </select>
+        <input type="date" id="ageUpDate" />
       </div>
     </div>
 
@@ -175,6 +171,7 @@
     } else {
       ageUpContainer.style.display = 'none';
       ageUpDate.required = false;
+      ageUpDate.value = '';
     }
   }
 
@@ -197,12 +194,14 @@
     const region = document.getElementById('region').value;
     const venue = document.getElementById('venue').value.trim();
     const city = document.getElementById('city').value.trim();
-    const ageUpDate = document.getElementById('ageUpDate').value;
+    const ageUpDateRaw = document.getElementById('ageUpDate').value;
     const includeOfficials = document.getElementById('includeOfficials').checked;
     const statusDiv = document.getElementById('status');
     const submitBtn = document.getElementById('submitBtn');
 
-    if (!meetName || !startDateRaw || !endDateRaw || !venue || !city || !course || !region || !compType) {
+    const hasAgeUp = (compType === 'college' || compType === 'age_group' || compType === 'masters');
+
+    if (!meetName || !startDateRaw || !endDateRaw || !venue || !city || !course || !region || !compType || (hasAgeUp && !ageUpDateRaw)) {
       statusDiv.textContent = 'Please fill in all required fields.';
       statusDiv.className = 'error';
       return;
@@ -223,7 +222,7 @@
       region: region,
       venue: venue,
       city: city,
-      ageUpDate: (compType === 'college' || compType === 'age_group' || compType === 'masters') ? ageUpDate : '',
+      ageUpDate: hasAgeUp ? formatDateToDisplay(ageUpDateRaw) : '',
       includeOfficials: includeOfficials
     };
 

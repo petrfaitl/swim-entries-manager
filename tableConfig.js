@@ -267,7 +267,7 @@ function getTableConfig(overrides) {
         'Competition Type': {type: 'text', validation: {type: 'list', args: {values: ['School', 'College', 'Age Group', 'Open', 'Masters']}}, default: 'School'},
         'Start Date': {type: 'date', validation: {type: 'date', args: {condition: 'DATE_IS_VALID'}}},
         'End Date': {type: 'date', validation: {type: 'date', args: {condition: 'DATE_IS_VALID'}}},
-        'Age-up Date': {type: 'text', validation: {type: 'list', args: {values: ['Start Date', '1st January', '31st December']}}},
+        'Age-up Date': {type: 'date', validation: {type: 'date', args: {condition: 'DATE_IS_VALID'}}},
         'Course': {type: 'text', validation: {type: 'list', args: {values: ['S', 'L']}}, default: 'S'},
         'Contact Name': {type: 'text'},
         'Contact Phone': {type: 'text'},
