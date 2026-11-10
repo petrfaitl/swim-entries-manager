@@ -1200,10 +1200,172 @@ const SDIFCreator = (function() {
     buildSdifString: buildSdifString,
     showDialog: showDialog,
     getMeetInfo: getMeetInfo,
-    getTeamLookup: getTeamLookup
+    getTeamLookup: getTeamLookup,
+    getExportOptions: getSDIFExportOptions,
+    getEntriesSheetNames: getEntriesSheetNames_,
+    getSchoolTeamTableNames: getSchoolTeamTableNames_
   };
 
 })();
+
+/**
+ * Retrieves valid entry sheets and available School/Team tables for the SDIF export dialog.
+ * @return {{ entrySheets: string[], schoolTeamTables: string[], defaultSchoolTeamTable: string }}
+ */
+function getSDIFExportOptions() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const entrySheets = getEntriesSheetNames_(ss);
+  const tableOptions = getSchoolTeamTableNames_(ss);
+
+  return {
+    entrySheets: entrySheets,
+    schoolTeamTables: tableOptions.tables,
+    defaultSchoolTeamTable: tableOptions.defaultTable
+  };
+}
+
+/**
+ * Filters workbook sheets to find candidate entry sheets.
+ * Excludes reserved/system sheets (Meet, Events, Schools, Teams, Team Officials, Sheet1) and hidden sheets.
+ * Includes 'Individual Entries Template' and sheets with swimmer entry headers.
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} [ss] - Active spreadsheet
+ * @return {string[]} Array of entry sheet names
+ */
+function getEntriesSheetNames_(ss) {
+  ss = ss || SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) return [];
+
+  const reservedNames = new Set([
+    'meet',
+    'events',
+    'schools',
+    'teams',
+    'team officials',
+    'sheet1',
+    'sheet 1'
+  ]);
+
+  const sheets = ss.getSheets();
+  const validSheets = [];
+
+  for (let i = 0; i < sheets.length; i++) {
+    const sheet = sheets[i];
+    if (sheet.isSheetHidden()) continue;
+
+    const name = sheet.getName().trim();
+    const lowerName = name.toLowerCase();
+
+    if (reservedNames.has(lowerName)) continue;
+
+    // Check if it is the template or contains template indicators
+    if (lowerName === 'individual entries template' || lowerName.includes('individual entries')) {
+      validSheets.push(name);
+      continue;
+    }
+
+    // Heuristic: check if sheet has swimmer column headers
+    if (sheetHasSwimmerHeaders_(sheet)) {
+      validSheets.push(name);
+    }
+  }
+
+  return validSheets;
+}
+
+/**
+ * Checks if a sheet has standard swimmer entry column headers.
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet
+ * @return {boolean}
+ */
+function sheetHasSwimmerHeaders_(sheet) {
+  try {
+    const lastRow = sheet.getLastRow();
+    const lastCol = sheet.getLastColumn();
+    if (lastRow < 1 || lastCol < 1) return false;
+
+    // Read header row (row 1, up to first 25 columns)
+    const headerRow = sheet.getRange(1, 1, 1, Math.min(lastCol, 25)).getValues()[0];
+    if (!headerRow || headerRow.length === 0) return false;
+
+    let hasFirstName = false;
+    let hasLastName = false;
+    let hasGender = false;
+    let hasDob = false;
+    let hasSchoolYear = false;
+
+    for (let c = 0; c < headerRow.length; c++) {
+      const h = String(headerRow[c] || '').trim().toLowerCase();
+      if (!h) continue;
+
+      if ((h.includes('first') && h.includes('name')) || h === 'first name' || h === 'firstname') {
+        hasFirstName = true;
+      } else if ((h.includes('last') && h.includes('name')) || h === 'last name' || h === 'lastname' || h === 'surname') {
+        hasLastName = true;
+      } else if (h === 'gender' || h === 'sex' || h === 'm/f') {
+        hasGender = true;
+      } else if ((h.includes('date') && h.includes('birth')) || h === 'dob' || h === 'birth date' || h === 'birthdate') {
+        hasDob = true;
+      } else if ((h.includes('school') && h.includes('year')) || (h.includes('year') && h.includes('level')) || h === 'year' || h === 'year level' || h === 'grade') {
+        hasSchoolYear = true;
+      }
+    }
+
+    // Must have at least (First Name AND Last Name) OR ((First Name OR Last Name) AND (Gender OR DOB OR School Year))
+    return (hasFirstName && hasLastName) || ((hasFirstName || hasLastName) && (hasGender || hasDob || hasSchoolYear));
+  } catch (err) {
+    Logger.log('[sheetHasSwimmerHeaders_] Error checking sheet "%s": %s', sheet.getName(), err.message);
+    return false;
+  }
+}
+
+/**
+ * Detects whether Schools or Teams table exists in the spreadsheet.
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} [ss] - Active spreadsheet
+ * @return {{ tables: string[], defaultTable: string }}
+ */
+function getSchoolTeamTableNames_(ss) {
+  ss = ss || SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) {
+    return { tables: ['Schools', 'Teams'], defaultTable: 'Schools' };
+  }
+
+  const sheets = ss.getSheets();
+  const foundNames = [];
+  let hasSchools = false;
+  let hasTeams = false;
+  let schoolsExactName = 'Schools';
+  let teamsExactName = 'Teams';
+
+  for (let i = 0; i < sheets.length; i++) {
+    const sheetName = sheets[i].getName().trim();
+    const lower = sheetName.toLowerCase();
+    if (lower === 'schools') {
+      hasSchools = true;
+      schoolsExactName = sheetName;
+    } else if (lower === 'teams') {
+      hasTeams = true;
+      teamsExactName = sheetName;
+    }
+  }
+
+  if (hasSchools && hasTeams) {
+    foundNames.push(schoolsExactName, teamsExactName);
+  } else if (hasSchools) {
+    foundNames.push(schoolsExactName);
+  } else if (hasTeams) {
+    foundNames.push(teamsExactName);
+  } else {
+    // Neither exists yet - provide defaults
+    foundNames.push('Schools', 'Teams');
+  }
+
+  const defaultTable = hasTeams && !hasSchools ? teamsExactName : (hasSchools ? schoolsExactName : 'Schools');
+
+  return {
+    tables: foundNames,
+    defaultTable: defaultTable
+  };
+}
 
 /**
  * Server-side function called from dialog.

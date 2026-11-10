@@ -433,6 +433,99 @@ function testSDIFAgeAndMockDobEmission() {
   return true;
 }
 
+function testSDIFExportOptionsFiltering() {
+  // Mock Sheet helper
+  function createMockSheet(name, isHidden, headers) {
+    return {
+      getName: () => name,
+      isSheetHidden: () => !!isHidden,
+      getLastRow: () => (headers && headers.length > 0 ? 5 : 0),
+      getLastColumn: () => (headers ? headers.length : 0),
+      getRange: (row, col, numRows, numCols) => ({
+        getValues: () => [headers || []]
+      })
+    };
+  }
+
+  // Mock Spreadsheet with various sheets
+  const mockSheets = [
+    createMockSheet('Meet', false, ['Meet Name', 'Start Date']),
+    createMockSheet('Events', false, ['Event #', 'Distance', 'Discipline']),
+    createMockSheet('Schools', false, ['Team Name', 'School', 'Team Code']),
+    createMockSheet('Team Officials', false, ['Role', 'Name']),
+    createMockSheet('Sheet1', false, ['Some', 'Random', 'Data']),
+    createMockSheet('Sheet 1', false, ['Notes']),
+    createMockSheet('Individual Entries Template', false, ['#', 'First Name', 'Last Name', 'Date of Birth', 'Gender']),
+    createMockSheet('Takapuna Primary', false, ['#', 'First Name', 'Last Name', 'Date of Birth', 'Gender', '50m Free']),
+    createMockSheet('Custom Non Entry', false, ['Budget', 'Expense', 'Total']),
+    createMockSheet('Hidden Entry Sheet', true, ['#', 'First Name', 'Last Name', 'Date of Birth', 'Gender'])
+  ];
+
+  const mockSpreadsheet = {
+    getSheets: () => mockSheets
+  };
+
+  const entrySheets = SDIFCreator.getEntriesSheetNames(mockSpreadsheet);
+  if (entrySheets.length !== 2) {
+    throw new Error(`Expected 2 entry sheets, got ${entrySheets.length}: ${JSON.stringify(entrySheets)}`);
+  }
+  if (!entrySheets.includes('Individual Entries Template') || !entrySheets.includes('Takapuna Primary')) {
+    throw new Error(`Expected 'Individual Entries Template' and 'Takapuna Primary', got: ${JSON.stringify(entrySheets)}`);
+  }
+
+  // Test School/Team table detection
+  // 1. Only Schools exists
+  const ssSchoolsOnly = {
+    getSheets: () => [
+      createMockSheet('Meet', false),
+      createMockSheet('Schools', false)
+    ]
+  };
+  const res1 = SDIFCreator.getSchoolTeamTableNames(ssSchoolsOnly);
+  if (JSON.stringify(res1.tables) !== JSON.stringify(['Schools']) || res1.defaultTable !== 'Schools') {
+    throw new Error(`Expected Schools only result, got: ${JSON.stringify(res1)}`);
+  }
+
+  // 2. Only Teams exists
+  const ssTeamsOnly = {
+    getSheets: () => [
+      createMockSheet('Meet', false),
+      createMockSheet('Teams', false)
+    ]
+  };
+  const res2 = SDIFCreator.getSchoolTeamTableNames(ssTeamsOnly);
+  if (JSON.stringify(res2.tables) !== JSON.stringify(['Teams']) || res2.defaultTable !== 'Teams') {
+    throw new Error(`Expected Teams only result, got: ${JSON.stringify(res2)}`);
+  }
+
+  // 3. Both Schools and Teams exist
+  const ssBoth = {
+    getSheets: () => [
+      createMockSheet('Meet', false),
+      createMockSheet('Schools', false),
+      createMockSheet('Teams', false)
+    ]
+  };
+  const res3 = SDIFCreator.getSchoolTeamTableNames(ssBoth);
+  if (res3.tables.length !== 2 || !res3.tables.includes('Schools') || !res3.tables.includes('Teams') || res3.defaultTable !== 'Schools') {
+    throw new Error(`Expected Both result, got: ${JSON.stringify(res3)}`);
+  }
+
+  // 4. Neither exists
+  const ssNeither = {
+    getSheets: () => [
+      createMockSheet('Sheet1', false)
+    ]
+  };
+  const res4 = SDIFCreator.getSchoolTeamTableNames(ssNeither);
+  if (res4.tables.length !== 2 || res4.defaultTable !== 'Schools') {
+    throw new Error(`Expected fallback defaults, got: ${JSON.stringify(res4)}`);
+  }
+
+  Logger.log('✓ testSDIFExportOptionsFiltering passed');
+  return true;
+}
+
 function runAllDiagnosticTests() {
   testCompetitionTypesRegistry();
   testAgeBracketsTableSchema();
@@ -443,6 +536,7 @@ function runAllDiagnosticTests() {
   testSchoolAndTeamCodeLookup();
   testSDIFMeetTypeResolution();
   testSDIFAgeAndMockDobEmission();
+  testSDIFExportOptionsFiltering();
   testFlexibleTimeParsing();
   Logger.log('=== ALL DIAGNOSTIC TESTS PASSED ===');
 }

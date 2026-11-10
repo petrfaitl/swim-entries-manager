@@ -57,6 +57,8 @@ The system shall export swimmer entry data to SDIF v3 (.sd3) format compatible w
 **Requirements:**
 
 - The system shall read swimmer entries from duplicated template sheets
+- The system shall filter available export sheets in the dialog to exclude non-entry system/core sheets (`Meet`, `Events`, `Schools`, `Teams`, `Team Officials`, `Sheet1`, hidden sheets) while detecting sheets with swimmer entry headers
+- The system shall auto-detect available school/team tables in the spreadsheet (`Schools` vs `Teams`) and provide a dynamic `School/Team Table Name` selector
 - The system shall validate all required fields (first name, last name, gender, date of birth, team code)
 - The system shall generate detailed exception reports for data quality issues
 - The system shall support two entry formats:

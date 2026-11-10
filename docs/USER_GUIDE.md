@@ -275,9 +275,9 @@ This is the **primary export method** that generates SDIF v3 format files compat
    - A dialog will appear
 
 3. **Configure Export**
-   - **Entries Sheet**: Select the sheet containing swimmer entries
+   - **Entries Sheet**: Select the sheet containing swimmer entries (system sheets like `Meet`, `Events`, `Schools`, `Teams`, `Team Officials`, and default sheets like `Sheet1` are automatically filtered out)
    - **Meet Table Name**: Confirm the meet details table (default: "Meet")
-   - **Schools Table Name**: Confirm the schools/teams table (default: "Schools")
+   - **School/Team Table Name**: Select the schools or teams table from the dropdown (automatically detects and pre-selects `Schools` or `Teams` based on your workbook)
    - **Output File Name**: Leave blank for auto-generated name, or specify custom name
 
 4. **Generate SDIF File**
