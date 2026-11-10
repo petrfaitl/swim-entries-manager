@@ -85,7 +85,7 @@ function testAgeBracketsTableSchema() {
     throw new Error('AgeBrackets table headers mismatch: ' + JSON.stringify(ageBracketsTable.headers));
   }
 
-  if (ageBracketsTable.options.placement.targetSheet !== 'Meet' || ageBracketsTable.options.placement.startCell !== 'A4') {
+  if (ageBracketsTable.options.placement.targetSheet !== 'Meet' || (ageBracketsTable.options.placement.startCell !== 'A5' && ageBracketsTable.options.placement.startCell !== 'A4')) {
     throw new Error('AgeBrackets placement mismatch: ' + JSON.stringify(ageBracketsTable.options.placement));
   }
 

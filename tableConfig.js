@@ -419,7 +419,7 @@ function getTableConfig(overrides) {
 				},
 			}),
 			options: {
-				freezeHeader: 1,
+				freezeHeader: 0,
 				headerBg: "#356853",
 				title: "Meet Details",
 				rows: 1,

@@ -277,7 +277,7 @@ function createConfiguredTable(tableName, options) {
 
   if (tableCfg.options) {
     if (tableCfg.options.headerBg) headerRange.setBackground(tableCfg.options.headerBg);
-    if (typeof tableCfg.options.freezeHeader === 'number') {
+    if (typeof tableCfg.options.freezeHeader === 'number' && tableCfg.options.freezeHeader > 0) {
       sheet.setFrozenRows(Math.max(sheet.getFrozenRows(), startRow));
     }
   }
@@ -424,7 +424,10 @@ function saveAndGenerateMeetSetup(formData) {
       const bracketRows = defaultBrackets.map(function(b) {
         return [b.schoolYear, b.minAge, b.maxAge];
       });
-      meetSheet.getRange(5, 1, bracketRows.length, 3).setValues(bracketRows);
+      const cfg = getTableConfig(configOptions);
+      const startCell = (cfg.tables.AgeBrackets.options && cfg.tables.AgeBrackets.options.placement && cfg.tables.AgeBrackets.options.placement.startCell) || 'A5';
+      const startRow = meetSheet.getRange(startCell).getRow();
+      meetSheet.getRange(startRow + 1, 1, bracketRows.length, 3).setValues(bracketRows);
     }
   }
 
