@@ -6,7 +6,7 @@
  * @param {Range} namesRange - Range containing the list of names (single column)
  * @customfunction (you can also call it manually or from menu)
  */
-function duplicateTemplateForNames(templateSheetName, sheetName,namesRange) {
+function duplicateTemplateForNames(templateSheetName, sheetName, namesRange) {
   const ss = SpreadsheetApp.getActive();
   const templateSheet = ss.getSheetByName(templateSheetName);
 
@@ -14,9 +14,25 @@ function duplicateTemplateForNames(templateSheetName, sheetName,namesRange) {
     throw new Error(`Template sheet "${templateSheetName}" not found!`);
   }
 
+  // Resolve source sheet (exact match or case-insensitive fallback)
+  let sourceSheet = ss.getSheetByName(sheetName);
+  if (!sourceSheet && sheetName) {
+    const trimmed = String(sheetName).trim().toLowerCase();
+    const sheets = ss.getSheets();
+    for (let i = 0; i < sheets.length; i++) {
+      if (sheets[i].getName().trim().toLowerCase() === trimmed) {
+        sourceSheet = sheets[i];
+        break;
+      }
+    }
+  }
+
+  if (!sourceSheet) {
+    throw new Error(`Sheet "${sheetName}" not found!`);
+  }
+
   // Get the list of names (single column assumed)
-  const rangeValues = "";
-  const names = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName).getRange(namesRange).getValues()
+  const names = sourceSheet.getRange(namesRange).getValues()
     .flat()
     .map(name => String(name).trim()) // convert to string & trim
     .filter(name => name !== "");     // remove blanks
@@ -59,6 +75,19 @@ function getTemplateSheetNames() {
   return ss.getSheets()
     .map(sheet => sheet.getName())
     .filter(name => name.toUpperCase().includes("TEMPLATE"));
+}
+
+/**
+ * Returns available School/Team table options and default selection
+ * for the Create Sheets from Template dialog.
+ * @return {{ tables: string[], defaultTable: string }}
+ */
+function getSchoolTeamTableOptions() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (typeof getSchoolTeamTableNames_ === 'function') {
+    return getSchoolTeamTableNames_(ss);
+  }
+  return { tables: ['Schools', 'Teams'], defaultTable: 'Schools' };
 }
 
 function getNonTemplateSheetNames() {

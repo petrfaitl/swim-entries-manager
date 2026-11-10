@@ -5,142 +5,134 @@ sessionId: session-261110-213600-11x4
 # Requirements
 
 ### Overview & Goals
-Align the **Export to CSV** modal dialog (`export-csv-ui.html`) with the layout, functionality, field structure, and download link styling of the **Export for Meet Manager** dialog (`SDIFCreator_Dialog.html`). This ensures a unified, intuitive user experience across all export workflows in the Swim Entries Manager Add-on.
+Improve the **Create Sheets from Template** modal dialog (`sheets-from-template-ui.html`) by filtering the dropdown under **Team Names Source** (`Sheet with names of Schools/Teams`). Align its behavior with the **School/Team Table Name** field in the SDIF and CSV export dialogs, excluding irrelevant sheets (`Meet`, `Events`, `Team Officials`, `Sheet1`, custom entry sheets) and retaining only `Schools` or `Teams` (auto-detected from the active workbook).
 
 ### Scope
 - **In Scope:**
-  - Redesign `export-csv-ui.html` using the standard dialog layout (`.header`, `.section`, `.section-label`, `.field`, `.download-link`) from `shared-dialog-styles.html`.
-  - Update the **Entries Sheet** dropdown to use filtered candidate entry sheets via `getSDIFExportOptions()`, excluding system/reserved sheets (`Meet`, `Events`, `Schools`, `Teams`, `Team Officials`, `Sheet1`, hidden sheets).
-  - Update the team code table selector to a dropdown labeled **School/Team Table Name** with auto-detection of `Schools` / `Teams` sheets.
-  - Add an optional **Output File Name** text input field with placeholder hint `Leave blank for auto-generation`.
-  - Style the export button with standard SVG icon and update the result download link to match the `.download-link` / `Download File` container of the Meet Manager dialog.
-  - Update `exportToCSV.js` to simplify dialog initialization and support custom output file names in `processSheetToCSV(sheetNameOrId, teamCodeTableName, fileName)`.
-  - Add unit verification test in `tests.js` and update user documentation in `docs/USER_GUIDE.md` and `docs/SWIM_ENTRIES_MANAGER_SPEC.md`.
+  - Update `sheets-from-template-ui.html` so the **Sheet with names of Schools/Teams** dropdown is populated exclusively with detected `Schools` / `Teams` sheets.
+  - Auto-select the detected table (`Schools` for school/college meets, `Teams` for age-group/club meets).
+  - Provide server-side helper `getSchoolTeamTableOptions()` in `duplicateTemplate.js` leveraging `getSchoolTeamTableNames_()` to filter and return available School/Team tables and default selection.
+  - Ensure robust resolution in `duplicateTemplateForNames()` when reading the selected sheet.
+  - Add unit verification tests in `tests.js` covering School/Team table filtering for template sheet duplication.
+  - Update user documentation in `docs/USER_GUIDE.md` and `docs/SWIM_ENTRIES_MANAGER_SPEC.md`.
 - **Out of Scope:**
-  - Modifying the underlying swimmer entry parsing rules in `EntryDataProcessor.js`.
-  - Altering the CSV output column structure (`Team Code`, `First Name`, `Last Name`, `Date of Birth`, `Gender`, `Event Entries`, `Entry Times`, `School Year`).
+  - Modifying the template duplication logic itself (creating and renaming sheets, preserving cell validations).
+  - Altering the relay table generation dialog (`relay-ui-full.html`).
 
 ### User Stories
-- **As a Meet Organizer**, I want the CSV export dialog to have the same clear layout, field labels, and sheet filtering as the Meet Manager export dialog so that my workflow is consistent across both export types.
-- **As a Meet Organizer**, I want to specify an optional custom output file name for my CSV export so that downloaded files are immediately identifiable.
-- **As a Meet Organizer**, I want the download link to appear as a prominent, styled "Download File" link below the status message once CSV generation completes.
+- **As a Meet Organizer**, I want the "Sheet with names of Schools/Teams" dropdown in the Create Sheets from Template dialog to only display valid organization sheets (`Schools` or `Teams`) so that I don't accidentally select non-organization sheets like `Meet`, `Events`, or `Sheet1`.
+- **As a Meet Organizer**, I want the dialog to automatically pre-select whichever of `Schools` or `Teams` exists in my workbook so that I don't have to search through a list of all workbook sheets.
 
 ### Functional Requirements
-- **Header:**
-  - Displays description: `Export swimmer entries to CSV format for manual processing or external tools.`
-- **Fields:**
-  - **Entries Sheet Dropdown (`sheetSelect`):** Populated dynamically with filtered candidate entry sheets (excluding reserved/hidden sheets, including template and derived sheets).
-  - **School/Team Table Name Dropdown (`schoolsTable`):** Labeled `School/Team Table Name`, dynamically populated with detected `Schools` / `Teams` tables and auto-selected.
-  - **Output File Name Input (`fileName`):** Labeled `Output File Name` with `<span class="hint">auto-generated if blank</span>`, placeholder `Leave blank for auto-generation`.
-- **Action & Feedback:**
-  - **Export Button:** Labeled `Export to CSV`, disabled during generation with loading status.
-  - **Status Area (`#status`):** Displays `"Exporting entries to CSV... please wait."` during execution, followed by `"Successfully exported!"` or actionable error messages.
-  - **Download Link (`#downloadLink.download-link`):** Renders styled `<a href="..." id="fileUrl" target="_blank">Download File</a>` container on success, hidden during processing or upon error.
+- **Template Section:**
+  - **Template Sheet Name Dropdown (`templateName`):** Lists available template sheets (containing `"TEMPLATE"` in the name).
+- **Team Names Source Section:**
+  - **Sheet with names of Schools/Teams Dropdown (`sheet`):**
+    - Populated exclusively with `Schools` and/or `Teams` sheets detected in the active spreadsheet (case-insensitively).
+    - If both exist, lists both with `Schools` first.
+    - If only `Teams` exists, lists `Teams` and pre-selects it.
+    - If only `Schools` exists, lists `Schools` and pre-selects it.
+    - If neither exists yet, provides fallback options `['Schools', 'Teams']` with `Schools` pre-selected.
+    - Filters out all non-organization sheets (`Meet`, `Events`, `Team Officials`, `Sheet1`, template sheets, and individual entry sheets).
+  - **Range with names Input (`range`):** Retains default value `"A2:A8"` with hint `e.g., A2:A8`.
+- **Execution & Feedback:**
+  - Retains existing button labeling, progress status, and sheet creation alerts.
 
 # Technical Design
 
 ### Current Implementation
-- `export-csv-ui.html` uses synchronous server-side template evaluation (`sheetOptionsHtml` and `tableOptionsHtml`) generated by `exportEntriesToCSV()` in `exportToCSV.js`.
-- It lists all visible sheets (including `Meet`, `Events`, `Schools`, etc.) without entry sheet filtering heuristics.
-- The team table is labeled `Team Code Table` with subtext and includes all TableApp/sheet names rather than focused `Schools` / `Teams` detection.
-- No `Output File Name` input is provided; the output file is always named `${sheetName}.csv`.
-- Upon success, it inserts an inline link into `#status` (`'Success! <a href="...">Download CSV</a>'`) rather than using the dedicated `.download-link` styled container.
+- `sheets-from-template-ui.html` currently calls `google.script.run.getNonTemplateSheetNames()`.
+- `getNonTemplateSheetNames()` in `duplicateTemplate.js` simply returns every sheet whose name does not contain `"TEMPLATE"`. This exposes every sheet in the workbook (`Meet`, `Events`, `Schools`, `Teams`, `Team Officials`, `Takapuna Primary`, `Sheet1`, etc.) in the dropdown.
+- `duplicateTemplateForNames(templateSheetName, sheetName, namesRange)` reads the cell values from the specified sheet and range to duplicate the template.
 
 ### Key Decisions
-1. **Asynchronous Options Loading via `getSDIFExportOptions()`**:
-   - *Decision:* Reuse the server-side export options provider `getSDIFExportOptions()` in client-side initialization of `export-csv-ui.html`.
-   - *Rationale:* Eliminates code duplication, leverages existing sheet exclusion heuristics and School/Team detection, and keeps dialog opening instantaneous.
-2. **Backward-Compatible `processSheetToCSV` Signature**:
-   - *Decision:* Update `processSheetToCSV(sheetNameOrId, teamCodeTableName, fileName)` to accept sheet name (or sheet ID as fallback) and optional `fileName`.
-   - *Rationale:* Aligns parameter naming with `processSheetToSd3` while preserving backward compatibility.
-3. **Download Link & Exception Handling Styling**:
-   - *Decision:* Adopt the exact `#downloadLink.download-link` structure and styling defined in `shared-dialog-styles.html`.
-   - *Rationale:* Ensures visual consistency across Meet Manager export and CSV export modals.
+1. **Reuse `getSchoolTeamTableNames_()` Logic**:
+   - *Decision:* Expose a dedicated server-side function `getSchoolTeamTableOptions()` in `duplicateTemplate.js` that delegates to `getSchoolTeamTableNames_(ss)`.
+   - *Rationale:* Ensures 100% consistency with SDIF export (`SDIFCreator.js`) and CSV export (`exportToCSV.js`), avoiding divergent filtering rules or duplicated code.
+2. **Auto-Selection & Client-Side Rendering**:
+   - *Decision:* Return `{ tables: string[], defaultTable: string }` to `sheets-from-template-ui.html`, populating `<select id="sheet">` and setting `select.value = options.defaultTable`.
+   - *Rationale:* Eliminates manual user selection errors when switching between school competitions (using `Schools`) and age-group meets (using `Teams`).
+3. **Preserve Backward Compatibility**:
+   - *Decision:* Retain `getNonTemplateSheetNames()` in `duplicateTemplate.js` for any legacy callers or relay UI references while switching `sheets-from-template-ui.html` to `getSchoolTeamTableOptions()`.
+   - *Rationale:* Prevents breaking any external or secondary dialogs that still rely on `getNonTemplateSheetNames()`.
 
 ### Proposed Changes
-- **`export-csv-ui.html`**:
-  - Replace legacy template-rendered dropdowns with dynamic `<select id="sheetSelect">` and `<select id="schoolsTable">`.
-  - Add `<input type="text" id="fileName" placeholder="Leave blank for auto-generation">`.
-  - Add `<div id="downloadLink" class="download-link"><a href="#" id="fileUrl" target="_blank">Download File</a></div>`.
-  - Implement client script calling `google.script.run.getSDIFExportOptions()` and `processSheetToCSV(sheetName, schoolsTable, fileName)`.
-- **`exportToCSV.js`**:
-  - Refactor `exportEntriesToCSV()` to directly open `export-csv-ui.html` without heavy synchronous preprocessing.
-  - Update `processSheetToCSV(sheetNameOrId, teamCodeTableName, fileName)` to resolve sheet by name/ID and format output file name (defaulting to `${sheetName}.csv` if blank).
+- **`duplicateTemplate.js`**:
+  - Add `getSchoolTeamTableOptions()` returning `{ tables: string[], defaultTable: string }`.
+  - Ensure sheet lookup in `duplicateTemplateForNames()` uses case-insensitive fallback if needed.
+- **`sheets-from-template-ui.html`**:
+  - Update `loadSourceSheets()` to call `google.script.run.getSchoolTeamTableOptions()`.
+  - Populate `<select id="sheet">` with filtered options and auto-select `defaultTable`.
 - **`tests.js`**:
-  - Add `testCSVExportFileNameAndResolution()` to verify sheet resolution and file naming logic.
+  - Add `testCreateSheetsSourceTableFiltering()` verifying filtered tables and default selection across various workbook configurations (`Schools` only, `Teams` only, both, neither, and exclusion of `Meet`/`Events`/`Sheet1`).
+  - Wire into `runAllDiagnosticTests()`.
 - **`docs/USER_GUIDE.md` & `docs/SWIM_ENTRIES_MANAGER_SPEC.md`**:
-  - Update CSV export screenshots, field descriptions, and functional specs.
+  - Update documentation for Step 2 ("Create Sheets from Templates") detailing the filtered dropdown and auto-selection of `Schools` / `Teams`.
 
 ### Architecture Diagram
 ```mermaid
 graph TD
-    User([User]) -->|Opens CSV Export| CSVDialog[export-csv-ui.html]
-    CSVDialog -->|google.script.run.getSDIFExportOptions| ServerOptions[SDIFCreator.js / ui.js]
-    ServerOptions -->|Filtered Entry Sheets & School/Team Tables| CSVDialog
-    CSVDialog -->|User selects sheet, table & optional fileName| SubmitExport[Export to CSV]
-    SubmitExport -->|google.script.run.processSheetToCSV| BackendCSV[exportToCSV.js]
-    BackendCSV -->|processEntriesSheet| Processor[EntryDataProcessor.js]
-    BackendCSV -->|Create CSV Blob| DriveStorage[Google Drive API]
-    DriveStorage -->|Return File URL| CSVDialog
-    CSVDialog -->|Display Download Link| DownloadContainer[#downloadLink - Download File]
+    User([User]) -->|Opens Create Sheets Dialog| TemplateDialog[sheets-from-template-ui.html]
+    TemplateDialog -->|getTemplateSheetNames| BackendTemplate[duplicateTemplate.js]
+    TemplateDialog -->|getSchoolTeamTableOptions| BackendTemplate
+    BackendTemplate -->|getSchoolTeamTableNames_| TableResolver[SDIFCreator.js / getSchoolTeamTableNames_]
+    TableResolver -->|Inspects Workbook Sheets| ActiveSheets[Spreadsheet Sheets]
+    TableResolver -->|Returns Schools / Teams| BackendTemplate
+    BackendTemplate -->|tables & defaultTable| TemplateDialog
+    TemplateDialog -->|User selects template, table & range| RunAction[Duplicate Template]
+    RunAction -->|duplicateTemplateForNames| BackendDuplicate[duplicateTemplate.js]
 ```
 
 ### File Structure
-- `export-csv-ui.html`: Redesigned HTML layout and client-side JavaScript.
-- `exportToCSV.js`: Streamlined dialog launcher and updated `processSheetToCSV` implementation.
-- `tests.js`: Added unit diagnostic tests for CSV export sheet and filename resolution.
-- `docs/USER_GUIDE.md`: Updated CSV export user guide documentation.
-- `docs/SWIM_ENTRIES_MANAGER_SPEC.md`: Updated CSV export specification requirements.
+- `duplicateTemplate.js`: Added `getSchoolTeamTableOptions()` and enhanced sheet resolution.
+- `sheets-from-template-ui.html`: Updated client-side `loadSourceSheets()` to use filtered options and auto-select default table.
+- `tests.js`: Added unit diagnostic tests for source table filtering in template duplication.
+- `docs/USER_GUIDE.md`: Updated user guide for Step 2 (Create Sheets from Templates).
+- `docs/SWIM_ENTRIES_MANAGER_SPEC.md`: Updated specification for sheet duplication interface.
 
 ### Risks & Mitigations
-- **Risk:** Existing calls or legacy scripts passing numerical `sheetId` instead of `sheetName` to `processSheetToCSV`.
-  - *Mitigation:* In `processSheetToCSV`, check `ss.getSheetByName(sheetNameOrId)` first; if not found, fall back to `ss.getSheetById(sheetNameOrId)`.
-- **Risk:** User provides a custom file name without `.csv` extension or with special characters.
-  - *Mitigation:* Sanitize file name and append `.csv` automatically if omitted.
+- **Risk:** Neither `Schools` nor `Teams` sheet has been created yet when opening the dialog.
+  - *Mitigation:* Fall back to providing `['Schools', 'Teams']` with `Schools` selected, matching the export dialogs.
+- **Risk:** Existing callers or custom scripts expect `getNonTemplateSheetNames()` to remain available.
+  - *Mitigation:* Keep `getNonTemplateSheetNames()` intact and untouched in `duplicateTemplate.js`.
 
 # Testing
 
 ### Validation Approach
-Verify CSV export dialog rendering, dynamic option population, custom and default file naming, and CSV file creation via unit tests and mock spreadsheet executions.
+Verify the filtered dropdown options, default table selection, and sheet duplication workflow across different meet setups (School vs Age Group) via unit tests in `tests.js` and dialog inspection.
 
 ### Key Scenarios
-1. **Dialog Initialization**:
-   - Open CSV export dialog on a workbook containing entry sheets, configuration sheets (`Meet`, `Events`, `Schools`), and `Sheet1`.
-   - **Expected:** `Entries Sheet` dropdown lists only valid entry sheets; `School/Team Table Name` lists and pre-selects `Schools` or `Teams`.
-2. **Export with Default File Name**:
-   - Leave `Output File Name` blank and click `Export to CSV`.
-   - **Expected:** Generates CSV named `${sheetName}.csv`, shows `Successfully exported!`, and displays the `Download File` button.
-3. **Export with Custom File Name**:
-   - Enter `Hamilton_Primary_Entries` in `Output File Name` and click `Export to CSV`.
-   - **Expected:** Generates CSV named `Hamilton_Primary_Entries.csv` with correct download URL.
-4. **Error Handling**:
-   - No entry sheets selected or invalid team table.
-   - **Expected:** Actionable error message displayed in `#status` with red text formatting; button re-enabled.
+1. **School Meet Workbook**:
+   - Workbook has `Meet`, `Events`, `Schools`, `Team Officials`, `Individual Entries Template`, `Takapuna Primary`, `Sheet1`.
+   - **Expected:** Dropdown contains ONLY `Schools` and is auto-selected.
+2. **Age Group / Club Meet Workbook**:
+   - Workbook has `Meet`, `Events`, `Teams`, `Team Officials`, `Individual Entries Template`, `North Shore`.
+   - **Expected:** Dropdown contains ONLY `Teams` and is auto-selected.
+3. **Workbook with Both `Schools` and `Teams`**:
+   - Workbook has both `Schools` and `Teams` sheets.
+   - **Expected:** Dropdown lists both `Schools` and `Teams` with `Schools` selected by default.
+4. **Fresh / Blank Workbook**:
+   - Workbook has only `Sheet1` and `Individual Entries Template`.
+   - **Expected:** Dropdown provides `Schools` and `Teams` fallback with `Schools` selected.
 
 ### Edge Cases
-- Custom file name provided already includes `.csv` (e.g. `MyEntries.csv`) — verify `.csv.csv` is not produced.
-- Workbook uses `Teams` table (Age Group meet) instead of `Schools` — verify `Teams` is pre-selected and team codes are resolved properly.
+- Case differences in sheet names (`schools`, `TEAMS`) are handled seamlessly.
+- Non-organization sheets like `Meet`, `Events`, `Team Officials`, `Sheet1` are never present in the source sheet dropdown.
 
 # Delivery Steps
 
-### ✓ Step 1: Update CSV export backend in exportToCSV.js
-The server provides a streamlined dialog launcher and an enhanced `processSheetToCSV` function supporting custom file names and flexible sheet resolution.
+### ✓ Step 1: Implement getSchoolTeamTableOptions and client-side dropdown filtering
+Expose the server-side table options helper and update the Create Sheets from Template dialog to display only `Schools` or `Teams`.
 
-- Simplify `exportEntriesToCSV()` to evaluate `export-csv-ui.html` directly without redundant synchronous table lookups.
-- Update `processSheetToCSV(sheetNameOrId, teamCodeTableName, fileName)` to support resolving sheets by name or ID.
-- Add output file name handling that sanitizes custom file names and defaults to `${sheetName}.csv` when blank.
+- Add `getSchoolTeamTableOptions()` in `duplicateTemplate.js` returning `{ tables: string[], defaultTable: string }` powered by `getSchoolTeamTableNames_()`.
+- Update `sheets-from-template-ui.html` `loadSourceSheets()` to call `google.script.run.getSchoolTeamTableOptions()`.
+- Populate `<select id="sheet">` with detected options and set the selected value to `defaultTable`.
+- Ensure graceful fallback if no source tables or options are returned.
 
-### ✓ Step 2: Redesign export-csv-ui.html layout and client-side integration
-The CSV export dialog UI matches the layout, field structure, and download link styling of the Meet Manager export dialog.
+### ✓ Step 2: Add diagnostic verification tests and update documentation
+Verify source table filtering with unit tests in `tests.js` and update user guides and specifications.
 
-- Update dialog header description to reflect CSV export functionality.
-- Reorganize input fields into an `Export` section with `Entries Sheet` dropdown, `School/Team Table Name` dropdown, and `Output File Name` text input.
-- Replace inline status download link with `#downloadLink.download-link` containing `<a id="fileUrl">Download File</a>`.
-- Implement client-side JavaScript to load options via `google.script.run.getSDIFExportOptions()` and submit export requests with loading and error states.
-
-### ✓ Step 3: Add diagnostic verification tests and update documentation
-CSV export functionality is validated with unit tests and documented in user guides and specifications.
-
-- Add `testCSVExportFileNameAndResolution()` in `tests.js` covering sheet resolution, custom file naming, and default naming.
-- Update `docs/USER_GUIDE.md` with the new CSV export dialog fields, screenshot descriptions, and download instructions.
-- Update `docs/SWIM_ENTRIES_MANAGER_SPEC.md` to reflect the updated dialog fields and filtering behavior for CSV export.
+- Add `testCreateSheetsSourceTableFiltering()` in `tests.js` covering School, Age Group, dual-table, and fallback scenarios.
+- Include `testCreateSheetsSourceTableFiltering()` in `runAllDiagnosticTests()`.
+- Update `docs/USER_GUIDE.md` under Step 2 to document the filtered `Schools` / `Teams` dropdown.
+- Update `docs/SWIM_ENTRIES_MANAGER_SPEC.md` to reflect the updated dialog fields and filtering behavior.

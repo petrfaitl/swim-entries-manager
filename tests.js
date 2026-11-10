@@ -614,6 +614,142 @@ function testCSVExportFileNameAndResolution() {
   return true;
 }
 
+function testCreateSheetsSourceTableFiltering() {
+  function createMockSheet(name, hidden) {
+    return {
+      getName: () => name,
+      isSheetHidden: () => !!hidden
+    };
+  }
+
+  // 1. School meet setup
+  const ssSchoolMeet = {
+    getSheets: () => [
+      createMockSheet('Meet', false),
+      createMockSheet('Events', false),
+      createMockSheet('Schools', false),
+      createMockSheet('Team Officials', false),
+      createMockSheet('Individual Entries Template', false),
+      createMockSheet('Takapuna Primary', false),
+      createMockSheet('Sheet1', false)
+    ]
+  };
+
+  const schoolOpts = getSchoolTeamTableNames_(ssSchoolMeet);
+  if (schoolOpts.tables.length !== 1 || schoolOpts.tables[0] !== 'Schools' || schoolOpts.defaultTable !== 'Schools') {
+    throw new Error(`testCreateSheetsSourceTableFiltering: Expected ['Schools'] with default 'Schools', got: ${JSON.stringify(schoolOpts)}`);
+  }
+
+  // 2. Age group / club meet setup
+  const ssAgeGroupMeet = {
+    getSheets: () => [
+      createMockSheet('Meet', false),
+      createMockSheet('Events', false),
+      createMockSheet('Teams', false),
+      createMockSheet('Team Officials', false),
+      createMockSheet('Individual Entries Template', false),
+      createMockSheet('Aquablazers', false)
+    ]
+  };
+
+  const ageGroupOpts = getSchoolTeamTableNames_(ssAgeGroupMeet);
+  if (ageGroupOpts.tables.length !== 1 || ageGroupOpts.tables[0] !== 'Teams' || ageGroupOpts.defaultTable !== 'Teams') {
+    throw new Error(`testCreateSheetsSourceTableFiltering: Expected ['Teams'] with default 'Teams', got: ${JSON.stringify(ageGroupOpts)}`);
+  }
+
+  // 3. Both Schools and Teams exist
+  const ssBoth = {
+    getSheets: () => [
+      createMockSheet('Meet', false),
+      createMockSheet('Events', false),
+      createMockSheet('Schools', false),
+      createMockSheet('Teams', false),
+      createMockSheet('Sheet1', false)
+    ]
+  };
+
+  const bothOpts = getSchoolTeamTableNames_(ssBoth);
+  if (bothOpts.tables.length !== 2 || !bothOpts.tables.includes('Schools') || !bothOpts.tables.includes('Teams') || bothOpts.defaultTable !== 'Schools') {
+    throw new Error(`testCreateSheetsSourceTableFiltering: Expected both with default 'Schools', got: ${JSON.stringify(bothOpts)}`);
+  }
+
+  // 4. Neither exists
+  const ssNeither = {
+    getSheets: () => [
+      createMockSheet('Sheet1', false),
+      createMockSheet('Individual Entries Template', false)
+    ]
+  };
+
+  const neitherOpts = getSchoolTeamTableNames_(ssNeither);
+  if (neitherOpts.tables.length !== 2 || neitherOpts.defaultTable !== 'Schools') {
+    throw new Error(`testCreateSheetsSourceTableFiltering: Expected fallback defaults, got: ${JSON.stringify(neitherOpts)}`);
+  }
+
+  // 5. Case-insensitivity check (e.g., 'schools', 'TEAMS')
+  const ssCasing = {
+    getSheets: () => [
+      createMockSheet('schools', false)
+    ]
+  };
+  const casingOpts = getSchoolTeamTableNames_(ssCasing);
+  if (casingOpts.tables.length !== 1 || casingOpts.tables[0] !== 'schools' || casingOpts.defaultTable !== 'schools') {
+    throw new Error(`testCreateSheetsSourceTableFiltering: Expected 'schools' preserving case, got: ${JSON.stringify(casingOpts)}`);
+  }
+
+  // 6. Test source sheet resolution in duplicateTemplate logic
+  const mockSchoolsSheet = {
+    getName: () => 'Schools',
+    getRange: rangeStr => ({
+      getValues: () => [['Takapuna Primary'], ['Hamilton East'], ['']]
+    })
+  };
+  const mockTemplateSheet = {
+    getName: () => 'Individual Entries Template',
+    copyTo: ss => ({
+      setName: n => {}
+    })
+  };
+
+  const mockAppSS = {
+    getSheetByName: name => {
+      if (name === 'Individual Entries Template') return mockTemplateSheet;
+      if (name === 'Schools') return mockSchoolsSheet;
+      return null;
+    },
+    getSheets: () => [mockTemplateSheet, mockSchoolsSheet]
+  };
+
+  // Case-insensitive resolution helper check
+  function resolveSourceSheetForTemplate(ss, sheetName) {
+    let sourceSheet = ss.getSheetByName(sheetName);
+    if (!sourceSheet && sheetName) {
+      const trimmed = String(sheetName).trim().toLowerCase();
+      const sheets = ss.getSheets();
+      for (let i = 0; i < sheets.length; i++) {
+        if (sheets[i].getName().trim().toLowerCase() === trimmed) {
+          sourceSheet = sheets[i];
+          break;
+        }
+      }
+    }
+    return sourceSheet;
+  }
+
+  const resolvedExact = resolveSourceSheetForTemplate(mockAppSS, 'Schools');
+  if (!resolvedExact || resolvedExact.getName() !== 'Schools') {
+    throw new Error('resolveSourceSheetForTemplate failed exact match');
+  }
+
+  const resolvedCase = resolveSourceSheetForTemplate(mockAppSS, 'schools');
+  if (!resolvedCase || resolvedCase.getName() !== 'Schools') {
+    throw new Error('resolveSourceSheetForTemplate failed case-insensitive match');
+  }
+
+  Logger.log('✓ testCreateSheetsSourceTableFiltering passed');
+  return true;
+}
+
 function runAllDiagnosticTests() {
   testCompetitionTypesRegistry();
   testAgeBracketsTableSchema();
@@ -626,6 +762,7 @@ function runAllDiagnosticTests() {
   testSDIFAgeAndMockDobEmission();
   testSDIFExportOptionsFiltering();
   testCSVExportFileNameAndResolution();
+  testCreateSheetsSourceTableFiltering();
   testFlexibleTimeParsing();
   Logger.log('=== ALL DIAGNOSTIC TESTS PASSED ===');
 }

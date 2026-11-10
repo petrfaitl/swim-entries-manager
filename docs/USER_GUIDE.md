@@ -195,16 +195,15 @@ Once your core tables are populated, you can create individual entry sheets for 
 
 2. **Configure Duplication**
    - A dialog will appear
-   - **Template Sheet**: Select "INDIVIDUAL_EVENTS_TEMPLATE"
-   - **Source Sheet**: Select "SchoolsForTemplate" (where your schools are listed)
-   - **Range**: Specify the range containing school names (e.g., "B2:B21")
-     - This should reference the School column
+   - **Template Sheet Name**: Select your entry template (e.g., `INDIVIDUAL_EVENTS_TEMPLATE`)
+   - **Sheet with names of Schools/Teams**: Select the source table from the dropdown (automatically detects and pre-selects `Schools` or `Teams` based on your workbook, filtering out irrelevant system sheets like `Meet`, `Events`, `Team Officials`, and `Sheet1`)
+   - **Range with names**: Specify the range containing school or team names (default: `A2:A8`, e.g., `A2:A20` or `B2:B20`)
 
 3. **Create Sheets**
-   - Click **"Duplicate Templates"**
+   - Click **"Create Sheets"**
    - The system will:
-     - Create a new sheet for each school
-     - Name each sheet after the school
+     - Create a new sheet for each school or team
+     - Name each sheet after the school or team
      - Skip any sheets that already exist
    - You'll see a confirmation message with the count of sheets created
 
