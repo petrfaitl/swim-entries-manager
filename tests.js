@@ -852,6 +852,152 @@ function testActivateSheetByName() {
   return true;
 }
 
+function testDuplicateTemplateForNames() {
+  const createdSheets = [];
+  const sheetsList = [];
+
+  function createMockSheet(name) {
+    return {
+      getName: () => name,
+      copyTo: ss => {
+        let copyName = name + ' (Copy)';
+        const newSheet = {
+          getName: () => copyName,
+          setName: n => { copyName = n; }
+        };
+        createdSheets.push(newSheet);
+        sheetsList.push(newSheet);
+        return newSheet;
+      }
+    };
+  }
+
+  const templateSheet = createMockSheet('Individual Entries Template');
+  sheetsList.push(templateSheet);
+
+  const existingSchoolSheet = createMockSheet('Existing Primary');
+  sheetsList.push(existingSchoolSheet);
+
+  const schoolsSheet = {
+    getName: () => 'Schools',
+    getRange: rangeStr => {
+      if (rangeStr === 'B2:B5') {
+        return {
+          getValues: () => [['Takapuna Primary'], ['Existing Primary'], ['Hamilton East'], ['']]
+        };
+      }
+      if (rangeStr === 'A1:A1') {
+        return {
+          getValues: () => [['']]
+        };
+      }
+      return { getValues: () => [] };
+    }
+  };
+  sheetsList.push(schoolsSheet);
+
+  const mockSS = {
+    getSheetByName: name => {
+      if (name === 'Individual Entries Template') return templateSheet;
+      if (name === 'Schools') return schoolsSheet;
+      if (name === 'Existing Primary') return existingSchoolSheet;
+      return null;
+    },
+    getSheets: () => sheetsList,
+    setActiveSheet: s => {},
+    moveActiveSheet: pos => {}
+  };
+
+  function duplicateTemplateHelper(ss, templateSheetName, sheetName, namesRange) {
+    const templateSheet = ss.getSheetByName(templateSheetName);
+    if (!templateSheet) {
+      throw new Error(`Template sheet "${templateSheetName}" not found!`);
+    }
+
+    let sourceSheet = ss.getSheetByName(sheetName);
+    if (!sourceSheet && sheetName) {
+      const trimmed = String(sheetName).trim().toLowerCase();
+      const sheets = ss.getSheets();
+      for (let i = 0; i < sheets.length; i++) {
+        if (sheets[i].getName().trim().toLowerCase() === trimmed) {
+          sourceSheet = sheets[i];
+          break;
+        }
+      }
+    }
+
+    if (!sourceSheet) {
+      throw new Error(`Sheet "${sheetName}" not found!`);
+    }
+
+    const names = sourceSheet.getRange(namesRange).getValues()
+      .flat()
+      .map(name => String(name).trim())
+      .filter(name => name !== "");
+
+    if (names.length === 0) {
+      throw new Error(`No valid names found in range "${namesRange}" on sheet "${sheetName}".`);
+    }
+
+    const existingSheets = new Set(ss.getSheets().map(s => s.getName()));
+
+    let createdCount = 0;
+    let skippedCount = 0;
+
+    names.forEach(name => {
+      if (existingSheets.has(name)) {
+        skippedCount++;
+        return;
+      }
+
+      const newSheet = templateSheet.copyTo(ss);
+      newSheet.setName(name);
+      ss.setActiveSheet(newSheet);
+      ss.moveActiveSheet(ss.getSheets().length);
+      createdCount++;
+    });
+
+    return {
+      success: true,
+      createdCount: createdCount,
+      skippedCount: skippedCount,
+      message: `Created ${createdCount} sheet(s) from template "${templateSheetName}"` +
+        (skippedCount > 0 ? ` (${skippedCount} skipped as already existing)` : '') + '.'
+    };
+  }
+
+  // 1. Success case with 2 created and 1 skipped
+  const result = duplicateTemplateHelper(mockSS, 'Individual Entries Template', 'schools', 'B2:B5');
+  if (!result.success || result.createdCount !== 2 || result.skippedCount !== 1) {
+    throw new Error('testDuplicateTemplateForNames: Expected 2 created, 1 skipped. Got: ' + JSON.stringify(result));
+  }
+
+  // 2. Empty names error
+  let caughtEmpty = false;
+  try {
+    duplicateTemplateHelper(mockSS, 'Individual Entries Template', 'Schools', 'A1:A1');
+  } catch (e) {
+    caughtEmpty = true;
+  }
+  if (!caughtEmpty) {
+    throw new Error('testDuplicateTemplateForNames: Failed to catch empty names range');
+  }
+
+  // 3. Missing template error
+  let caughtMissingTemplate = false;
+  try {
+    duplicateTemplateHelper(mockSS, 'Missing Template', 'Schools', 'B2:B5');
+  } catch (e) {
+    caughtMissingTemplate = true;
+  }
+  if (!caughtMissingTemplate) {
+    throw new Error('testDuplicateTemplateForNames: Failed to catch missing template');
+  }
+
+  Logger.log('✓ testDuplicateTemplateForNames passed');
+  return true;
+}
+
 function runAllDiagnosticTests() {
   testCompetitionTypesRegistry();
   testAgeBracketsTableSchema();
@@ -866,6 +1012,7 @@ function runAllDiagnosticTests() {
   testCSVExportFileNameAndResolution();
   testCreateSheetsSourceTableFiltering();
   testActivateSheetByName();
+  testDuplicateTemplateForNames();
   testFlexibleTimeParsing();
   Logger.log('=== ALL DIAGNOSTIC TESTS PASSED ===');
 }

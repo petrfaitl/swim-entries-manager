@@ -191,14 +191,17 @@
 					"Creating sheets…";
 
 				google.script.run
-					.withSuccessHandler(function () {
-						document.getElementById("status").textContent =
-							"Sheets created successfully!";
+					.withSuccessHandler(function (result) {
+						let msg = "Sheets created successfully!";
+						if (result && result.message) {
+							msg = result.message;
+						} else if (result && typeof result.createdCount === "number") {
+							msg = "Success! Created " + result.createdCount + " sheet(s) from template \"" + template + "\"." +
+								(result.skippedCount > 0 ? " (" + result.skippedCount + " skipped as already existing)" : "");
+						}
+						document.getElementById("status").textContent = msg;
 						document.getElementById("status").className = "success";
 						btn.disabled = false;
-						setTimeout(function () {
-							google.script.host.close();
-						}, 1500);
 					})
 					.withFailureHandler(function (err) {
 						document.getElementById("status").textContent =

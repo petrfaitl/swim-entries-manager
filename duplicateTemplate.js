@@ -38,19 +38,20 @@ function duplicateTemplateForNames(templateSheetName, sheetName, namesRange) {
     .filter(name => name !== "");     // remove blanks
 
   if (names.length === 0) {
-    SpreadsheetApp.getUi().alert("No valid names found in the range.");
-    return;
+    throw new Error(`No valid names found in range "${namesRange}" on sheet "${sheetName}".`);
   }
 
   // Optional: Prevent duplicates (skip if sheet with this name already exists)
   const existingSheets = new Set(ss.getSheets().map(s => s.getName()));
 
   let createdCount = 0;
+  let skippedCount = 0;
 
   names.forEach(name => {
     // Skip if sheet already exists
     if (existingSheets.has(name)) {
       Logger.log(`Sheet "${name}" already exists → skipping`);
+      skippedCount++;
       return;
     }
 
@@ -65,9 +66,13 @@ function duplicateTemplateForNames(templateSheetName, sheetName, namesRange) {
     createdCount++;
   });
 
-  SpreadsheetApp.getUi().alert(
-    `Success!\nCreated ${createdCount} new sheets from template "${templateSheetName}".`
-  );
+  return {
+    success: true,
+    createdCount: createdCount,
+    skippedCount: skippedCount,
+    message: `Created ${createdCount} sheet(s) from template "${templateSheetName}"` +
+      (skippedCount > 0 ? ` (${skippedCount} skipped as already existing)` : '') + '.'
+  };
 }
 
 function getTemplateSheetNames() {
