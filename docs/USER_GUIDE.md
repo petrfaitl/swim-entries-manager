@@ -197,6 +197,7 @@ Once your core tables are populated, you can create individual entry sheets for 
    - A dialog will appear
    - **Template Sheet Name**: Select your entry template (e.g., `INDIVIDUAL_EVENTS_TEMPLATE`)
    - **Sheet with names of Schools/Teams**: Select the source table from the dropdown (automatically detects and pre-selects `Schools` or `Teams` based on your workbook, filtering out irrelevant system sheets like `Meet`, `Events`, `Team Officials`, and `Sheet1`)
+   - **View Sheet Action**: Click the **"View sheet"** button next to the dropdown to immediately activate and preview that sheet in the background behind the dialog. This allows you to verify the row and column coordinates of your team names without closing or canceling the dialog.
    - **Range with names**: Specify the range containing school or team names (default: `A2:A8`, e.g., `A2:A20` or `B2:B20`)
 
 3. **Create Sheets**

@@ -24,22 +24,28 @@
 		<div class="section">
 			<div class="section-label">Team Names Source</div>
 			<div class="field">
-				<label
-					>Sheet with names of Schools/Teams
-					<span class="hint">e.g., Schools or Teams</span></label
-				>
+				<div class="field-header">
+					<label>Sheet with names of Schools/Teams</label>
+					<button type="button" id="viewSheetBtn" class="btn-subtle" title="Switch to this sheet in the background">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+							<circle cx="12" cy="12" r="3"></circle>
+						</svg>
+						<span>View sheet</span>
+					</button>
+				</div>
 				<select id="sheet"></select>
 			</div>
 			<div class="field">
 				<label
 					>Range with names
-					<span class="hint">e.g., A2:A8</span></label
+					<span class="hint">e.g., B2:B8</span></label
 				>
 				<input
 					type="text"
 					id="range"
-					value="A2:A8"
-					placeholder="A2:A8"
+					value="B2:B8"
+					placeholder="B2:B8"
 				/>
 			</div>
 		</div>
@@ -102,7 +108,9 @@
 
 						if (options && Array.isArray(options.tables)) {
 							tables = options.tables;
-							defaultTable = options.defaultTable || (tables.length > 0 ? tables[0] : "");
+							defaultTable =
+								options.defaultTable ||
+								(tables.length > 0 ? tables[0] : "");
 						} else if (Array.isArray(options)) {
 							tables = options;
 							defaultTable = tables.length > 0 ? tables[0] : "";
@@ -128,6 +136,41 @@
 						alert("Error loading source sheets: " + err.message);
 					})
 					.getSchoolTeamTableOptions();
+			}
+
+			function activateSelectedSheet(showFeedback) {
+				const select = document.getElementById("sheet");
+				const sheetName = select ? select.value.trim() : "";
+				if (!sheetName) return;
+
+				const viewBtn = document.getElementById("viewSheetBtn");
+				const originalHtml = viewBtn ? viewBtn.innerHTML : "";
+
+				if (showFeedback && viewBtn) {
+					viewBtn.style.opacity = "0.7";
+				}
+
+				google.script.run
+					.withSuccessHandler(function () {
+						if (viewBtn) {
+							viewBtn.style.opacity = "1";
+							if (showFeedback) {
+								viewBtn.innerHTML = `
+									<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+										<polyline points="20 6 9 17 4 12"></polyline>
+									</svg>
+									<span>Active</span>`;
+								setTimeout(function () {
+									viewBtn.innerHTML = originalHtml;
+								}, 1200);
+							}
+						}
+					})
+					.withFailureHandler(function (err) {
+						if (viewBtn) viewBtn.style.opacity = "1";
+						console.error("Error activating sheet: " + err.message);
+					})
+					.activateSheetByName(sheetName);
 			}
 
 			function run() {
@@ -175,6 +218,14 @@
 					return;
 				}
 				btn.addEventListener("click", run);
+
+				const viewSheetBtn = document.getElementById("viewSheetBtn");
+				if (viewSheetBtn) {
+					viewSheetBtn.addEventListener("click", function () {
+						activateSelectedSheet(true);
+					});
+				}
+
 				document.getElementById("status").textContent = "Ready.";
 			}
 

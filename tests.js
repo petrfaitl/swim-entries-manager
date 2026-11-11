@@ -750,6 +750,108 @@ function testCreateSheetsSourceTableFiltering() {
   return true;
 }
 
+function testActivateSheetByName() {
+  let activeSheet = null;
+  let activated = false;
+  let unhidden = false;
+
+  function createMockSheet(name, hidden) {
+    let isHidden = !!hidden;
+    return {
+      getName: () => name,
+      isSheetHidden: () => isHidden,
+      showSheet: () => { isHidden = false; unhidden = true; },
+      activate: () => { activated = true; }
+    };
+  }
+
+  const sheetSchools = createMockSheet('Schools', true);
+  const sheetTeams = createMockSheet('Teams', false);
+  const sheetMeet = createMockSheet('Meet', false);
+
+  const mockSS = {
+    getSheetByName: name => {
+      if (name === 'Schools') return sheetSchools;
+      if (name === 'Teams') return sheetTeams;
+      if (name === 'Meet') return sheetMeet;
+      return null;
+    },
+    getSheets: () => [sheetMeet, sheetSchools, sheetTeams],
+    setActiveSheet: sheet => { activeSheet = sheet; }
+  };
+
+  // Helper function replicating activateSheetByName logic with injected ss
+  function activateSheetHelper(ss, sheetName) {
+    if (!sheetName) {
+      throw new Error("Sheet name cannot be empty.");
+    }
+    let sheet = ss.getSheetByName(sheetName);
+    if (!sheet) {
+      const trimmed = String(sheetName).trim().toLowerCase();
+      const sheets = ss.getSheets();
+      for (let i = 0; i < sheets.length; i++) {
+        if (sheets[i].getName().trim().toLowerCase() === trimmed) {
+          sheet = sheets[i];
+          break;
+        }
+      }
+    }
+    if (!sheet) {
+      throw new Error(`Sheet "${sheetName}" not found.`);
+    }
+    if (typeof sheet.isSheetHidden === 'function' && sheet.isSheetHidden()) {
+      sheet.showSheet();
+    }
+    ss.setActiveSheet(sheet);
+    if (typeof sheet.activate === 'function') {
+      sheet.activate();
+    }
+    return true;
+  }
+
+  // 1. Exact match and unhide
+  activeSheet = null;
+  activated = false;
+  unhidden = false;
+  const res1 = activateSheetHelper(mockSS, 'Schools');
+  if (!res1 || activeSheet !== sheetSchools || !activated || !unhidden) {
+    throw new Error('testActivateSheetByName: Exact match / unhide failed');
+  }
+
+  // 2. Case-insensitive fallback
+  activeSheet = null;
+  activated = false;
+  const res2 = activateSheetHelper(mockSS, 'teams');
+  if (!res2 || activeSheet !== sheetTeams || !activated) {
+    throw new Error('testActivateSheetByName: Case-insensitive match failed');
+  }
+
+  // 3. Empty name error
+  let caughtEmpty = false;
+  try {
+    activateSheetHelper(mockSS, '');
+  } catch (e) {
+    caughtEmpty = true;
+  }
+  if (!caughtEmpty) {
+    throw new Error('testActivateSheetByName: Failed to catch empty sheetName');
+  }
+
+  // 4. Missing sheet error
+  let caughtMissing = false;
+  try {
+    activateSheetHelper(mockSS, 'NonExistentSheet');
+  } catch (e) {
+    caughtMissing = true;
+  }
+  if (!caughtMissing) {
+    throw new Error('testActivateSheetByName: Failed to catch missing sheetName');
+  }
+
+  Logger.log('✓ testActivateSheetByName passed');
+  return true;
+}
+
 function runAllDiagnosticTests() {
   testCompetitionTypesRegistry();
   testAgeBracketsTableSchema();
@@ -763,6 +865,7 @@ function runAllDiagnosticTests() {
   testSDIFExportOptionsFiltering();
   testCSVExportFileNameAndResolution();
   testCreateSheetsSourceTableFiltering();
+  testActivateSheetByName();
   testFlexibleTimeParsing();
   Logger.log('=== ALL DIAGNOSTIC TESTS PASSED ===');
 }

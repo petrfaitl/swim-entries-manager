@@ -102,6 +102,40 @@ function getRelayDefaults() {
   return cfg.relayDefaults;
 }
 
+/**
+ * Activates the specified sheet in the spreadsheet while a dialog is open.
+ * Resolves sheet name with exact match and case-insensitive fallback.
+ * @param {string} sheetName - Name of the sheet to activate.
+ * @return {boolean} True if successfully activated.
+ */
+function activateSheetByName(sheetName) {
+  if (!sheetName) {
+    throw new Error("Sheet name cannot be empty.");
+  }
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(sheetName);
+  if (!sheet) {
+    const trimmed = String(sheetName).trim().toLowerCase();
+    const sheets = ss.getSheets();
+    for (let i = 0; i < sheets.length; i++) {
+      if (sheets[i].getName().trim().toLowerCase() === trimmed) {
+        sheet = sheets[i];
+        break;
+      }
+    }
+  }
+  if (!sheet) {
+    throw new Error(`Sheet "${sheetName}" not found.`);
+  }
+  if (typeof sheet.isSheetHidden === 'function' && sheet.isSheetHidden()) {
+    sheet.showSheet();
+  }
+  ss.setActiveSheet(sheet);
+  if (typeof sheet.activate === 'function') {
+    sheet.activate();
+  }
+  return true;
+}
 
 /**
  * Shows a dialog to let user select template name and range

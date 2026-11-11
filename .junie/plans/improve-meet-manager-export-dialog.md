@@ -5,134 +5,122 @@ sessionId: session-261110-213600-11x4
 # Requirements
 
 ### Overview & Goals
-Improve the **Create Sheets from Template** modal dialog (`sheets-from-template-ui.html`) by filtering the dropdown under **Team Names Source** (`Sheet with names of Schools/Teams`). Align its behavior with the **School/Team Table Name** field in the SDIF and CSV export dialogs, excluding irrelevant sheets (`Meet`, `Events`, `Team Officials`, `Sheet1`, custom entry sheets) and retaining only `Schools` or `Teams` (auto-detected from the active workbook).
+Provide a modern, minimal mechanism in the **Create Sheets from Template** modal dialog (`sheets-from-template-ui.html`) to activate and view the selected School/Team sheet in the background spreadsheet behind the dialog. This allows users to easily see and verify the cell range containing school or team names without having to cancel or reopen the dialog.
 
 ### Scope
 - **In Scope:**
-  - Update `sheets-from-template-ui.html` so the **Sheet with names of Schools/Teams** dropdown is populated exclusively with detected `Schools` / `Teams` sheets.
-  - Auto-select the detected table (`Schools` for school/college meets, `Teams` for age-group/club meets).
-  - Provide server-side helper `getSchoolTeamTableOptions()` in `duplicateTemplate.js` leveraging `getSchoolTeamTableNames_()` to filter and return available School/Team tables and default selection.
-  - Ensure robust resolution in `duplicateTemplateForNames()` when reading the selected sheet.
-  - Add unit verification tests in `tests.js` covering School/Team table filtering for template sheet duplication.
-  - Update user documentation in `docs/USER_GUIDE.md` and `docs/SWIM_ENTRIES_MANAGER_SPEC.md`.
+  - Add a server-side helper function `activateSheetByName(sheetName)` to activate the specified sheet in Google Sheets while the dialog remains open.
+  - Add a sleek, minimal, modern UI control ("View sheet" / "Switch to sheet" action button/link with icon) in `sheets-from-template-ui.html` adjacent to the School/Team table dropdown.
+  - Implement client-side event handling to trigger background sheet switching on demand and when the source table selection changes.
+  - Provide reusable minimal button/action styles in `shared-dialog-styles.html` consistent with the project's design system.
+  - Add diagnostic unit tests in `tests.js` verifying sheet resolution and activation error handling.
+  - Update user documentation in `docs/USER_GUIDE.md` and functional specifications in `docs/SWIM_ENTRIES_MANAGER_SPEC.md`.
 - **Out of Scope:**
-  - Modifying the template duplication logic itself (creating and renaming sheets, preserving cell validations).
-  - Altering the relay table generation dialog (`relay-ui-full.html`).
+  - Modifying the template duplication logic itself (`duplicateTemplateForNames`).
+  - Converting modal dialogs into modeless dialogs or sidebars.
 
 ### User Stories
-- **As a Meet Organizer**, I want the "Sheet with names of Schools/Teams" dropdown in the Create Sheets from Template dialog to only display valid organization sheets (`Schools` or `Teams`) so that I don't accidentally select non-organization sheets like `Meet`, `Events`, or `Sheet1`.
-- **As a Meet Organizer**, I want the dialog to automatically pre-select whichever of `Schools` or `Teams` exists in my workbook so that I don't have to search through a list of all workbook sheets.
+- **As a Meet Organizer**, I want to be able to switch the visible sheet behind the Create Sheets from Template dialog to my `Schools` or `Teams` sheet so that I can look at the actual row coordinates and verify my name range (e.g., `A2:A20` or `B2:B8`) without closing the dialog.
+- **As a User**, I want the UI control to be subtle and modern so that it does not visually clutter the dialog or compete with primary actions.
 
 ### Functional Requirements
-- **Template Section:**
-  - **Template Sheet Name Dropdown (`templateName`):** Lists available template sheets (containing `"TEMPLATE"` in the name).
-- **Team Names Source Section:**
-  - **Sheet with names of Schools/Teams Dropdown (`sheet`):**
-    - Populated exclusively with `Schools` and/or `Teams` sheets detected in the active spreadsheet (case-insensitively).
-    - If both exist, lists both with `Schools` first.
-    - If only `Teams` exists, lists `Teams` and pre-selects it.
-    - If only `Schools` exists, lists `Schools` and pre-selects it.
-    - If neither exists yet, provides fallback options `['Schools', 'Teams']` with `Schools` pre-selected.
-    - Filters out all non-organization sheets (`Meet`, `Events`, `Team Officials`, `Sheet1`, template sheets, and individual entry sheets).
-  - **Range with names Input (`range`):** Retains default value `"A2:A8"` with hint `e.g., A2:A8`.
-- **Execution & Feedback:**
-  - Retains existing button labeling, progress status, and sheet creation alerts.
+- **Sheet Activation Mechanism:**
+  - Provide a server-side `activateSheetByName(sheetName)` function that resolves the sheet (exact match or case-insensitive fallback) and calls `SpreadsheetApp.setActiveSheet(sheet)` / `sheet.activate()`.
+  - Provide clean error feedback if the requested sheet does not exist.
+- **Dialog UI Integration:**
+  - In `sheets-from-template-ui.html`, add a minimal action link/button (e.g. `View sheet` with a subtle eye or external-link icon) in the field header above or next to the `Sheet with names of Schools/Teams` dropdown.
+  - Ensure the button is lightweight, compact, and non-intrusive (no large primary buttons).
+  - Clicking "View sheet" activates the currently selected sheet from the dropdown in the spreadsheet.
+  - Optionally activate the sheet automatically when the user changes the dropdown selection.
+- **Visual Design & Feedback:**
+  - Styled with subtle hover states, compact padding, rounded corners, and theme colors (`#0397B3`), fitting the existing design tokens in `shared-dialog-styles.html`.
+  - Provide immediate subtle feedback (e.g. temporary tooltip or icon state change) without blocking user input.
 
 # Technical Design
 
 ### Current Implementation
-- `sheets-from-template-ui.html` currently calls `google.script.run.getNonTemplateSheetNames()`.
-- `getNonTemplateSheetNames()` in `duplicateTemplate.js` simply returns every sheet whose name does not contain `"TEMPLATE"`. This exposes every sheet in the workbook (`Meet`, `Events`, `Schools`, `Teams`, `Team Officials`, `Takapuna Primary`, `Sheet1`, etc.) in the dropdown.
-- `duplicateTemplateForNames(templateSheetName, sheetName, namesRange)` reads the cell values from the specified sheet and range to duplicate the template.
+- `sheets-from-template-ui.html` opens as a modal dialog (`SpreadsheetApp.getUi().showModalDialog`).
+- Google Sheets modal dialogs display a translucent overlay blocking direct mouse clicks on sheet tabs.
+- However, client-side scripts inside modal dialogs can invoke `google.script.run` to call server-side Google Apps Script methods, which can programmatically activate sheets using `sheet.activate()` and `ss.setActiveSheet(sheet)`.
 
 ### Key Decisions
-1. **Reuse `getSchoolTeamTableNames_()` Logic**:
-   - *Decision:* Expose a dedicated server-side function `getSchoolTeamTableOptions()` in `duplicateTemplate.js` that delegates to `getSchoolTeamTableNames_(ss)`.
-   - *Rationale:* Ensures 100% consistency with SDIF export (`SDIFCreator.js`) and CSV export (`exportToCSV.js`), avoiding divergent filtering rules or duplicated code.
-2. **Auto-Selection & Client-Side Rendering**:
-   - *Decision:* Return `{ tables: string[], defaultTable: string }` to `sheets-from-template-ui.html`, populating `<select id="sheet">` and setting `select.value = options.defaultTable`.
-   - *Rationale:* Eliminates manual user selection errors when switching between school competitions (using `Schools`) and age-group meets (using `Teams`).
-3. **Preserve Backward Compatibility**:
-   - *Decision:* Retain `getNonTemplateSheetNames()` in `duplicateTemplate.js` for any legacy callers or relay UI references while switching `sheets-from-template-ui.html` to `getSchoolTeamTableOptions()`.
-   - *Rationale:* Prevents breaking any external or secondary dialogs that still rely on `getNonTemplateSheetNames()`.
+1. **Server-Side Sheet Activation (`activateSheetByName`)**:
+   - *Decision:* Implement `activateSheetByName(sheetName)` in `duplicateTemplate.js` (or `ui.js`) supporting exact and case-insensitive matching.
+   - *Rationale:* Ensures reliable activation even if minor casing discrepancies exist.
+2. **Modern Minimal UI Pattern**:
+   - *Decision:* Place a subtle text+icon action button (`.btn-subtle` / `.field-action-link`) inside a flex `.field-header` row directly above the dropdown (aligning label on the left and action button on the right).
+   - *Rationale:* Keeps the layout clean, uncluttered, and intuitive while adhering to modern Google Workspace UI standards without large button distraction.
+3. **Triggering Behavior**:
+   - *Decision:* Support both manual trigger via the "View sheet" button and automatic activation when the user changes the dropdown selection.
+   - *Rationale:* Provides zero-friction switching when selecting tables while giving users an explicit button to re-activate the sheet at any point.
 
 ### Proposed Changes
 - **`duplicateTemplate.js`**:
-  - Add `getSchoolTeamTableOptions()` returning `{ tables: string[], defaultTable: string }`.
-  - Ensure sheet lookup in `duplicateTemplateForNames()` uses case-insensitive fallback if needed.
+  - Implement `activateSheetByName(sheetName)`: resolves the sheet and calls `ss.setActiveSheet(sheet)` and `sheet.activate()`.
+- **`shared-dialog-styles.html`**:
+  - Add styles for `.field-header` (flex layout with space-between) and `.btn-subtle` (compact font, minimal padding, subtle border/background, smooth hover state, icon support).
 - **`sheets-from-template-ui.html`**:
-  - Update `loadSourceSheets()` to call `google.script.run.getSchoolTeamTableOptions()`.
-  - Populate `<select id="sheet">` with filtered options and auto-select `defaultTable`.
+  - Update markup to wrap the `Sheet with names of Schools/Teams` label and action button in a `.field-header`.
+  - Add client-side click handler for `#viewSheetBtn` and `change` handler on `#sheet` to invoke `google.script.run.activateSheetByName(...)`.
 - **`tests.js`**:
-  - Add `testCreateSheetsSourceTableFiltering()` verifying filtered tables and default selection across various workbook configurations (`Schools` only, `Teams` only, both, neither, and exclusion of `Meet`/`Events`/`Sheet1`).
+  - Add `testActivateSheetByName()` verifying exact match, case-insensitive match, and error reporting for missing sheets.
   - Wire into `runAllDiagnosticTests()`.
 - **`docs/USER_GUIDE.md` & `docs/SWIM_ENTRIES_MANAGER_SPEC.md`**:
-  - Update documentation for Step 2 ("Create Sheets from Templates") detailing the filtered dropdown and auto-selection of `Schools` / `Teams`.
+  - Document the "View sheet" feature under Step 2 of the user guide and update the functional specification.
 
 ### Architecture Diagram
 ```mermaid
-graph TD
-    User([User]) -->|Opens Create Sheets Dialog| TemplateDialog[sheets-from-template-ui.html]
-    TemplateDialog -->|getTemplateSheetNames| BackendTemplate[duplicateTemplate.js]
-    TemplateDialog -->|getSchoolTeamTableOptions| BackendTemplate
-    BackendTemplate -->|getSchoolTeamTableNames_| TableResolver[SDIFCreator.js / getSchoolTeamTableNames_]
-    TableResolver -->|Inspects Workbook Sheets| ActiveSheets[Spreadsheet Sheets]
-    TableResolver -->|Returns Schools / Teams| BackendTemplate
-    BackendTemplate -->|tables & defaultTable| TemplateDialog
-    TemplateDialog -->|User selects template, table & range| RunAction[Duplicate Template]
-    RunAction -->|duplicateTemplateForNames| BackendDuplicate[duplicateTemplate.js]
+graph LR
+    User([User in Dialog]) -->|Clicks 'View sheet' or changes select| ClientUI[sheets-from-template-ui.html]
+    ClientUI -->|google.script.run.activateSheetByName| ServerBackend[duplicateTemplate.js]
+    ServerBackend -->|Resolve sheet by name| SS[SpreadsheetApp]
+    SS -->|sheet.activate & setActiveSheet| GoogleSheetUI[Google Sheets Active View]
+    ServerBackend -->|Returns success status| ClientUI
 ```
 
 ### File Structure
-- `duplicateTemplate.js`: Added `getSchoolTeamTableOptions()` and enhanced sheet resolution.
-- `sheets-from-template-ui.html`: Updated client-side `loadSourceSheets()` to use filtered options and auto-select default table.
-- `tests.js`: Added unit diagnostic tests for source table filtering in template duplication.
-- `docs/USER_GUIDE.md`: Updated user guide for Step 2 (Create Sheets from Templates).
-- `docs/SWIM_ENTRIES_MANAGER_SPEC.md`: Updated specification for sheet duplication interface.
+- `duplicateTemplate.js`: Added `activateSheetByName(sheetName)` server-side handler.
+- `shared-dialog-styles.html`: Added `.field-header` and `.btn-subtle` minimal action button styles.
+- `sheets-from-template-ui.html`: Added "View sheet" action button and client-side activation triggers.
+- `tests.js`: Added unit diagnostic tests for sheet activation.
+- `docs/USER_GUIDE.md`: Updated Step 2 documentation to describe the background sheet preview.
+- `docs/SWIM_ENTRIES_MANAGER_SPEC.md`: Updated functional specification for sheet switching.
 
 ### Risks & Mitigations
-- **Risk:** Neither `Schools` nor `Teams` sheet has been created yet when opening the dialog.
-  - *Mitigation:* Fall back to providing `['Schools', 'Teams']` with `Schools` selected, matching the export dialogs.
-- **Risk:** Existing callers or custom scripts expect `getNonTemplateSheetNames()` to remain available.
-  - *Mitigation:* Keep `getNonTemplateSheetNames()` intact and untouched in `duplicateTemplate.js`.
+- **Risk:** Sheet cannot be activated because it is hidden.
+  - *Mitigation:* Unhide or verify visibility before activation, returning a friendly message if hidden.
+- **Risk:** Dialog UI feels cluttered or buttons feel too prominent.
+  - *Mitigation:* Use flat, borderless/subtle-border styling with small typography (11px–12px) and a minimal 14px icon.
 
 # Testing
 
 ### Validation Approach
-Verify the filtered dropdown options, default table selection, and sheet duplication workflow across different meet setups (School vs Age Group) via unit tests in `tests.js` and dialog inspection.
+Verify server-side sheet resolution and activation routines in `tests.js`, and validate client-side UI rendering and event dispatch.
 
 ### Key Scenarios
-1. **School Meet Workbook**:
-   - Workbook has `Meet`, `Events`, `Schools`, `Team Officials`, `Individual Entries Template`, `Takapuna Primary`, `Sheet1`.
-   - **Expected:** Dropdown contains ONLY `Schools` and is auto-selected.
-2. **Age Group / Club Meet Workbook**:
-   - Workbook has `Meet`, `Events`, `Teams`, `Team Officials`, `Individual Entries Template`, `North Shore`.
-   - **Expected:** Dropdown contains ONLY `Teams` and is auto-selected.
-3. **Workbook with Both `Schools` and `Teams`**:
-   - Workbook has both `Schools` and `Teams` sheets.
-   - **Expected:** Dropdown lists both `Schools` and `Teams` with `Schools` selected by default.
-4. **Fresh / Blank Workbook**:
-   - Workbook has only `Sheet1` and `Individual Entries Template`.
-   - **Expected:** Dropdown provides `Schools` and `Teams` fallback with `Schools` selected.
-
-### Edge Cases
-- Case differences in sheet names (`schools`, `TEAMS`) are handled seamlessly.
-- Non-organization sheets like `Meet`, `Events`, `Team Officials`, `Sheet1` are never present in the source sheet dropdown.
+1. **Manual Click on "View Sheet"**:
+   - User selects `Schools` in dropdown and clicks "View sheet".
+   - **Expected:** Active sheet in Google Sheets switches to `Schools` behind the dialog.
+2. **Dropdown Selection Change**:
+   - User switches dropdown from `Schools` to `Teams`.
+   - **Expected:** Active sheet in Google Sheets switches to `Teams` behind the dialog.
+3. **Sheet Resolution**:
+   - Sheet name with mixed casing (e.g. `schools` vs `Schools`) is correctly resolved and activated.
+4. **Non-Existent Sheet**:
+   - If an invalid sheet name is passed, an error is caught and reported gracefully without breaking dialog state.
 
 # Delivery Steps
 
-### ✓ Step 1: Implement getSchoolTeamTableOptions and client-side dropdown filtering
-Expose the server-side table options helper and update the Create Sheets from Template dialog to display only `Schools` or `Teams`.
+### ✓ Step 1: Implement server-side activateSheetByName and shared minimal UI styles
+Expose the server-side sheet activation helper and add reusable minimal action button styles.
 
-- Add `getSchoolTeamTableOptions()` in `duplicateTemplate.js` returning `{ tables: string[], defaultTable: string }` powered by `getSchoolTeamTableNames_()`.
-- Update `sheets-from-template-ui.html` `loadSourceSheets()` to call `google.script.run.getSchoolTeamTableOptions()`.
-- Populate `<select id="sheet">` with detected options and set the selected value to `defaultTable`.
-- Ensure graceful fallback if no source tables or options are returned.
+- Add `activateSheetByName(sheetName)` in `duplicateTemplate.js` with case-insensitive sheet resolution and activation.
+- Add `.field-header` and `.btn-subtle` / `.btn-icon-subtle` CSS classes in `shared-dialog-styles.html`.
+- Add unit diagnostic test `testActivateSheetByName()` in `tests.js` and connect it to `runAllDiagnosticTests()`.
 
-### ✓ Step 2: Add diagnostic verification tests and update documentation
-Verify source table filtering with unit tests in `tests.js` and update user guides and specifications.
+### ✓ Step 2: Update Create Sheets dialog UI and client-side activation logic
+Integrate the minimal "View sheet" action into the Create Sheets from Template dialog.
 
-- Add `testCreateSheetsSourceTableFiltering()` in `tests.js` covering School, Age Group, dual-table, and fallback scenarios.
-- Include `testCreateSheetsSourceTableFiltering()` in `runAllDiagnosticTests()`.
-- Update `docs/USER_GUIDE.md` under Step 2 to document the filtered `Schools` / `Teams` dropdown.
-- Update `docs/SWIM_ENTRIES_MANAGER_SPEC.md` to reflect the updated dialog fields and filtering behavior.
+- In `sheets-from-template-ui.html`, update the `Team Names Source` section with a `.field-header` containing the label and a minimal `View sheet` button with an SVG icon.
+- Add client-side event handlers for button click and dropdown change calling `google.script.run.activateSheetByName()`.
+- Update user guide in `docs/USER_GUIDE.md` and specification in `docs/SWIM_ENTRIES_MANAGER_SPEC.md`.

@@ -36,6 +36,7 @@ The system shall duplicate individual entry template sheets for each registered 
 - The system shall duplicate a single template sheet once per team/school from the Teams/Schools table
 - The system shall automatically filter the source sheet dropdown in the duplication dialog to include only detected `Schools` or `Teams` tables, excluding non-organization sheets (`Meet`, `Events`, `Team Officials`, `Sheet1`, template sheets, and individual entry sheets)
 - The system shall automatically pre-select whichever of `Schools` or `Teams` exists in the active workbook
+- The system shall allow users to preview/activate the selected source sheet in the background spreadsheet behind the modal dialog via a "View sheet" action control
 - The system shall automatically name each duplicated sheet based on the school/team name
 - The system shall detect and prevent collisions with existing sheet names
 - The system shall preserve dropdown validations referencing named ranges from core tables
