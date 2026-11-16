@@ -146,6 +146,10 @@
       <input type="checkbox" id="includeOfficials" />
       <span>Include Team Officials sheet</span>
     </label>
+    <label class="checkbox-field">
+      <input type="checkbox" id="includeSampleHowToFill" />
+      <span>Include "How to fill entries" sample sheet</span>
+    </label>
   </div>
 
   <button id="submitBtn" type="submit">
@@ -185,6 +189,7 @@
     const city = document.getElementById('city').value.trim();
     const ageUpDateRaw = document.getElementById('ageUpDate').value;
     const includeOfficials = document.getElementById('includeOfficials').checked;
+    const includeSampleHowToFill = document.getElementById('includeSampleHowToFill').checked;
     const statusDiv = document.getElementById('status');
     const submitBtn = document.getElementById('submitBtn');
 
@@ -210,7 +215,8 @@
       venue: venue,
       city: city,
       ageUpDate: formatDateToDisplay(ageUpDateRaw),
-      includeOfficials: includeOfficials
+      includeOfficials: includeOfficials,
+      includeSampleHowToFill: includeSampleHowToFill
     };
 
     submitBtn.disabled = true;

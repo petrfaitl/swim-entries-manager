@@ -14,7 +14,8 @@ The system shall provide a set of predefined table templates that can be created
 
 - **Meet**: Meet details (name, competition type, start date, end date, age-up date, course, venue, contact info)
 - **Age Brackets**: School year to min/max age mapping proxy table for School and College meets
-- **Team Officials**: Team/school/cluster official details
+- **Team Officials**: Team/school/cluster official details (optional during Meet Setup)
+- **How to fill entries (`SampleIndividualEntries`)**: Optional sample individual entries sheet with pre-populated example data and dropdowns (selectable in Meet Setup)
 - **Events for Individual Entries Template**: Event definitions (distance, discipline, auto-generated event names)
 - **Schools or Teams for Individual Entries Template**: School/Team registrations with team codes
 - **Events for Relay Entries Template**: Relay event definitions
@@ -61,7 +62,7 @@ The system shall export swimmer entry data to SDIF v3 (.sd3) format compatible w
 **Requirements:**
 
 - The system shall read swimmer entries from duplicated template sheets
-- The system shall filter available export sheets in the dialog to exclude non-entry system/core sheets (`Meet`, `Events`, `Schools`, `Teams`, `Team Officials`, `Sheet1`, hidden sheets) while detecting sheets with swimmer entry headers
+- The system shall filter available export sheets in the dialog to exclude non-entry system/core sheets (`Meet`, `Events`, `Schools`, `Teams`, `Team Officials`, `How to fill entries`, `Sheet1`, hidden sheets) while detecting sheets with swimmer entry headers
 - The system shall auto-detect available school/team tables in the spreadsheet (`Schools`, `Teams`, `Team Officials` / `TeamOfficials`) and provide a dynamic `School/Team Table Name` selector
 - The system shall validate all required fields (first name, last name, gender, date of birth, team code)
 - The system shall generate detailed exception reports for data quality issues
@@ -85,7 +86,7 @@ The system shall export swimmer entry data to traditional CSV format for custom 
 **Requirements:**
 
 - The system shall read swimmer entries from candidate entry sheets
-- The system shall filter available export sheets in the dialog to exclude non-entry system/core sheets (`Meet`, `Events`, `Schools`, `Teams`, `Team Officials`, `Sheet1`, hidden sheets) while detecting sheets with swimmer entry headers
+- The system shall filter available export sheets in the dialog to exclude non-entry system/core sheets (`Meet`, `Events`, `Schools`, `Teams`, `Team Officials`, `How to fill entries`, `Sheet1`, hidden sheets) while detecting sheets with swimmer entry headers
 - The system shall auto-detect available school/team tables in the spreadsheet (`Schools`, `Teams`, `Team Officials` / `TeamOfficials`) and provide a dynamic `School/Team Table Name` selector
 - The system shall support custom output file naming (defaulting to `<SheetName>.csv` if left blank)
 - The system shall export processed swimmer data with consistent column structure

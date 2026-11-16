@@ -71,7 +71,8 @@ Use this sequence for a standard meet setup:
 
 The core tables form the foundation of your swim meet management system. These include:
 
-- **Team Officials**: Contact information for team managers and officials
+- **Team Officials**: Contact information for team managers and officials (optional in Meet Setup)
+- **How to fill entries**: Optional sample individual entries sheet with pre-populated example swimmer data and dropdowns (selectable via **Include "How to fill entries" sample sheet** in Meet Setup's **Setup Options**, and automatically excluded from SDIF/CSV export sheet lists)
 - **Detailed Events**: Complete event list for Meet Manager alignment and participating schools info.
 - **Events for Template**: Simplified event names for dropdown validation
 - **Schools**: School information with clusters for dropdown validation

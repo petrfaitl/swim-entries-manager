@@ -1226,7 +1226,7 @@ function getSDIFExportOptions() {
 
 /**
  * Filters workbook sheets to find candidate entry sheets.
- * Excludes reserved/system sheets (Meet, Events, Schools, Teams, Team Officials, Sheet1) and hidden sheets.
+ * Excludes reserved/system sheets (Meet, Events, Schools, Teams, Team Officials, How to fill entries, Sheet1) and hidden sheets.
  * Includes 'Individual Entries Template' and sheets with swimmer entry headers.
  * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} [ss] - Active spreadsheet
  * @return {string[]} Array of entry sheet names
@@ -1241,6 +1241,7 @@ function getEntriesSheetNames_(ss) {
     'schools',
     'teams',
     'team officials',
+    'how to fill entries',
     'sheet1',
     'sheet 1'
   ]);

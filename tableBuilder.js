@@ -467,6 +467,11 @@ function saveAndGenerateMeetSetup(formData) {
     createConfiguredTable('TeamOfficials', configOptions);
   }
 
+  // 6. Optionally create Sample Individual Entries ("How to fill entries") sheet
+  if (formData.includeSampleHowToFill) {
+    createConfiguredTable('SampleIndividualEntries', configOptions);
+  }
+
   SpreadsheetApp.flush();
 
   return {

@@ -453,6 +453,7 @@ function testSDIFExportOptionsFiltering() {
     createMockSheet('Events', false, ['Event #', 'Distance', 'Discipline']),
     createMockSheet('Schools', false, ['Team Name', 'School', 'Team Code']),
     createMockSheet('Team Officials', false, ['Role', 'Name']),
+    createMockSheet('How to fill entries', false, ['#', 'First Name', 'Last Name', 'Date of Birth', 'Gender', 'School Year']),
     createMockSheet('Sheet1', false, ['Some', 'Random', 'Data']),
     createMockSheet('Sheet 1', false, ['Notes']),
     createMockSheet('Individual Entries Template', false, ['#', 'First Name', 'Last Name', 'Date of Birth', 'Gender']),
@@ -1135,6 +1136,105 @@ function testDuplicateTemplateForNames() {
   return true;
 }
 
+function testMeetSetupSampleHowToFillOption() {
+  const createdTables = [];
+  const originalCreateConfiguredTable = typeof createConfiguredTable !== 'undefined' ? createConfiguredTable : null;
+  const originalSpreadsheetApp = typeof SpreadsheetApp !== 'undefined' ? SpreadsheetApp : null;
+
+  const mockRange = {
+    setValues: () => {},
+    getRow: () => 5
+  };
+  const mockSheet = {
+    getRange: () => mockRange,
+    hideColumns: () => {}
+  };
+  const mockSpreadsheet = {
+    getSheetByName: () => mockSheet
+  };
+
+  try {
+    globalThis.createConfiguredTable = function(tableName, options) {
+      createdTables.push({ tableName: tableName, options: options });
+    };
+    globalThis.SpreadsheetApp = Object.assign({}, originalSpreadsheetApp || {}, {
+      getActive: () => mockSpreadsheet,
+      flush: () => {}
+    });
+
+    // 1. includeSampleHowToFill: true
+    createdTables.length = 0;
+    const resTrue = saveAndGenerateMeetSetup({
+      meetName: 'Test Meet',
+      competitionType: 'school',
+      startDate: '01/03/2026',
+      endDate: '01/03/2026',
+      ageUpDate: '01/03/2026',
+      course: 'S',
+      region: 'BP',
+      venue: 'Baywave',
+      city: 'Mount Maunganui',
+      includeOfficials: false,
+      includeSampleHowToFill: true
+    });
+    if (!resTrue || !resTrue.success) {
+      throw new Error('testMeetSetupSampleHowToFillOption: Expected success for includeSampleHowToFill=true');
+    }
+    const sampleCallsTrue = createdTables.filter(c => c.tableName === 'SampleIndividualEntries');
+    if (sampleCallsTrue.length !== 1) {
+      throw new Error('testMeetSetupSampleHowToFillOption: Expected SampleIndividualEntries to be created once, got ' + sampleCallsTrue.length);
+    }
+
+    // 2. includeSampleHowToFill: false
+    createdTables.length = 0;
+    saveAndGenerateMeetSetup({
+      meetName: 'Test Meet',
+      competitionType: 'school',
+      startDate: '01/03/2026',
+      endDate: '01/03/2026',
+      ageUpDate: '01/03/2026',
+      course: 'S',
+      region: 'BP',
+      venue: 'Baywave',
+      city: 'Mount Maunganui',
+      includeOfficials: false,
+      includeSampleHowToFill: false
+    });
+    const sampleCallsFalse = createdTables.filter(c => c.tableName === 'SampleIndividualEntries');
+    if (sampleCallsFalse.length !== 0) {
+      throw new Error('testMeetSetupSampleHowToFillOption: Expected SampleIndividualEntries NOT to be created when false');
+    }
+
+    // 3. includeSampleHowToFill omitted
+    createdTables.length = 0;
+    saveAndGenerateMeetSetup({
+      meetName: 'Test Meet',
+      competitionType: 'age_group',
+      startDate: '01/03/2026',
+      endDate: '01/03/2026',
+      ageUpDate: '01/03/2026',
+      course: 'S',
+      region: 'BP',
+      venue: 'Baywave',
+      city: 'Mount Maunganui'
+    });
+    const sampleCallsOmitted = createdTables.filter(c => c.tableName === 'SampleIndividualEntries');
+    if (sampleCallsOmitted.length !== 0) {
+      throw new Error('testMeetSetupSampleHowToFillOption: Expected SampleIndividualEntries NOT to be created when omitted');
+    }
+  } finally {
+    if (originalCreateConfiguredTable) {
+      globalThis.createConfiguredTable = originalCreateConfiguredTable;
+    }
+    if (originalSpreadsheetApp) {
+      globalThis.SpreadsheetApp = originalSpreadsheetApp;
+    }
+  }
+
+  Logger.log('✓ testMeetSetupSampleHowToFillOption passed');
+  return true;
+}
+
 function runAllDiagnosticTests() {
   testCompetitionTypesRegistry();
   testAgeBracketsTableSchema();
@@ -1150,6 +1250,7 @@ function runAllDiagnosticTests() {
   testCreateSheetsSourceTableFiltering();
   testActivateSheetByName();
   testDuplicateTemplateForNames();
+  testMeetSetupSampleHowToFillOption();
   testFlexibleTimeParsing();
   Logger.log('=== ALL DIAGNOSTIC TESTS PASSED ===');
 }
