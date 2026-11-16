@@ -52,7 +52,7 @@ const SDIFCreator = (function() {
   function generate(config) {
     config = config || {};
     const meetTableName = config.meetTableName || "Meet";
-    const schoolsTableName = config.schoolsTableName || "Schools";
+    let schoolsTableName = config.schoolsTableName || "Schools";
     const entriesSheetName = config.entriesSheetName;
 
     if (!entriesSheetName) {
@@ -63,6 +63,13 @@ const SDIFCreator = (function() {
     const entriesSheet = ss.getSheetByName(entriesSheetName);
     if (!entriesSheet) {
       throw new Error("SDIFCreator: Sheet '" + entriesSheetName + "' not found");
+    }
+
+    // Auto-detect Schools vs Teams table if default was passed
+    if (!config.schoolsTableName) {
+      if (!ss.getSheetByName("Schools") && ss.getSheetByName("Teams")) {
+        schoolsTableName = "Teams";
+      }
     }
 
     // Use shared processing logic from EntryDataProcessor.js
@@ -343,7 +350,7 @@ const SDIFCreator = (function() {
         }
 
         // D1
-        lines.push(emitD1_(swimmer, regionCode));
+        lines.push(emitD1_(swimmer, regionCode, meetInfo));
         counts.d1Records++;
         counts.swimmers++;
       });
@@ -390,6 +397,15 @@ const SDIFCreator = (function() {
     const startDate = dateToMMDDYYYY_(meetInfo.startDate);
     const endDate = dateToMMDDYYYY_(meetInfo.endDate);
 
+    let meetType = meetInfo.meetType;
+    if (!meetType && meetInfo.competitionType) {
+      const preset = typeof getCompetitionTypePreset === 'function' ? getCompetitionTypePreset(meetInfo.competitionType) : null;
+      if (preset && preset.sdifCode) {
+        meetType = preset.sdifCode;
+      }
+    }
+    meetType = meetType || SDIF_MEET_TYPE;
+
     return buildRecord_([
       pad_("B1", 2),
       pad_(SDIF_ORG_CODE, 1),
@@ -401,7 +417,7 @@ const SDIFCreator = (function() {
       pad_(meetInfo.region || "", 2),
       pad_(meetInfo.postcode || "", 10),
       pad_(meetInfo.country || SDIF_COUNTRY, 3),
-      pad_(meetInfo.meetType || SDIF_MEET_TYPE, 1),
+      pad_(meetType, 1),
       pad_(startDate, 8),
       pad_(endDate, 8),
       pad_("0", 4, true), // Altitude
@@ -442,6 +458,16 @@ const SDIFCreator = (function() {
     const meetStartDate = dateToMMDDYYYY_(meetInfo.startDate);
     const eventAgeCode = meetInfo.eventAgeCode || "13UN";
 
+    let ageOrYear = swimmer.schoolYear || "";
+    if (!ageOrYear) {
+      if (swimmer.age != null && swimmer.age !== '') {
+        ageOrYear = String(swimmer.age);
+      } else if (swimmer.dob && typeof calculateExactAge === 'function') {
+        const computedAge = calculateExactAge(swimmer.dob, meetInfo.ageUpDate || meetInfo.startDate);
+        ageOrYear = computedAge > 0 ? String(computedAge) : "";
+      }
+    }
+
     return buildRecord_([
       pad_("D0", 2),
       pad_(SDIF_ORG_CODE, 1),
@@ -451,7 +477,7 @@ const SDIFCreator = (function() {
       pad_("", 1), // Attach
       pad_("", 3),
       pad_(dob, 8),
-      pad_(swimmer.schoolYear || "", 2),
+      pad_(ageOrYear, 2),
       pad_(swimmer.gender, 1),
       pad_(SDIF_EVENT_SEX, 1),
       pad_(event.distance, 4),
@@ -465,12 +491,22 @@ const SDIFCreator = (function() {
     ]);
   }
 
-  function emitD1_(swimmer, regionCode) {
+  function emitD1_(swimmer, regionCode, meetInfo) {
     const mmNumber = buildMMNumber_(swimmer.teamCode, swimmer.lastName, swimmer.firstName, swimmer.dob);
     const fullName = (swimmer.lastName + ", " + swimmer.firstName).substring(0, 28);
     const dob = dateToMMDDYYYY_(swimmer.dob);
     let fullTeamCode = (regionCode || "").substring(0, 2) + swimmer.teamCode.substring(0, 4);
     fullTeamCode = pad_(fullTeamCode, 6);
+
+    let ageOrYear = swimmer.schoolYear || "";
+    if (!ageOrYear) {
+      if (swimmer.age != null && swimmer.age !== '') {
+        ageOrYear = String(swimmer.age);
+      } else if (swimmer.dob && meetInfo && typeof calculateExactAge === 'function') {
+        const computedAge = calculateExactAge(swimmer.dob, meetInfo.ageUpDate || meetInfo.startDate);
+        ageOrYear = computedAge > 0 ? String(computedAge) : "";
+      }
+    }
 
     return buildRecord_([
       pad_("D1", 2),
@@ -484,7 +520,7 @@ const SDIFCreator = (function() {
       pad_("", 1), // Attach
       pad_(SDIF_CITIZEN, 3),
       pad_(dob, 8),
-      pad_(swimmer.schoolYear || "", 2),
+      pad_(ageOrYear, 2),
       pad_(swimmer.gender, 1),
       pad_("", 86)
     ]);
@@ -773,6 +809,7 @@ const SDIFCreator = (function() {
       s.events     = row.eventsStr;     // Already formatted as comma-separated string
       s.times      = row.timesStr;      // Already formatted as comma-separated string
       s.schoolYear = row.schoolYear;    // Already normalized
+      s.age        = row.age;           // Integer age
     }
 
     // Critical validations
@@ -872,7 +909,7 @@ const SDIFCreator = (function() {
   }
 
   function readMeetInfo_(tableName) {
-    const rows = readTableByName_(tableName);
+    let rows = readTableByName_(tableName);
     if (rows.length === 0) {
       Logger.log('[SDIFCreator] ERROR: Meet table "%s" not found or empty', tableName);
       return {};
@@ -885,8 +922,10 @@ const SDIFCreator = (function() {
     Object.keys(row).forEach(function(key) {
       const k = key.toLowerCase().replace(/\s/g, '');
       if (k === 'meetname') info.meetName = row[key];
+      else if (k === 'competitiontype' || k === 'meettype') info.competitionType = row[key];
       else if (k === 'startdate') info.startDate = row[key];
       else if (k === 'enddate') info.endDate = row[key];
+      else if (k === 'ageupdate') info.ageUpDate = row[key];
       else if (k === 'venue') info.venue = row[key];
       else if (k === 'venueaddress1') info.address1 = row[key];
       else if (k === 'city') info.city = row[key];
@@ -896,15 +935,24 @@ const SDIFCreator = (function() {
       else if (k === 'course') info.course = row[key];
       else if (k === 'contactname') info.contactName = row[key];
       else if (k === 'contactphone') info.contactPhone = row[key];
-      else if (k === 'meettype') info.meetType = row[key];
       else if (k === 'eventagecode') info.eventAgeCode = row[key];
     });
+
+    if (info.competitionType) {
+      const preset = typeof getCompetitionTypePreset === 'function' ? getCompetitionTypePreset(info.competitionType) : null;
+      if (preset && preset.sdifCode) {
+        info.meetType = preset.sdifCode;
+      }
+    }
 
     return info;
   }
 
   function buildTeamLookup_(tableName) {
-    const rows = readTableByName_(tableName);
+    let rows = readTableByName_(tableName);
+    if ((!rows || rows.length === 0) && tableName === 'Schools') {
+      rows = readTableByName_('Teams');
+    }
     return rows.map(function(row) {
       const info = { code: "", teamName: "", regionCode: "" };
       Object.keys(row).forEach(function(key) {
@@ -912,7 +960,7 @@ const SDIFCreator = (function() {
         if (k === 'code') info.code = String(row[key]);
         else if (k === 'teamname') info.teamName = String(row[key]);
         else if (k === 'regioncode') info.regionCode = String(row[key]);
-        else if (k === 'school' && !info.teamName) info.teamName = String(row[key]);
+        else if ((k === 'school' || k === 'team') && !info.teamName) info.teamName = String(row[key]);
       });
       return info;
     });
@@ -1152,10 +1200,216 @@ const SDIFCreator = (function() {
     buildSdifString: buildSdifString,
     showDialog: showDialog,
     getMeetInfo: getMeetInfo,
-    getTeamLookup: getTeamLookup
+    getTeamLookup: getTeamLookup,
+    getExportOptions: getSDIFExportOptions,
+    getEntriesSheetNames: getEntriesSheetNames_,
+    getSchoolTeamTableNames: getSchoolTeamTableNames_
   };
 
 })();
+
+/**
+ * Retrieves valid entry sheets and available School/Team tables for the SDIF export dialog.
+ * @return {{ entrySheets: string[], schoolTeamTables: string[], defaultSchoolTeamTable: string }}
+ */
+function getSDIFExportOptions() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const entrySheets = getEntriesSheetNames_(ss);
+  const tableOptions = getSchoolTeamTableNames_(ss);
+
+  return {
+    entrySheets: entrySheets,
+    schoolTeamTables: tableOptions.tables,
+    defaultSchoolTeamTable: tableOptions.defaultTable
+  };
+}
+
+/**
+ * Filters workbook sheets to find candidate entry sheets.
+ * Excludes reserved/system sheets (Meet, Events, Schools, Teams, Team Officials, How to fill entries, Sheet1) and hidden sheets.
+ * Includes 'Individual Entries Template' and sheets with swimmer entry headers.
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} [ss] - Active spreadsheet
+ * @return {string[]} Array of entry sheet names
+ */
+function getEntriesSheetNames_(ss) {
+  ss = ss || SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) return [];
+
+  const reservedNames = new Set([
+    'meet',
+    'events',
+    'schools',
+    'teams',
+    'team officials',
+    'how to fill entries',
+    'sheet1',
+    'sheet 1'
+  ]);
+
+  const sheets = ss.getSheets();
+  const validSheets = [];
+
+  for (let i = 0; i < sheets.length; i++) {
+    const sheet = sheets[i];
+    if (sheet.isSheetHidden()) continue;
+
+    const name = sheet.getName().trim();
+    const lowerName = name.toLowerCase();
+
+    if (reservedNames.has(lowerName)) continue;
+
+    // Check if it is the template or contains template indicators
+    if (lowerName === 'individual entries template' || lowerName.includes('individual entries')) {
+      validSheets.push(name);
+      continue;
+    }
+
+    // Heuristic: check if sheet has swimmer column headers
+    if (sheetHasSwimmerHeaders_(sheet)) {
+      validSheets.push(name);
+    }
+  }
+
+  return validSheets;
+}
+
+/**
+ * Checks if a sheet has standard swimmer entry column headers.
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet
+ * @return {boolean}
+ */
+function sheetHasSwimmerHeaders_(sheet) {
+  try {
+    const lastRow = sheet.getLastRow();
+    const lastCol = sheet.getLastColumn();
+    if (lastRow < 1 || lastCol < 1) return false;
+
+    // Read header row (row 1, up to first 25 columns)
+    const headerRow = sheet.getRange(1, 1, 1, Math.min(lastCol, 25)).getValues()[0];
+    if (!headerRow || headerRow.length === 0) return false;
+
+    let hasFirstName = false;
+    let hasLastName = false;
+    let hasGender = false;
+    let hasDob = false;
+    let hasSchoolYear = false;
+
+    for (let c = 0; c < headerRow.length; c++) {
+      const h = String(headerRow[c] || '').trim().toLowerCase();
+      if (!h) continue;
+
+      if ((h.includes('first') && h.includes('name')) || h === 'first name' || h === 'firstname') {
+        hasFirstName = true;
+      } else if ((h.includes('last') && h.includes('name')) || h === 'last name' || h === 'lastname' || h === 'surname') {
+        hasLastName = true;
+      } else if (h === 'gender' || h === 'sex' || h === 'm/f') {
+        hasGender = true;
+      } else if ((h.includes('date') && h.includes('birth')) || h === 'dob' || h === 'birth date' || h === 'birthdate') {
+        hasDob = true;
+      } else if ((h.includes('school') && h.includes('year')) || (h.includes('year') && h.includes('level')) || h === 'year' || h === 'year level' || h === 'grade') {
+        hasSchoolYear = true;
+      }
+    }
+
+    // Must have at least (First Name AND Last Name) OR ((First Name OR Last Name) AND (Gender OR DOB OR School Year))
+    return (hasFirstName && hasLastName) || ((hasFirstName || hasLastName) && (hasGender || hasDob || hasSchoolYear));
+  } catch (err) {
+    Logger.log('[sheetHasSwimmerHeaders_] Error checking sheet "%s": %s', sheet.getName(), err.message);
+    return false;
+  }
+}
+
+/**
+ * Detects whether Schools, Teams, or Team Officials table/sheet exists in the spreadsheet.
+ * Checks both spreadsheet tabs and TableApp structured tables.
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} [ss] - Active spreadsheet
+ * @return {{ tables: string[], defaultTable: string }}
+ */
+function getSchoolTeamTableNames_(ss) {
+  ss = ss || SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) {
+    return { tables: ['Schools', 'Teams'], defaultTable: 'Schools' };
+  }
+
+  const sheets = ss.getSheets();
+  const foundNames = [];
+  let hasSchools = false;
+  let hasTeams = false;
+  let hasTeamOfficials = false;
+  let schoolsExactName = 'Schools';
+  let teamsExactName = 'Teams';
+  let teamOfficialsExactName = 'Team Officials';
+
+  for (let i = 0; i < sheets.length; i++) {
+    const sheetName = sheets[i].getName().trim();
+    const lower = sheetName.toLowerCase();
+    const normalized = lower.replace(/\s+/g, '');
+    if (lower === 'schools' || normalized === 'schools') {
+      hasSchools = true;
+      schoolsExactName = sheetName;
+    } else if (lower === 'teams' || normalized === 'teams') {
+      hasTeams = true;
+      teamsExactName = sheetName;
+    } else if (lower === 'team officials' || normalized === 'teamofficials') {
+      hasTeamOfficials = true;
+      teamOfficialsExactName = sheetName;
+    }
+  }
+
+  // Scan TableApp structured tables (if available)
+  if (typeof TableApp !== 'undefined' && TableApp.openById) {
+    try {
+      const spreadsheetId = typeof ss.getId === 'function' ? ss.getId() : null;
+      if (spreadsheetId) {
+        const tableApp = TableApp.openById(spreadsheetId);
+        if (tableApp && typeof tableApp.getTableByName === 'function') {
+          if (!hasSchools) {
+            const tSchools = tableApp.getTableByName('Schools') || tableApp.getTableByName('schools');
+            if (tSchools) {
+              hasSchools = true;
+              schoolsExactName = tSchools.sheetName || (typeof tSchools.getName === 'function' ? tSchools.getName() : 'Schools');
+            }
+          }
+          if (!hasTeams) {
+            const tTeams = tableApp.getTableByName('Teams') || tableApp.getTableByName('teams');
+            if (tTeams) {
+              hasTeams = true;
+              teamsExactName = tTeams.sheetName || (typeof tTeams.getName === 'function' ? tTeams.getName() : 'Teams');
+            }
+          }
+          if (!hasTeamOfficials) {
+            const tOfficials = tableApp.getTableByName('TeamOfficials') || tableApp.getTableByName('Team Officials') || tableApp.getTableByName('teamofficials') || tableApp.getTableByName('team officials');
+            if (tOfficials) {
+              hasTeamOfficials = true;
+              teamOfficialsExactName = tOfficials.sheetName || (typeof tOfficials.getName === 'function' ? tOfficials.getName() : 'Team Officials');
+            }
+          }
+        }
+      }
+    } catch (e) {
+      Logger.log('[getSchoolTeamTableNames_] TableApp inspection skipped/failed: %s', e.message);
+    }
+  }
+
+  if (hasSchools) foundNames.push(schoolsExactName);
+  if (hasTeams && !foundNames.includes(teamsExactName)) foundNames.push(teamsExactName);
+  if (hasTeamOfficials && !foundNames.includes(teamOfficialsExactName)) {
+    foundNames.push(teamOfficialsExactName);
+  }
+
+  if (foundNames.length === 0) {
+    foundNames.push('Schools', 'Teams');
+  }
+
+  const defaultTable = hasSchools
+    ? schoolsExactName
+    : (hasTeams ? teamsExactName : (hasTeamOfficials ? teamOfficialsExactName : 'Schools'));
+
+  return {
+    tables: foundNames,
+    defaultTable: defaultTable
+  };
+}
 
 /**
  * Server-side function called from dialog.

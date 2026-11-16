@@ -71,7 +71,8 @@ Use this sequence for a standard meet setup:
 
 The core tables form the foundation of your swim meet management system. These include:
 
-- **Team Officials**: Contact information for team managers and officials
+- **Team Officials**: Contact information for team managers and officials (optional in Meet Setup)
+- **How to fill entries**: Optional sample individual entries sheet with pre-populated example swimmer data and dropdowns (selectable via **Include "How to fill entries" sample sheet** in Meet Setup's **Setup Options**, and automatically excluded from SDIF/CSV export sheet lists)
 - **Detailed Events**: Complete event list for Meet Manager alignment and participating schools info.
 - **Events for Template**: Simplified event names for dropdown validation
 - **Schools**: School information with clusters for dropdown validation
@@ -195,16 +196,16 @@ Once your core tables are populated, you can create individual entry sheets for 
 
 2. **Configure Duplication**
    - A dialog will appear
-   - **Template Sheet**: Select "INDIVIDUAL_EVENTS_TEMPLATE"
-   - **Source Sheet**: Select "SchoolsForTemplate" (where your schools are listed)
-   - **Range**: Specify the range containing school names (e.g., "B2:B21")
-     - This should reference the School column
+   - **Template Sheet Name**: Select your entry template (e.g., `INDIVIDUAL_EVENTS_TEMPLATE`)
+   - **Sheet with names of Schools/Teams**: Select the source table from the dropdown (automatically detects and lists `Schools`, `Teams`, and `Team Officials` sheets or structured `TeamOfficials` tables in your workbook, pre-selecting `Schools`, `Teams`, or `Team Officials` in priority order, while filtering out non-organization sheets like `Meet`, `Events`, and `Sheet1`)
+   - **View Sheet Action**: Click the **"View sheet"** button next to the dropdown to immediately activate and preview that sheet in the background behind the dialog. This allows you to verify the row and column coordinates of your team names without closing or canceling the dialog.
+   - **Range with names**: Specify the range containing school or team names (default: `A2:A8`, e.g., `A2:A20` or `B2:B20`)
 
 3. **Create Sheets**
-   - Click **"Duplicate Templates"**
+   - Click **"Create Sheets"**
    - The system will:
-     - Create a new sheet for each school
-     - Name each sheet after the school
+     - Create a new sheet for each school or team
+     - Name each sheet after the school or team
      - Skip any sheets that already exist
    - You'll see a confirmation message with the count of sheets created
 
@@ -275,9 +276,9 @@ This is the **primary export method** that generates SDIF v3 format files compat
    - A dialog will appear
 
 3. **Configure Export**
-   - **Entries Sheet**: Select the sheet containing swimmer entries
+   - **Entries Sheet**: Select the sheet containing swimmer entries (system sheets like `Meet`, `Events`, `Schools`, `Teams`, `Team Officials`, and default sheets like `Sheet1` are automatically filtered out)
    - **Meet Table Name**: Confirm the meet details table (default: "Meet")
-   - **Schools Table Name**: Confirm the schools/teams table (default: "Schools")
+   - **School/Team Table Name**: Select the schools, teams, or team officials table from the dropdown (automatically detects and pre-selects `Schools`, `Teams`, or `Team Officials` based on your workbook)
    - **Output File Name**: Leave blank for auto-generated name, or specify custom name
 
 4. **Generate SDIF File**
@@ -338,9 +339,10 @@ Use this option if you need CSV format for custom processing or other tools.
    - Click **"Export to CSV"** button
    - A dialog will appear
 
-3. **Select Sheet and Table**
-   - **Sheet**: Choose the sheet to export
-   - **Team Code Table**: Select the table for team code lookup (default: "Schools")
+3. **Configure Export Options**
+   - **Entries Sheet**: Select the sheet containing swimmer entries (system sheets like `Meet`, `Events`, `Schools`, `Teams`, `Team Officials`, and default sheets like `Sheet1` are automatically filtered out)
+   - **School/Team Table Name**: Select the schools, teams, or team officials table from the dropdown (automatically detects and pre-selects `Schools`, `Teams`, or `Team Officials` based on your workbook)
+   - **Output File Name**: Leave blank for auto-generated name (`<SheetName>.csv`), or specify a custom name
 
 4. **Export**
    - Click **"Export to CSV"**
@@ -348,11 +350,10 @@ Use this option if you need CSV format for custom processing or other tools.
      - Auto-detect Event and Time columns
      - Format times correctly
      - Look up team codes
-     - Generate CSV file
+     - Generate CSV file in Google Drive
 
 5. **Download CSV**
-   - Click the download link
-   - Save with a descriptive name (e.g., "Hamilton_East_Entries.csv")
+   - Click the styled **"Download File"** link that appears below the status message
 
 #### CSV Format
 

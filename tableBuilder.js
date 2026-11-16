@@ -230,13 +230,14 @@ function configureTableColumns_(table, tableCfg) {
  *  - sheetName: override target sheet name
  *  - startCell: override start cell (A1)
  *  - clearMode: 'rebuild' | 'append'
+ *  - competitionType: 'school' | 'college' | 'age_group' | 'open' | 'masters'
  *  - schoolYears, genders: optional arrays to override validation lists
  *  - rows: approximate number of rows to pre-prepare for validation (default 50)
  * @return {Object} Placement and structure details.
  */
 function createConfiguredTable(tableName, options) {
   options = options || {};
-  const cfg = getTableConfig({ schoolYears: options.schoolYears, genders: options.genders });
+  const cfg = getTableConfig(options);
   const tableCfg = cfg.tables[tableName];
   if (!tableCfg) {
     throw new Error('Unknown table name: ' + tableName);
@@ -276,7 +277,7 @@ function createConfiguredTable(tableName, options) {
 
   if (tableCfg.options) {
     if (tableCfg.options.headerBg) headerRange.setBackground(tableCfg.options.headerBg);
-    if (typeof tableCfg.options.freezeHeader === 'number') {
+    if (typeof tableCfg.options.freezeHeader === 'number' && tableCfg.options.freezeHeader > 0) {
       sheet.setFrozenRows(Math.max(sheet.getFrozenRows(), startRow));
     }
   }
@@ -345,6 +346,138 @@ function createConfiguredTables(tableNames, options) {
     }
   });
   return results;
+}
+
+/**
+ * Opens the Meet Setup modal dialog.
+ */
+function showMeetSetupDialog() {
+  const html = HtmlService.createTemplateFromFile('meet-setup-ui')
+                          .evaluate()
+                          .setWidth(540)
+                          .setHeight(640);
+
+  SpreadsheetApp.getUi()
+                .showModalDialog(html, 'Meet Setup');
+}
+
+/**
+ * Legacy alias for showMeetSetupDialog.
+ */
+function showCreateTablesDialog() {
+  return showMeetSetupDialog();
+}
+
+/**
+ * Saves meet setup vital information and generates all required sheets.
+ * 
+ * @param {Object} formData - Meet setup form data
+ * @return {Object} Status message and details
+ */
+function saveAndGenerateMeetSetup(formData) {
+  Logger.log('[saveAndGenerateMeetSetup] Received payload: %s', JSON.stringify(formData));
+  if (!formData || !formData.meetName) {
+    throw new Error('Meet Name is required.');
+  }
+
+  const preset = getCompetitionTypePreset(formData.competitionType);
+  const compTypeKey = preset.id;
+  const ss = SpreadsheetApp.getActive();
+
+  // Options for table configuration
+  const configOptions = {
+    competitionType: compTypeKey,
+    schoolYears: preset.schoolYears
+  };
+
+  // 1. Create Meet Table & Populate Data
+  createConfiguredTable('Meet', configOptions);
+  const meetSheet = ss.getSheetByName('Meet');
+  if (meetSheet) {
+    const meetRowData = [
+      formData.meetName || '',
+      preset.name,
+      formData.startDate || '',
+      formData.endDate || '',
+      formData.ageUpDate || '',
+      formData.course || 'S',
+      formData.contactName || '',
+      formData.contactPhone || '',
+      formData.venue || '',
+      formData.address1 || '',
+      formData.city || '',
+      formData.region || 'BP',
+      formData.postcode || '',
+      formData.country || 'NZL'
+    ];
+    meetSheet.getRange(2, 1, 1, meetRowData.length).setValues([meetRowData]);
+  }
+
+  // 1b. Create Age Brackets Table & Populate Default Brackets for School/College
+  if (preset.hasSchoolYear) {
+    const defaultBrackets = (typeof DEFAULT_AGE_BRACKETS !== 'undefined' && DEFAULT_AGE_BRACKETS[compTypeKey]) ||
+      (typeof DEFAULT_AGE_BRACKETS !== 'undefined' && DEFAULT_AGE_BRACKETS.school) || [];
+    createConfiguredTable('AgeBrackets', Object.assign({}, configOptions, {
+      rows: defaultBrackets.length || 4
+    }));
+    if (meetSheet && defaultBrackets && defaultBrackets.length > 0) {
+      const bracketRows = defaultBrackets.map(function(b) {
+        return [b.schoolYear, b.minAge, b.maxAge];
+      });
+      const cfg = getTableConfig(configOptions);
+      const startCell = (cfg.tables.AgeBrackets.options && cfg.tables.AgeBrackets.options.placement && cfg.tables.AgeBrackets.options.placement.startCell) || 'A5';
+      const startRow = meetSheet.getRange(startCell).getRow();
+      meetSheet.getRange(startRow + 1, 1, bracketRows.length, 3).setValues(bracketRows);
+    }
+  }
+
+  // 2. Create Events Table & Populate Default Events
+  createConfiguredTable('EventsForTemplate', Object.assign({}, configOptions, {
+    rows: Math.max(15, (preset.defaultEvents || []).length + 5)
+  }));
+  const eventsSheet = ss.getSheetByName('Events');
+  if (eventsSheet && preset.defaultEvents && preset.defaultEvents.length > 0) {
+    const eventRows = preset.defaultEvents.map(function(ev, idx) {
+      const rowNum = idx + 2;
+      return [ev.distance, ev.discipline, '=IF(AND(B' + rowNum + '<>"",A' + rowNum + '<>""),A' + rowNum + '&" "&B' + rowNum + ',"")'];
+    });
+    eventsSheet.getRange(2, 1, eventRows.length, 3).setValues(eventRows);
+  }
+
+  // 3. Create Schools / Teams Table
+  const orgTableName = preset.orgSheetName; // 'Schools' or 'Teams'
+  createConfiguredTable(orgTableName, configOptions);
+
+  // 4. Create Individual Events Template Table
+  createConfiguredTable('IndividualEventsTemplate', configOptions);
+  if (compTypeKey === 'school' || compTypeKey === 'college' || preset.hasSchoolYear) {
+    const templateSheet = ss.getSheetByName('Individual Events Template');
+    if (templateSheet && typeof templateSheet.hideColumns === 'function') {
+      const cfg = getTableConfig(configOptions);
+      const headers = cfg.tables.IndividualEventsTemplate.headers;
+      const dobColIndex = headers.indexOf('Date of Birth') + 1; // 1-based column index
+      if (dobColIndex > 0) {
+        templateSheet.hideColumns(dobColIndex);
+      }
+    }
+  }
+
+  // 5. Optionally create Team Officials Table
+  if (formData.includeOfficials) {
+    createConfiguredTable('TeamOfficials', configOptions);
+  }
+
+  // 6. Optionally create Sample Individual Entries ("How to fill entries") sheet
+  if (formData.includeSampleHowToFill) {
+    createConfiguredTable('SampleIndividualEntries', configOptions);
+  }
+
+  SpreadsheetApp.flush();
+
+  return {
+    success: true,
+    message: 'Meet Setup complete! Generated sheets for ' + preset.name + ' meet.'
+  };
 }
 
 /**

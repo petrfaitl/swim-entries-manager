@@ -69,6 +69,17 @@
   .field { margin-bottom: 10px; }
   .field:last-child { margin-bottom: 0; }
 
+  .field-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+
+  .field-header label {
+    margin-bottom: 0;
+  }
+
   label {
     display: block;
     font-size: 12px;
@@ -239,6 +250,46 @@
   }
 
   button svg, .btn svg { width: 15px; height: 15px; flex-shrink: 0; }
+
+  /* Subtle action button / link */
+  .btn-subtle, button.btn-subtle, a.btn-subtle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    width: auto;
+    padding: 2px 7px;
+    font-size: 11px;
+    font-weight: 500;
+    color: #0397B3;
+    background: #f0fafc;
+    border: 1px solid #d2eff6;
+    border-radius: 5px;
+    cursor: pointer;
+    text-decoration: none;
+    margin-top: 0;
+    line-height: 1.4;
+    transition: all 0.15s ease;
+    box-shadow: none;
+  }
+
+  .btn-subtle:hover, button.btn-subtle:hover, a.btn-subtle:hover {
+    background: #0397B3;
+    color: #ffffff;
+    border-color: #0397B3;
+    box-shadow: 0 2px 6px rgba(3, 151, 179, 0.25);
+    transform: none;
+  }
+
+  .btn-subtle:active, button.btn-subtle:active, a.btn-subtle:active {
+    transform: translateY(1px);
+  }
+
+  .btn-subtle svg {
+    width: 12px;
+    height: 12px;
+    stroke: currentColor;
+    fill: none;
+  }
 
   /* Status messages */
   #status, .status {

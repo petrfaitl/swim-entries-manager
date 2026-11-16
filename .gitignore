@@ -82,4 +82,6 @@ temp/
 /TableApp.reference.js
 /docs/SDIFCreator_Spec.md
 
-.junie/*
+.junie/commands
+.junie/skills
+openspec/changes/meet-vital-info-dialog/.openspec.yaml

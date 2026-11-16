@@ -1,8 +1,10 @@
-# Project Context: Swim Entries Manager
+# AGENTS.md: Swim Entries Manager
 
 ## Overview
 
-**Swim Entries Manager** is a Google Workspace Add-on for Google Sheets designed to streamline swim meet organization. It provides structured entry templates, school/cluster registration management, automated validation, and export capabilities to SDIF v3 (.sd3 for Hy-Tek Meet Manager) and CSV format.
+**Swim Entries Manager** is a Google Workspace Add-on for Google Sheets designed to streamline swim meet organisation. It provides structured entry templates, school/cluster registration management, automated validation, and export capabilities to SDIF v3 (.sd3 for Hy-Tek Meet Manager) and CSV format.
+
+The functional specification lives in `docs/SPEC.md`. Read it, and the relevant section for the area you are changing, before making significant changes. Update it when behaviour changes.
 
 ---
 
@@ -23,14 +25,13 @@
 ### External Libraries & Integrations
 
 - **TableApp**: Apps Script library for managing Google Sheets structured tables and data formatting.
-- **SDIF v3.0 Specification**: Standard Data Interchange Format v3 with FINA organization coding.
+- **SDIF v3.0 Specification**: Standard Data Interchange Format v3 with FINA organisation coding.
 - **Hy-Tek Meet Manager**: Target meet management software consuming SDIF exports.
 
 ### Development Tooling
 
 - **CLI / Deployment**: `@google/clasp` (Google Cloud Apps Script CLI)
 - **Version Control**: Git / GitHub
-- **Spec Management**: OpenSpec (spec-driven development workflow)
 
 ---
 
@@ -38,25 +39,22 @@
 
 ```
 SwimEntriesManager/
+├── AGENTS.md                    # Agent instructions and project context (this document)
 ├── appsscript.json              # Project manifest (V8 runtime, scopes, triggers, services)
 ├── ui.js                        # UI orchestration (Add-on menus, sidebars, modal launchers)
 ├── tableConfig.js               # Table schemas, validation rules, column definitions, defaults
 ├── tableBuilder.js              # Table generation, named range bindings, TableApp management
 ├── duplicateTemplate.js         # Sheet duplication for schools/teams with collision detection
-├── EntryDataProcessor.js        # Shared data parsing, validation, capitalization, normalization
-├── SDIFCreator.js              # SDIF v3 (.sd3) record formatting and exception reporting
+├── EntryDataProcessor.js        # Shared data parsing, validation, capitalisation, normalisation
+├── SDIFCreator.js               # SDIF v3 (.sd3) record formatting and exception reporting
 ├── SDIFCreator_Dialog.html      # SDIF export modal dialog UI and client-side logic
-├── exportToCSV.js              # CSV export generation and drive file persistence
+├── exportToCSV.js               # CSV export generation and drive file persistence
 ├── export-csv-ui.html           # CSV export modal dialog UI
 ├── resizeSwim.js                # Pool distance & course conversion algorithms (18m, 33m, 50m LC to 25m SC)
-├── utils.js                    # Shared utility functions (time parsing, formatting, helpers)
-├── tests.js                    # Test fixtures, unit verification, and debug logging functions
-├── docs/                        # User guides, privacy policy, and terms of service
-└── openspec/                    # OpenSpec specifications, changes, and project configuration
-    ├── config.yaml              # OpenSpec configuration
-    ├── project.md               # Project stack, architecture, and standards (this document)
-    └── specs/                   # Capability specifications
-        └── core/spec.md         # Core system capabilities and requirements
+├── utils.js                     # Shared utility functions (time parsing, formatting, helpers)
+├── tests.js                     # Test fixtures, unit verification, and debug logging functions
+└── docs/                        # Functional spec, user guides, privacy policy, and terms of service
+    └── SPEC.md                  # Core functional specification
 ```
 
 ---
@@ -100,7 +98,7 @@ SwimEntriesManager/
     - SDIF record byte positioning and column slicing
     - Pool course conversion math (e.g., Individual Medley distance formulas)
     - Named range dynamic coordinate resolutions
-    - Sync changes to our documentation in README.md, USER_GUIDE.md
+- Sync changes to our documentation in `README.md`, `USER_GUIDE.md` and `docs/SWIM_ENTRIES_MANAGER_SPEC.md`
 
 ---
 
@@ -122,10 +120,10 @@ SwimEntriesManager/
 
 1. **Local Setup & Syncing**:
     - Use `@google/clasp` for pulling and pushing changes to Google Apps Script.
-    - Keep `appsscript.json` synchronized with required OAuth scopes and advanced services.
-2. **Spec-Driven Process**:
-    - Define or update specifications in `openspec/` before implementing significant feature changes or refactorings.
-    - Maintain alignment between `openspec/specs/core/spec.md`, `project.md`, and active code implementation.
+    - Keep `appsscript.json` synchronised with required OAuth scopes and advanced services.
+2. **Specification**:
+    - `docs/SWIM_ENTRIES_MANAGER_SPEC.md` describes what the system must do. Check it before implementing significant features or refactorings, and keep it aligned with the code.
 3. **Version Control**:
     - Branch off `main` for feature work and bug fixes.
     - Commit clean, descriptive commits adhering to project conventions.
+    - Push to a remote
