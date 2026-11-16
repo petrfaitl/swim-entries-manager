@@ -1319,7 +1319,8 @@ function sheetHasSwimmerHeaders_(sheet) {
 }
 
 /**
- * Detects whether Schools or Teams table exists in the spreadsheet.
+ * Detects whether Schools, Teams, or Team Officials table/sheet exists in the spreadsheet.
+ * Checks both spreadsheet tabs and TableApp structured tables.
  * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} [ss] - Active spreadsheet
  * @return {{ tables: string[], defaultTable: string }}
  */
@@ -1333,33 +1334,75 @@ function getSchoolTeamTableNames_(ss) {
   const foundNames = [];
   let hasSchools = false;
   let hasTeams = false;
+  let hasTeamOfficials = false;
   let schoolsExactName = 'Schools';
   let teamsExactName = 'Teams';
+  let teamOfficialsExactName = 'Team Officials';
 
   for (let i = 0; i < sheets.length; i++) {
     const sheetName = sheets[i].getName().trim();
     const lower = sheetName.toLowerCase();
-    if (lower === 'schools') {
+    const normalized = lower.replace(/\s+/g, '');
+    if (lower === 'schools' || normalized === 'schools') {
       hasSchools = true;
       schoolsExactName = sheetName;
-    } else if (lower === 'teams') {
+    } else if (lower === 'teams' || normalized === 'teams') {
       hasTeams = true;
       teamsExactName = sheetName;
+    } else if (lower === 'team officials' || normalized === 'teamofficials') {
+      hasTeamOfficials = true;
+      teamOfficialsExactName = sheetName;
     }
   }
 
-  if (hasSchools && hasTeams) {
-    foundNames.push(schoolsExactName, teamsExactName);
-  } else if (hasSchools) {
-    foundNames.push(schoolsExactName);
-  } else if (hasTeams) {
-    foundNames.push(teamsExactName);
-  } else {
-    // Neither exists yet - provide defaults
+  // Scan TableApp structured tables (if available)
+  if (typeof TableApp !== 'undefined' && TableApp.openById) {
+    try {
+      const spreadsheetId = typeof ss.getId === 'function' ? ss.getId() : null;
+      if (spreadsheetId) {
+        const tableApp = TableApp.openById(spreadsheetId);
+        if (tableApp && typeof tableApp.getTableByName === 'function') {
+          if (!hasSchools) {
+            const tSchools = tableApp.getTableByName('Schools') || tableApp.getTableByName('schools');
+            if (tSchools) {
+              hasSchools = true;
+              schoolsExactName = tSchools.sheetName || (typeof tSchools.getName === 'function' ? tSchools.getName() : 'Schools');
+            }
+          }
+          if (!hasTeams) {
+            const tTeams = tableApp.getTableByName('Teams') || tableApp.getTableByName('teams');
+            if (tTeams) {
+              hasTeams = true;
+              teamsExactName = tTeams.sheetName || (typeof tTeams.getName === 'function' ? tTeams.getName() : 'Teams');
+            }
+          }
+          if (!hasTeamOfficials) {
+            const tOfficials = tableApp.getTableByName('TeamOfficials') || tableApp.getTableByName('Team Officials') || tableApp.getTableByName('teamofficials') || tableApp.getTableByName('team officials');
+            if (tOfficials) {
+              hasTeamOfficials = true;
+              teamOfficialsExactName = tOfficials.sheetName || (typeof tOfficials.getName === 'function' ? tOfficials.getName() : 'Team Officials');
+            }
+          }
+        }
+      }
+    } catch (e) {
+      Logger.log('[getSchoolTeamTableNames_] TableApp inspection skipped/failed: %s', e.message);
+    }
+  }
+
+  if (hasSchools) foundNames.push(schoolsExactName);
+  if (hasTeams && !foundNames.includes(teamsExactName)) foundNames.push(teamsExactName);
+  if (hasTeamOfficials && !foundNames.includes(teamOfficialsExactName)) {
+    foundNames.push(teamOfficialsExactName);
+  }
+
+  if (foundNames.length === 0) {
     foundNames.push('Schools', 'Teams');
   }
 
-  const defaultTable = hasTeams && !hasSchools ? teamsExactName : (hasSchools ? schoolsExactName : 'Schools');
+  const defaultTable = hasSchools
+    ? schoolsExactName
+    : (hasTeams ? teamsExactName : (hasTeamOfficials ? teamOfficialsExactName : 'Schools'));
 
   return {
     tables: foundNames,

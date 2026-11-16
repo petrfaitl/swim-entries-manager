@@ -3,7 +3,8 @@
  * and renames the copies to match the names.
  *
  * @param {string} templateSheetName - Name of the sheet to duplicate (e.g. "Template")
- * @param {Range} namesRange - Range containing the list of names (single column)
+ * @param {string} sheetName - Name of the source sheet or TableApp table containing names
+ * @param {Range|string} namesRange - Range containing the list of names (single column)
  * @customfunction (you can also call it manually or from menu)
  */
 function duplicateTemplateForNames(templateSheetName, sheetName, namesRange) {
@@ -14,18 +15,8 @@ function duplicateTemplateForNames(templateSheetName, sheetName, namesRange) {
     throw new Error(`Template sheet "${templateSheetName}" not found!`);
   }
 
-  // Resolve source sheet (exact match or case-insensitive fallback)
-  let sourceSheet = ss.getSheetByName(sheetName);
-  if (!sourceSheet && sheetName) {
-    const trimmed = String(sheetName).trim().toLowerCase();
-    const sheets = ss.getSheets();
-    for (let i = 0; i < sheets.length; i++) {
-      if (sheets[i].getName().trim().toLowerCase() === trimmed) {
-        sourceSheet = sheets[i];
-        break;
-      }
-    }
-  }
+  // Resolve source sheet (exact match, case/whitespace-insensitive fallback, or TableApp lookup)
+  const sourceSheet = resolveSheetByName_(ss, sheetName);
 
   if (!sourceSheet) {
     throw new Error(`Sheet "${sheetName}" not found!`);
@@ -108,8 +99,57 @@ function getRelayDefaults() {
 }
 
 /**
+ * Resolves a sheet from the spreadsheet by exact name, case-insensitive/whitespace-normalized match,
+ * or TableApp structured table name mapping.
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss - Active spreadsheet instance
+ * @param {string} sheetName - Target sheet or table name
+ * @return {GoogleAppsScript.Spreadsheet.Sheet|null}
+ * @private
+ */
+function resolveSheetByName_(ss, sheetName) {
+  if (!ss || !sheetName) return null;
+
+  // 1. Exact match
+  let sheet = ss.getSheetByName(sheetName);
+  if (sheet) return sheet;
+
+  // 2. Case-insensitive and whitespace-normalized match
+  const trimmed = String(sheetName).trim().toLowerCase();
+  const normalized = trimmed.replace(/\s+/g, '');
+  const sheets = ss.getSheets();
+  for (let i = 0; i < sheets.length; i++) {
+    const sName = sheets[i].getName().trim().toLowerCase();
+    if (sName === trimmed || sName.replace(/\s+/g, '') === normalized) {
+      return sheets[i];
+    }
+  }
+
+  // 3. TableApp structured table lookup
+  if (typeof TableApp !== 'undefined' && TableApp.openById) {
+    try {
+      const spreadsheetId = typeof ss.getId === 'function' ? ss.getId() : null;
+      if (spreadsheetId) {
+        const tableApp = TableApp.openById(spreadsheetId);
+        if (tableApp && typeof tableApp.getTableByName === 'function') {
+          const table = tableApp.getTableByName(sheetName) || tableApp.getTableByName(normalized);
+          if (table && table.sheetName) {
+            sheet = ss.getSheetByName(table.sheetName);
+            if (sheet) return sheet;
+          }
+        }
+      }
+    } catch (e) {
+      Logger.log('[resolveSheetByName_] TableApp lookup error: %s', e.message);
+    }
+  }
+
+  return null;
+}
+
+/**
  * Activates the specified sheet in the spreadsheet while a dialog is open.
- * Resolves sheet name with exact match and case-insensitive fallback.
+ * Resolves sheet name with exact match, case-insensitive/whitespace-normalized fallback,
+ * or TableApp structured table lookup.
  * @param {string} sheetName - Name of the sheet to activate.
  * @return {boolean} True if successfully activated.
  */
@@ -118,17 +158,7 @@ function activateSheetByName(sheetName) {
     throw new Error("Sheet name cannot be empty.");
   }
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = ss.getSheetByName(sheetName);
-  if (!sheet) {
-    const trimmed = String(sheetName).trim().toLowerCase();
-    const sheets = ss.getSheets();
-    for (let i = 0; i < sheets.length; i++) {
-      if (sheets[i].getName().trim().toLowerCase() === trimmed) {
-        sheet = sheets[i];
-        break;
-      }
-    }
-  }
+  const sheet = resolveSheetByName_(ss, sheetName);
   if (!sheet) {
     throw new Error(`Sheet "${sheetName}" not found.`);
   }

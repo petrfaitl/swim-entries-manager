@@ -522,6 +522,19 @@ function testSDIFExportOptionsFiltering() {
     throw new Error(`Expected fallback defaults, got: ${JSON.stringify(res4)}`);
   }
 
+  // 5. Schools and Team Officials exist
+  const ssSchoolsAndOfficials = {
+    getSheets: () => [
+      createMockSheet('Meet', false),
+      createMockSheet('Schools', false),
+      createMockSheet('Team Officials', false)
+    ]
+  };
+  const res5 = SDIFCreator.getSchoolTeamTableNames(ssSchoolsAndOfficials);
+  if (res5.tables.length !== 2 || !res5.tables.includes('Schools') || !res5.tables.includes('Team Officials') || res5.defaultTable !== 'Schools') {
+    throw new Error(`Expected Schools and Team Officials result, got: ${JSON.stringify(res5)}`);
+  }
+
   Logger.log('✓ testSDIFExportOptionsFiltering passed');
   return true;
 }
@@ -622,7 +635,7 @@ function testCreateSheetsSourceTableFiltering() {
     };
   }
 
-  // 1. School meet setup
+  // 1. School meet setup (with Team Officials sheet present)
   const ssSchoolMeet = {
     getSheets: () => [
       createMockSheet('Meet', false),
@@ -636,11 +649,11 @@ function testCreateSheetsSourceTableFiltering() {
   };
 
   const schoolOpts = getSchoolTeamTableNames_(ssSchoolMeet);
-  if (schoolOpts.tables.length !== 1 || schoolOpts.tables[0] !== 'Schools' || schoolOpts.defaultTable !== 'Schools') {
-    throw new Error(`testCreateSheetsSourceTableFiltering: Expected ['Schools'] with default 'Schools', got: ${JSON.stringify(schoolOpts)}`);
+  if (schoolOpts.tables.length !== 2 || !schoolOpts.tables.includes('Schools') || !schoolOpts.tables.includes('Team Officials') || schoolOpts.defaultTable !== 'Schools') {
+    throw new Error(`testCreateSheetsSourceTableFiltering: Expected ['Schools', 'Team Officials'] with default 'Schools', got: ${JSON.stringify(schoolOpts)}`);
   }
 
-  // 2. Age group / club meet setup
+  // 2. Age group / club meet setup (with Team Officials sheet present)
   const ssAgeGroupMeet = {
     getSheets: () => [
       createMockSheet('Meet', false),
@@ -653,27 +666,64 @@ function testCreateSheetsSourceTableFiltering() {
   };
 
   const ageGroupOpts = getSchoolTeamTableNames_(ssAgeGroupMeet);
-  if (ageGroupOpts.tables.length !== 1 || ageGroupOpts.tables[0] !== 'Teams' || ageGroupOpts.defaultTable !== 'Teams') {
-    throw new Error(`testCreateSheetsSourceTableFiltering: Expected ['Teams'] with default 'Teams', got: ${JSON.stringify(ageGroupOpts)}`);
+  if (ageGroupOpts.tables.length !== 2 || !ageGroupOpts.tables.includes('Teams') || !ageGroupOpts.tables.includes('Team Officials') || ageGroupOpts.defaultTable !== 'Teams') {
+    throw new Error(`testCreateSheetsSourceTableFiltering: Expected ['Teams', 'Team Officials'] with default 'Teams', got: ${JSON.stringify(ageGroupOpts)}`);
   }
 
-  // 3. Both Schools and Teams exist
-  const ssBoth = {
+  // 3. Both Schools, Teams, and Team Officials exist
+  const ssAllThree = {
     getSheets: () => [
       createMockSheet('Meet', false),
       createMockSheet('Events', false),
       createMockSheet('Schools', false),
       createMockSheet('Teams', false),
+      createMockSheet('Team Officials', false),
       createMockSheet('Sheet1', false)
     ]
   };
 
-  const bothOpts = getSchoolTeamTableNames_(ssBoth);
-  if (bothOpts.tables.length !== 2 || !bothOpts.tables.includes('Schools') || !bothOpts.tables.includes('Teams') || bothOpts.defaultTable !== 'Schools') {
-    throw new Error(`testCreateSheetsSourceTableFiltering: Expected both with default 'Schools', got: ${JSON.stringify(bothOpts)}`);
+  const allThreeOpts = getSchoolTeamTableNames_(ssAllThree);
+  if (allThreeOpts.tables.length !== 3 || !allThreeOpts.tables.includes('Schools') || !allThreeOpts.tables.includes('Teams') || !allThreeOpts.tables.includes('Team Officials') || allThreeOpts.defaultTable !== 'Schools') {
+    throw new Error(`testCreateSheetsSourceTableFiltering: Expected all three with default 'Schools', got: ${JSON.stringify(allThreeOpts)}`);
   }
 
-  // 4. Neither exists
+  // 4. Only Team Officials exists
+  const ssOfficialsOnly = {
+    getSheets: () => [
+      createMockSheet('Meet', false),
+      createMockSheet('Events', false),
+      createMockSheet('Team Officials', false)
+    ]
+  };
+
+  const officialsOnlyOpts = getSchoolTeamTableNames_(ssOfficialsOnly);
+  if (officialsOnlyOpts.tables.length !== 1 || officialsOnlyOpts.tables[0] !== 'Team Officials' || officialsOnlyOpts.defaultTable !== 'Team Officials') {
+    throw new Error(`testCreateSheetsSourceTableFiltering: Expected ['Team Officials'] with default 'Team Officials', got: ${JSON.stringify(officialsOnlyOpts)}`);
+  }
+
+  // 5. Spacing variation: 'TeamOfficials' (no space)
+  const ssNoSpace = {
+    getSheets: () => [
+      createMockSheet('TeamOfficials', false)
+    ]
+  };
+  const noSpaceOpts = getSchoolTeamTableNames_(ssNoSpace);
+  if (noSpaceOpts.tables.length !== 1 || noSpaceOpts.tables[0] !== 'TeamOfficials' || noSpaceOpts.defaultTable !== 'TeamOfficials') {
+    throw new Error(`testCreateSheetsSourceTableFiltering: Expected ['TeamOfficials'] with default 'TeamOfficials', got: ${JSON.stringify(noSpaceOpts)}`);
+  }
+
+  // 6. Case variation: 'teamofficials'
+  const ssLowerNoSpace = {
+    getSheets: () => [
+      createMockSheet('teamofficials', false)
+    ]
+  };
+  const lowerNoSpaceOpts = getSchoolTeamTableNames_(ssLowerNoSpace);
+  if (lowerNoSpaceOpts.tables.length !== 1 || lowerNoSpaceOpts.tables[0] !== 'teamofficials' || lowerNoSpaceOpts.defaultTable !== 'teamofficials') {
+    throw new Error(`testCreateSheetsSourceTableFiltering: Expected 'teamofficials' preserving case, got: ${JSON.stringify(lowerNoSpaceOpts)}`);
+  }
+
+  // 7. Neither exists
   const ssNeither = {
     getSheets: () => [
       createMockSheet('Sheet1', false),
@@ -686,7 +736,7 @@ function testCreateSheetsSourceTableFiltering() {
     throw new Error(`testCreateSheetsSourceTableFiltering: Expected fallback defaults, got: ${JSON.stringify(neitherOpts)}`);
   }
 
-  // 5. Case-insensitivity check (e.g., 'schools', 'TEAMS')
+  // 8. Case-insensitivity check (e.g., 'schools')
   const ssCasing = {
     getSheets: () => [
       createMockSheet('schools', false)
@@ -697,11 +747,58 @@ function testCreateSheetsSourceTableFiltering() {
     throw new Error(`testCreateSheetsSourceTableFiltering: Expected 'schools' preserving case, got: ${JSON.stringify(casingOpts)}`);
   }
 
-  // 6. Test source sheet resolution in duplicateTemplate logic
+  // 9. TableApp structured table detection & deduplication
+  const originalTableAppOpenById = typeof TableApp !== 'undefined' ? TableApp.openById : null;
+  try {
+    const mockTables = {
+      'TeamOfficials': { getName: () => 'TeamOfficials', sheetName: 'OfficialsRoster' }
+    };
+    TableApp.openById = id => ({
+      getTableByName: name => mockTables[name] || null
+    });
+
+    const ssTableAppOnly = {
+      getId: () => 'mock-ss-id-1',
+      getSheets: () => [
+        createMockSheet('Meet', false),
+        createMockSheet('OfficialsRoster', false)
+      ]
+    };
+
+    const tableAppOpts = getSchoolTeamTableNames_(ssTableAppOnly);
+    if (tableAppOpts.tables.length !== 1 || tableAppOpts.tables[0] !== 'OfficialsRoster' || tableAppOpts.defaultTable !== 'OfficialsRoster') {
+      throw new Error(`testCreateSheetsSourceTableFiltering: Expected ['OfficialsRoster'] via TableApp, got: ${JSON.stringify(tableAppOpts)}`);
+    }
+
+    // Deduplication test when sheet 'Team Officials' exists and TableApp table 'TeamOfficials' also exists
+    const ssTableAppAndSheet = {
+      getId: () => 'mock-ss-id-2',
+      getSheets: () => [
+        createMockSheet('Schools', false),
+        createMockSheet('Team Officials', false)
+      ]
+    };
+    const dedupeOpts = getSchoolTeamTableNames_(ssTableAppAndSheet);
+    if (dedupeOpts.tables.length !== 2 || dedupeOpts.tables.filter(t => t.toLowerCase().includes('official')).length !== 1) {
+      throw new Error(`testCreateSheetsSourceTableFiltering: Expected deduplicated Team Officials, got: ${JSON.stringify(dedupeOpts)}`);
+    }
+  } finally {
+    if (originalTableAppOpenById) {
+      TableApp.openById = originalTableAppOpenById;
+    }
+  }
+
+  // 10. Test source sheet resolution in duplicateTemplate logic
   const mockSchoolsSheet = {
     getName: () => 'Schools',
     getRange: rangeStr => ({
       getValues: () => [['Takapuna Primary'], ['Hamilton East'], ['']]
+    })
+  };
+  const mockOfficialsSheet = {
+    getName: () => 'Team Officials',
+    getRange: rangeStr => ({
+      getValues: () => [['Jane Doe'], ['John Smith'], ['']]
     })
   };
   const mockTemplateSheet = {
@@ -712,38 +809,34 @@ function testCreateSheetsSourceTableFiltering() {
   };
 
   const mockAppSS = {
+    getId: () => 'mock-app-ss',
     getSheetByName: name => {
       if (name === 'Individual Entries Template') return mockTemplateSheet;
       if (name === 'Schools') return mockSchoolsSheet;
+      if (name === 'Team Officials') return mockOfficialsSheet;
       return null;
     },
-    getSheets: () => [mockTemplateSheet, mockSchoolsSheet]
+    getSheets: () => [mockTemplateSheet, mockSchoolsSheet, mockOfficialsSheet]
   };
 
-  // Case-insensitive resolution helper check
-  function resolveSourceSheetForTemplate(ss, sheetName) {
-    let sourceSheet = ss.getSheetByName(sheetName);
-    if (!sourceSheet && sheetName) {
-      const trimmed = String(sheetName).trim().toLowerCase();
-      const sheets = ss.getSheets();
-      for (let i = 0; i < sheets.length; i++) {
-        if (sheets[i].getName().trim().toLowerCase() === trimmed) {
-          sourceSheet = sheets[i];
-          break;
-        }
-      }
-    }
-    return sourceSheet;
-  }
-
-  const resolvedExact = resolveSourceSheetForTemplate(mockAppSS, 'Schools');
+  const resolvedExact = resolveSheetByName_(mockAppSS, 'Schools');
   if (!resolvedExact || resolvedExact.getName() !== 'Schools') {
-    throw new Error('resolveSourceSheetForTemplate failed exact match');
+    throw new Error('resolveSheetByName_ failed exact match');
   }
 
-  const resolvedCase = resolveSourceSheetForTemplate(mockAppSS, 'schools');
+  const resolvedCase = resolveSheetByName_(mockAppSS, 'schools');
   if (!resolvedCase || resolvedCase.getName() !== 'Schools') {
-    throw new Error('resolveSourceSheetForTemplate failed case-insensitive match');
+    throw new Error('resolveSheetByName_ failed case-insensitive match');
+  }
+
+  const resolvedOfficialsNoSpace = resolveSheetByName_(mockAppSS, 'TeamOfficials');
+  if (!resolvedOfficialsNoSpace || resolvedOfficialsNoSpace.getName() !== 'Team Officials') {
+    throw new Error('resolveSheetByName_ failed whitespace-normalized match for TeamOfficials');
+  }
+
+  const resolvedOfficialsWithSpace = resolveSheetByName_(mockAppSS, 'team officials');
+  if (!resolvedOfficialsWithSpace || resolvedOfficialsWithSpace.getName() !== 'Team Officials') {
+    throw new Error('resolveSheetByName_ failed case-insensitive match for team officials');
   }
 
   Logger.log('✓ testCreateSheetsSourceTableFiltering passed');
@@ -767,16 +860,18 @@ function testActivateSheetByName() {
 
   const sheetSchools = createMockSheet('Schools', true);
   const sheetTeams = createMockSheet('Teams', false);
+  const sheetOfficials = createMockSheet('Team Officials', false);
   const sheetMeet = createMockSheet('Meet', false);
 
   const mockSS = {
     getSheetByName: name => {
       if (name === 'Schools') return sheetSchools;
       if (name === 'Teams') return sheetTeams;
+      if (name === 'Team Officials') return sheetOfficials;
       if (name === 'Meet') return sheetMeet;
       return null;
     },
-    getSheets: () => [sheetMeet, sheetSchools, sheetTeams],
+    getSheets: () => [sheetMeet, sheetSchools, sheetTeams, sheetOfficials],
     setActiveSheet: sheet => { activeSheet = sheet; }
   };
 
@@ -785,17 +880,7 @@ function testActivateSheetByName() {
     if (!sheetName) {
       throw new Error("Sheet name cannot be empty.");
     }
-    let sheet = ss.getSheetByName(sheetName);
-    if (!sheet) {
-      const trimmed = String(sheetName).trim().toLowerCase();
-      const sheets = ss.getSheets();
-      for (let i = 0; i < sheets.length; i++) {
-        if (sheets[i].getName().trim().toLowerCase() === trimmed) {
-          sheet = sheets[i];
-          break;
-        }
-      }
-    }
+    const sheet = resolveSheetByName_(ss, sheetName);
     if (!sheet) {
       throw new Error(`Sheet "${sheetName}" not found.`);
     }
@@ -826,7 +911,49 @@ function testActivateSheetByName() {
     throw new Error('testActivateSheetByName: Case-insensitive match failed');
   }
 
-  // 3. Empty name error
+  // 3. Whitespace normalization: 'TeamOfficials' -> 'Team Officials'
+  activeSheet = null;
+  activated = false;
+  const res3 = activateSheetHelper(mockSS, 'TeamOfficials');
+  if (!res3 || activeSheet !== sheetOfficials || !activated) {
+    throw new Error('testActivateSheetByName: Whitespace normalized TeamOfficials failed');
+  }
+
+  // 4. TableApp structured table resolution
+  const originalTableAppOpenById = typeof TableApp !== 'undefined' ? TableApp.openById : null;
+  try {
+    const sheetCustomOfficials = createMockSheet('Custom Officials Sheet', false);
+    const mockSSWithCustomTable = {
+      getId: () => 'mock-table-lookup-ss',
+      getSheetByName: name => {
+        if (name === 'Custom Officials Sheet') return sheetCustomOfficials;
+        return null;
+      },
+      getSheets: () => [sheetCustomOfficials],
+      setActiveSheet: sheet => { activeSheet = sheet; }
+    };
+    TableApp.openById = id => ({
+      getTableByName: name => {
+        if (name === 'TeamOfficials' || name === 'Team Officials') {
+          return { sheetName: 'Custom Officials Sheet' };
+        }
+        return null;
+      }
+    });
+
+    activeSheet = null;
+    activated = false;
+    const resTable = activateSheetHelper(mockSSWithCustomTable, 'TeamOfficials');
+    if (!resTable || activeSheet !== sheetCustomOfficials || !activated) {
+      throw new Error('testActivateSheetByName: TableApp resolution for TeamOfficials failed');
+    }
+  } finally {
+    if (originalTableAppOpenById) {
+      TableApp.openById = originalTableAppOpenById;
+    }
+  }
+
+  // 5. Empty name error
   let caughtEmpty = false;
   try {
     activateSheetHelper(mockSS, '');
@@ -837,7 +964,7 @@ function testActivateSheetByName() {
     throw new Error('testActivateSheetByName: Failed to catch empty sheetName');
   }
 
-  // 4. Missing sheet error
+  // 6. Missing sheet error
   let caughtMissing = false;
   try {
     activateSheetHelper(mockSS, 'NonExistentSheet');
@@ -896,10 +1023,25 @@ function testDuplicateTemplateForNames() {
   };
   sheetsList.push(schoolsSheet);
 
+  const officialsSheet = {
+    getName: () => 'Team Officials',
+    getRange: rangeStr => {
+      if (rangeStr === 'A1:A3') {
+        return {
+          getValues: () => [['Official One'], ['Official Two'], ['']]
+        };
+      }
+      return { getValues: () => [] };
+    }
+  };
+  sheetsList.push(officialsSheet);
+
   const mockSS = {
+    getId: () => 'mock-dup-ss',
     getSheetByName: name => {
       if (name === 'Individual Entries Template') return templateSheet;
       if (name === 'Schools') return schoolsSheet;
+      if (name === 'Team Officials') return officialsSheet;
       if (name === 'Existing Primary') return existingSchoolSheet;
       return null;
     },
@@ -914,18 +1056,7 @@ function testDuplicateTemplateForNames() {
       throw new Error(`Template sheet "${templateSheetName}" not found!`);
     }
 
-    let sourceSheet = ss.getSheetByName(sheetName);
-    if (!sourceSheet && sheetName) {
-      const trimmed = String(sheetName).trim().toLowerCase();
-      const sheets = ss.getSheets();
-      for (let i = 0; i < sheets.length; i++) {
-        if (sheets[i].getName().trim().toLowerCase() === trimmed) {
-          sourceSheet = sheets[i];
-          break;
-        }
-      }
-    }
-
+    const sourceSheet = resolveSheetByName_(ss, sheetName);
     if (!sourceSheet) {
       throw new Error(`Sheet "${sheetName}" not found!`);
     }
@@ -966,13 +1097,19 @@ function testDuplicateTemplateForNames() {
     };
   }
 
-  // 1. Success case with 2 created and 1 skipped
+  // 1. Success case with 2 created and 1 skipped using 'schools' (case-insensitive)
   const result = duplicateTemplateHelper(mockSS, 'Individual Entries Template', 'schools', 'B2:B5');
   if (!result.success || result.createdCount !== 2 || result.skippedCount !== 1) {
     throw new Error('testDuplicateTemplateForNames: Expected 2 created, 1 skipped. Got: ' + JSON.stringify(result));
   }
 
-  // 2. Empty names error
+  // 2. Success case using 'TeamOfficials' (whitespace normalization)
+  const resultOfficials = duplicateTemplateHelper(mockSS, 'Individual Entries Template', 'TeamOfficials', 'A1:A3');
+  if (!resultOfficials.success || resultOfficials.createdCount !== 2) {
+    throw new Error('testDuplicateTemplateForNames: Expected 2 created for TeamOfficials. Got: ' + JSON.stringify(resultOfficials));
+  }
+
+  // 3. Empty names error
   let caughtEmpty = false;
   try {
     duplicateTemplateHelper(mockSS, 'Individual Entries Template', 'Schools', 'A1:A1');
@@ -983,7 +1120,7 @@ function testDuplicateTemplateForNames() {
     throw new Error('testDuplicateTemplateForNames: Failed to catch empty names range');
   }
 
-  // 3. Missing template error
+  // 4. Missing template error
   let caughtMissingTemplate = false;
   try {
     duplicateTemplateHelper(mockSS, 'Missing Template', 'Schools', 'B2:B5');

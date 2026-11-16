@@ -26,9 +26,23 @@
 			<div class="field">
 				<div class="field-header">
 					<label>Sheet with names of Schools/Teams</label>
-					<button type="button" id="viewSheetBtn" class="btn-subtle" title="Switch to this sheet in the background">
-						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-							<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+					<button
+						type="button"
+						id="viewSheetBtn"
+						class="btn-subtle"
+						title="Switch to this sheet in the background"
+					>
+						<svg
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+						>
+							<path
+								d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"
+							></path>
 							<circle cx="12" cy="12" r="3"></circle>
 						</svg>
 						<span>View sheet</span>
@@ -39,13 +53,13 @@
 			<div class="field">
 				<label
 					>Range with names
-					<span class="hint">e.g., B2:B8</span></label
+					<span class="hint">e.g., A2:A8</span></label
 				>
 				<input
 					type="text"
 					id="range"
-					value="B2:B8"
-					placeholder="B2:B8"
+					value="A2:A8"
+					placeholder="A2:A8"
 				/>
 			</div>
 		</div>
@@ -195,9 +209,21 @@
 						let msg = "Sheets created successfully!";
 						if (result && result.message) {
 							msg = result.message;
-						} else if (result && typeof result.createdCount === "number") {
-							msg = "Success! Created " + result.createdCount + " sheet(s) from template \"" + template + "\"." +
-								(result.skippedCount > 0 ? " (" + result.skippedCount + " skipped as already existing)" : "");
+						} else if (
+							result &&
+							typeof result.createdCount === "number"
+						) {
+							msg =
+								"Success! Created " +
+								result.createdCount +
+								' sheet(s) from template "' +
+								template +
+								'".' +
+								(result.skippedCount > 0
+									? " (" +
+										result.skippedCount +
+										" skipped as already existing)"
+									: "");
 						}
 						document.getElementById("status").textContent = msg;
 						document.getElementById("status").className = "success";

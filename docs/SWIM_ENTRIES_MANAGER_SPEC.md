@@ -33,10 +33,11 @@ The system shall duplicate individual entry template sheets for each registered 
 
 **Requirements:**
 
-- The system shall duplicate a single template sheet once per team/school from the Teams/Schools table
-- The system shall automatically filter the source sheet dropdown in the duplication dialog to include only detected `Schools` or `Teams` tables, excluding non-organization sheets (`Meet`, `Events`, `Team Officials`, `Sheet1`, template sheets, and individual entry sheets)
-- The system shall automatically pre-select whichever of `Schools` or `Teams` exists in the active workbook
+- The system shall duplicate a single template sheet once per team/school from the Teams/Schools/Team Officials table
+- The system shall automatically filter the source sheet dropdown in the duplication dialog to include detected `Schools`, `Teams`, and `Team Officials` sheets or structured `TeamOfficials` tables, while excluding non-organization sheets (`Meet`, `Events`, `Sheet1`, template sheets, and individual entry sheets)
+- The system shall automatically pre-select whichever organization table exists in the active workbook in priority order (`Schools` > `Teams` > `Team Officials`)
 - The system shall allow users to preview/activate the selected source sheet in the background spreadsheet behind the modal dialog via a "View sheet" action control
+- The system shall seamlessly resolve sheet names and structured table names (e.g. `TeamOfficials` to sheet `Team Officials` via whitespace normalization and TableApp mapping)
 - The system shall automatically name each duplicated sheet based on the school/team name
 - The system shall detect and prevent collisions with existing sheet names
 - The system shall preserve dropdown validations referencing named ranges from core tables
@@ -61,7 +62,7 @@ The system shall export swimmer entry data to SDIF v3 (.sd3) format compatible w
 
 - The system shall read swimmer entries from duplicated template sheets
 - The system shall filter available export sheets in the dialog to exclude non-entry system/core sheets (`Meet`, `Events`, `Schools`, `Teams`, `Team Officials`, `Sheet1`, hidden sheets) while detecting sheets with swimmer entry headers
-- The system shall auto-detect available school/team tables in the spreadsheet (`Schools` vs `Teams`) and provide a dynamic `School/Team Table Name` selector
+- The system shall auto-detect available school/team tables in the spreadsheet (`Schools`, `Teams`, `Team Officials` / `TeamOfficials`) and provide a dynamic `School/Team Table Name` selector
 - The system shall validate all required fields (first name, last name, gender, date of birth, team code)
 - The system shall generate detailed exception reports for data quality issues
 - The system shall support two entry formats:
@@ -85,7 +86,7 @@ The system shall export swimmer entry data to traditional CSV format for custom 
 
 - The system shall read swimmer entries from candidate entry sheets
 - The system shall filter available export sheets in the dialog to exclude non-entry system/core sheets (`Meet`, `Events`, `Schools`, `Teams`, `Team Officials`, `Sheet1`, hidden sheets) while detecting sheets with swimmer entry headers
-- The system shall auto-detect available school/team tables in the spreadsheet (`Schools` vs `Teams`) and provide a dynamic `School/Team Table Name` selector
+- The system shall auto-detect available school/team tables in the spreadsheet (`Schools`, `Teams`, `Team Officials` / `TeamOfficials`) and provide a dynamic `School/Team Table Name` selector
 - The system shall support custom output file naming (defaulting to `<SheetName>.csv` if left blank)
 - The system shall export processed swimmer data with consistent column structure
 - The system shall support the same entry format auto-detection as SDIF export
