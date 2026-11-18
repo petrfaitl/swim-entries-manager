@@ -1,0 +1,448 @@
+<!doctype html>
+<html>
+	<head>
+		<?!=
+		HtmlService.createHtmlOutputFromFile('shared-dialog-styles').getContent();
+		?>
+		<style>
+			.checkbox-row {
+				display: flex;
+				align-items: flex-start;
+				gap: 8px;
+				margin-bottom: 8px;
+				font-size: 12px;
+				color: #4a5068;
+				cursor: pointer;
+			}
+			.checkbox-row:last-child {
+				margin-bottom: 0;
+			}
+			.checkbox-row input[type="checkbox"] {
+				margin-top: 2px;
+				flex-shrink: 0;
+				appearance: auto;
+				-webkit-appearance: auto;
+			}
+			.checkbox-hint {
+				display: block;
+				font-size: 10.5px;
+				color: #7b8299;
+				margin-top: 1px;
+			}
+			textarea {
+				width: 100%;
+				padding: 7px 10px;
+				border: 1.5px solid #e0e3ed;
+				border-radius: 7px;
+				font-family: inherit;
+				font-size: 12px;
+				color: #1a1a2e;
+				background: #fafbfd;
+				outline: none;
+				resize: vertical;
+				min-height: 62px;
+				transition:
+					border-color 0.15s,
+					box-shadow 0.15s;
+			}
+			textarea:focus {
+				border-color: #0397b3;
+				box-shadow: 0 0 0 3px rgba(3, 151, 179, 0.1);
+				background: #fff;
+			}
+			.url-row {
+				display: flex;
+				gap: 6px;
+				align-items: center;
+			}
+			.url-row input[type="text"] {
+				flex: 1;
+				font-size: 11.5px;
+				background: #f4f6fc;
+			}
+			.url-row .btn-subtle {
+				padding: 6px 10px;
+				white-space: nowrap;
+			}
+			.prereq-box {
+				padding: 9px 11px;
+				border-radius: 8px;
+				font-size: 11.5px;
+				margin-bottom: 10px;
+				border: 1px solid #d2eff6;
+				background: #f0fafc;
+				color: #1a1a2e;
+			}
+			.prereq-box.error {
+				border-color: #f5c6cb;
+				background: #fdf2f2;
+				color: #c0392b;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="header">
+			<h2>Entry Form Generator</h2>
+			<p>Generate a Google Form for direct swimmer entries.</p>
+		</div>
+
+		<div id="prereqBox" class="prereq-box">
+			Loading meet configuration...
+		</div>
+
+		<div class="section">
+			<div class="section-label">Form Configuration</div>
+
+			<div class="field">
+				<label for="eventSlots"
+					>Number of Event Slots
+					<span class="hint">(1–9 events per swimmer)</span></label
+				>
+				<select id="eventSlots">
+					<option value="1">1 event</option>
+					<option value="2">2 events</option>
+					<option value="3">3 events</option>
+					<option value="4">4 events</option>
+					<option value="5" selected>5 events</option>
+					<option value="6">6 events</option>
+					<option value="7">7 events</option>
+					<option value="8">8 events</option>
+					<option value="9">9 events</option>
+				</select>
+			</div>
+
+			<div class="divider"></div>
+
+			<label class="checkbox-row">
+				<input type="checkbox" id="collectEmailAndAllowEdits" checked />
+				<span>
+					<strong>Collect Email &amp; Allow Response Edits</strong>
+					<span class="checkbox-hint"
+						>Send respondents a confirmation email with an edit
+						link.</span
+					>
+				</span>
+			</label>
+
+			<label class="checkbox-row hidden" id="requireDobRow">
+				<input type="checkbox" id="requireDobForSchool" />
+				<span>
+					<strong>Require Date of Birth</strong>
+					<span class="checkbox-hint"
+						>When unchecked, Date of Birth is not shown on the form
+						and School Year is used.</span
+					>
+				</span>
+			</label>
+
+			<label class="checkbox-row hidden" id="allowOtherTeamRow">
+				<input type="checkbox" id="allowOtherTeam" />
+				<span>
+					<strong>Allow write-in Team / Club ("Other")</strong>
+					<span class="checkbox-hint"
+						>Unlisted teams export as UNS unless added to Teams
+						before export.</span
+					>
+				</span>
+			</label>
+
+			<div class="divider"></div>
+
+			<div class="field">
+				<label for="formDescription"
+					>Form Description &amp; Privacy Notice
+					<span class="hint">(optional)</span></label
+				>
+				<textarea
+					id="formDescription"
+					placeholder="Optional description and privacy notice shown at the top of the Form..."
+				></textarea>
+			</div>
+		</div>
+
+		<button id="generateBtn" type="button" disabled>
+			<svg
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="2.2"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+			>
+				<path
+					d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+				/>
+				<polyline points="14 2 14 8 20 8" />
+				<line x1="12" y1="18" x2="12" y2="12" />
+				<line x1="9" y1="15" x2="15" y2="15" />
+			</svg>
+			<span id="generateBtnLabel">Generate Entry Form</span>
+		</button>
+
+		<div id="linksSection" class="section hidden" style="margin-top: 10px">
+			<div class="section-label">Form Links</div>
+			<div class="field">
+				<label for="publishedUrl"
+					>Responder URL
+					<span class="hint"
+						>(share with parents / swimmers)</span
+					></label
+				>
+				<div class="url-row">
+					<input type="text" id="publishedUrl" readonly />
+					<button
+						type="button"
+						class="btn-subtle"
+						onclick="copyUrl('publishedUrl')"
+					>
+						Copy
+					</button>
+					<a
+						id="openPublishedLink"
+						class="btn-subtle"
+						target="_blank"
+						rel="noopener"
+						>Open</a
+					>
+				</div>
+			</div>
+			<div class="field">
+				<label for="editUrl"
+					>Form Editor URL
+					<span class="hint">(admin only)</span></label
+				>
+				<div class="url-row">
+					<input type="text" id="editUrl" readonly />
+					<button
+						type="button"
+						class="btn-subtle"
+						onclick="copyUrl('editUrl')"
+					>
+						Copy
+					</button>
+					<a
+						id="openEditLink"
+						class="btn-subtle"
+						target="_blank"
+						rel="noopener"
+						>Open</a
+					>
+				</div>
+			</div>
+			<div id="destSheetNote" class="small" style="margin-top: 6px"></div>
+		</div>
+
+		<div id="status"></div>
+
+		<script>
+			function setStatus(msg, type) {
+				const el = document.getElementById("status");
+				el.textContent = msg || "";
+				el.className = type || "";
+			}
+
+			function showLinks(data) {
+				const section = document.getElementById("linksSection");
+				if (!data || !data.publishedUrl) {
+					section.classList.add("hidden");
+					return;
+				}
+				document.getElementById("publishedUrl").value =
+					data.publishedUrl || "";
+				document.getElementById("editUrl").value = data.editUrl || "";
+				document.getElementById("openPublishedLink").href =
+					data.publishedUrl || "#";
+				document.getElementById("openEditLink").href =
+					data.editUrl || "#";
+				document.getElementById("destSheetNote").textContent =
+					data.destinationSheet
+						? 'Responses are linked to sheet: "' +
+							data.destinationSheet +
+							'"'
+						: "";
+				section.classList.remove("hidden");
+			}
+
+			function copyUrl(inputId) {
+				const input = document.getElementById(inputId);
+				if (!input || !input.value) return;
+				input.select();
+				input.setSelectionRange(0, 99999);
+				try {
+					if (navigator.clipboard && navigator.clipboard.writeText) {
+						navigator.clipboard.writeText(input.value);
+					} else {
+						document.execCommand("copy");
+					}
+					setStatus("Copied URL to clipboard.", "success");
+				} catch (e) {
+					document.execCommand("copy");
+					setStatus("Copied URL to clipboard.", "success");
+				}
+			}
+
+			function loadStatus() {
+				google.script.run
+					.withSuccessHandler(function (res) {
+						const box = document.getElementById("prereqBox");
+						const btn = document.getElementById("generateBtn");
+						const btnLabel =
+							document.getElementById("generateBtnLabel");
+
+						if (!res.prereqReady) {
+							box.className = "prereq-box error";
+							box.textContent =
+								res.prereqError ||
+								"Prerequisites not met. Please run Meet Setup first.";
+							btn.disabled = true;
+						} else {
+							box.className = "prereq-box";
+							box.innerHTML =
+								"<strong>" +
+								(res.meetName || "Meet") +
+								"</strong> (" +
+								res.competitionType +
+								")<br>" +
+								res.eventCount +
+								" events &bull; " +
+								res.organizationCount +
+								" " +
+								res.orgLabel.toLowerCase() +
+								"s ready";
+							btn.disabled = false;
+						}
+
+						if (res.hasSchoolYear) {
+							document
+								.getElementById("requireDobRow")
+								.classList.remove("hidden");
+							document
+								.getElementById("allowOtherTeamRow")
+								.classList.add("hidden");
+						} else {
+							document
+								.getElementById("requireDobRow")
+								.classList.add("hidden");
+							document
+								.getElementById("allowOtherTeamRow")
+								.classList.remove("hidden");
+						}
+
+						const descEl =
+							document.getElementById("formDescription");
+						if (!descEl.value && res.defaultPrivacyNotice) {
+							const prefix = res.meetName
+								? "Submit individual swimmer entries for " +
+									res.meetName +
+									".\n\n"
+								: "";
+							descEl.value = prefix + res.defaultPrivacyNotice;
+						}
+
+						if (res.hasExistingForm) {
+							if (res.eventSlots) {
+								document.getElementById("eventSlots").value =
+									String(res.eventSlots);
+							}
+							if (
+								typeof res.collectEmailAndAllowEdits ===
+								"boolean"
+							) {
+								document.getElementById(
+									"collectEmailAndAllowEdits",
+								).checked = res.collectEmailAndAllowEdits;
+							}
+							if (typeof res.requireDobForSchool === "boolean") {
+								document.getElementById(
+									"requireDobForSchool",
+								).checked = res.requireDobForSchool;
+							}
+							if (typeof res.allowOtherTeam === "boolean") {
+								document.getElementById(
+									"allowOtherTeam",
+								).checked = res.allowOtherTeam;
+							}
+							btnLabel.textContent = "Sync Form Options";
+							showLinks(res);
+						} else {
+							btnLabel.textContent = "Generate Entry Form";
+							if (res.formMissing) {
+								setStatus(
+									"Previously linked Form was deleted or inaccessible. Click Generate Entry Form to create a new one.",
+									"warning",
+								);
+							}
+						}
+					})
+					.withFailureHandler(function (err) {
+						const box = document.getElementById("prereqBox");
+						box.className = "prereq-box error";
+						box.textContent =
+							"Error checking meet setup: " +
+							(err && err.message ? err.message : err);
+					})
+					.getStoredFormStatus();
+			}
+
+			document
+				.getElementById("generateBtn")
+				.addEventListener("click", function () {
+					const btn = document.getElementById("generateBtn");
+					const btnLabel =
+						document.getElementById("generateBtnLabel");
+					const prevLabel = btnLabel.textContent;
+
+					btn.disabled = true;
+					btnLabel.textContent = "Working...";
+					setStatus("Generating / syncing Google Form...", "");
+
+					const options = {
+						eventSlots: parseInt(
+							document.getElementById("eventSlots").value,
+							10,
+						),
+						collectEmailAndAllowEdits: document.getElementById(
+							"collectEmailAndAllowEdits",
+						).checked,
+						requireDobForSchool: document.getElementById(
+							"requireDobForSchool",
+						).checked,
+						allowOtherTeam:
+							document.getElementById("allowOtherTeam").checked,
+						formDescription:
+							document.getElementById("formDescription").value,
+					};
+
+					google.script.run
+						.withSuccessHandler(function (res) {
+							btn.disabled = false;
+							btnLabel.textContent = "Sync Form Options";
+							showLinks(res);
+							const action = res.isUpdate ? "synced" : "created";
+							setStatus(
+								"Form " +
+									action +
+									" successfully (" +
+									res.eventCount +
+									" events, " +
+									res.organizationCount +
+									" schools/teams).",
+								"success",
+							);
+						})
+						.withFailureHandler(function (err) {
+							btn.disabled = false;
+							btnLabel.textContent = prevLabel;
+							setStatus(
+								"Error: " +
+									(err && err.message ? err.message : err),
+								"error",
+							);
+						})
+						.createOrUpdateEntryForm(options);
+				});
+
+			window.addEventListener("DOMContentLoaded", loadStatus);
+		</script>
+	</body>
+</html>

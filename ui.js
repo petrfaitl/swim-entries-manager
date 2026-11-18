@@ -10,6 +10,7 @@ function onOpen(e) {
   } else {
     menu.addItem('Meet Setup', 'showMeetSetupDialog')
         .addItem('Create Sheets from Template', 'showCreateSheetsDialog')
+        .addItem('Create / Sync Entry Form', 'showFormSetupDialog')
         .addItem('Create Relay Tables', 'showCreateRelayTablesDialog')
         .addSeparator()
         .addItem('Export for Meet Manager', 'showSDIFCreatorDialog')
@@ -40,6 +41,19 @@ function showCreateRelayTablesDialog() {
 
   SpreadsheetApp.getUi()
                 .showModalDialog(html, 'Create Relay Tables');
+}
+
+/**
+ * Opens the Google Form Setup & Sync modal dialog.
+ */
+function showFormSetupDialog() {
+  const html = HtmlService.createTemplateFromFile('form-setup-ui')
+                          .evaluate()
+                          .setWidth(520)
+                          .setHeight(640);
+
+  SpreadsheetApp.getUi()
+                .showModalDialog(html, 'Create / Sync Entry Form');
 }
 
 function buildAdminSidebarCard() {
@@ -112,6 +126,26 @@ function buildAdminSidebarCard() {
                                                       )
                                          );
 
+  // Section 2b: Create / Sync Entry Form (Optional)
+  const createFormSection = CardService.newCardSection()
+                                       .setHeader('Entry Form (Optional)')
+                                       .setCollapsible(true)
+                                       .addWidget(
+                                         CardService.newTextParagraph()
+                                                    .setText('Generate or sync a public Google Form for parents or individual swimmers to submit entries directly into your workbook.')
+                                       )
+                                       .addWidget(
+                                         CardService.newButtonSet()
+                                                    .addButton(
+                                                      CardService.newTextButton()
+                                                                 .setText('Create / Sync Entry Form')
+                                                                 .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+                                                                 .setBackgroundColor('#0397B3')
+                                                                 .setOnClickAction(CardService.newAction()
+                                                                                              .setFunctionName('showFormSetupDialog'))
+                                                    )
+                                       );
+
   // Section 3: Create Relay Tables (Optional)
   const createRelaySection = CardService.newCardSection()
                                         .setHeader('Create Relay Tables (Optional)')
@@ -162,6 +196,7 @@ function buildAdminSidebarCard() {
   templatesCard
     .addSection(createTablesSection)
     .addSection(createSheetsSection)
+    .addSection(createFormSection)
     .addSection(createRelaySection)
     .addSection(navToExportSection)
     .setFixedFooter(

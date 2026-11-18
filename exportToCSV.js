@@ -23,8 +23,12 @@ function exportEntriesToCSV() {
  * @return {string} URL to the created CSV file
  */
 function processSheetToCSV(sheetNameOrId, teamCodeTableName, fileName) {
-  teamCodeTableName = teamCodeTableName || "Schools"; // Default if not provided
   const ss = SpreadsheetApp.getActive();
+  if (!teamCodeTableName) {
+    teamCodeTableName = (!ss.getSheetByName("Schools") && ss.getSheetByName("Teams"))
+      ? "Teams"
+      : "Schools";
+  }
   const sheet = resolveSheet_(ss, sheetNameOrId);
   const spreadsheetId = ss.getId();
 

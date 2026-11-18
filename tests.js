@@ -1235,6 +1235,592 @@ function testMeetSetupSampleHowToFillOption() {
   return true;
 }
 
+function testFormResponseColumnMapping() {
+  // 1. School Form response header with Timestamp + Email Address
+  const schoolFormHeader = [
+    'Timestamp', 'Email Address', 'First Name', 'Last Name',
+    'Date of Birth', 'Gender', 'School Year', 'School',
+    'Event 1', 'Time 1', 'Event 2', 'Time 2', 'Event 3', 'Time 3'
+  ];
+
+  const mapping = detectColumnMapping(schoolFormHeader);
+  if (mapping.firstName !== 2 || mapping.lastName !== 3 || mapping.dob !== 4 ||
+      mapping.gender !== 5 || mapping.schoolYear !== 6 || mapping.school !== 7 ||
+      mapping.eventStartCol !== 8) {
+    throw new Error('testFormResponseColumnMapping: Unexpected mapping: ' + JSON.stringify(mapping));
+  }
+
+  const format = detectColumnFormat(schoolFormHeader, mapping.eventStartCol);
+  if (format.method !== 'METHOD_1') {
+    throw new Error('testFormResponseColumnMapping: Expected METHOD_1, got ' + format.method);
+  }
+
+  const pairs = detectEventTimeColumns(schoolFormHeader, mapping.eventStartCol);
+  if (pairs.length !== 3 || pairs[0].eventCol !== 8 || pairs[0].timeCol !== 9 ||
+      pairs[2].eventCol !== 12 || pairs[2].timeCol !== 13) {
+    throw new Error('testFormResponseColumnMapping: Unexpected event/time pairs: ' + JSON.stringify(pairs));
+  }
+
+  // 2. Duplicate event detection in processEntryRow
+  const formRow = [
+    new Date(), 'parent@example.com', 'Alex', 'Taylor',
+    '12/04/2014', 'Male', 'Y6', 'Tahatai Coast School',
+    '50m Freestyle', '35.20', '50m Freestyle', '36.00', '100m Freestyle', 'NT'
+  ];
+  const teamCodeData = [
+    ['Team Name', 'School', 'Cluster', 'Code', 'Region Code'],
+    ['Tahatai Coast School', 'Tahatai Coast School', 'Mt Cluster', 'TCS', 'BP']
+  ];
+  const processed = processEntryRow(formRow, pairs, -1, teamCodeData, mapping, { ageUpDate: '01/03/2026' });
+  if (!processed) {
+    throw new Error('testFormResponseColumnMapping: processEntryRow returned null');
+  }
+  if (processed.teamCode !== 'TCS') {
+    throw new Error('testFormResponseColumnMapping: Expected teamCode TCS, got ' + processed.teamCode);
+  }
+  if (processed.eventsStr !== '50m Freestyle, 100m Freestyle') {
+    throw new Error('testFormResponseColumnMapping: Expected deduplicated events, got ' + processed.eventsStr);
+  }
+  if (!processed.duplicateEvents || processed.duplicateEvents.length !== 1 || processed.duplicateEvents[0] !== '50m Freestyle') {
+    throw new Error('testFormResponseColumnMapping: Expected duplicateEvents=["50m Freestyle"], got ' + JSON.stringify(processed.duplicateEvents));
+  }
+
+  // 3. Omitted DOB column should not collide with Gender
+  const noDobHeader = [
+    'Timestamp', 'Email Address', 'First Name', 'Last Name',
+    'Gender', 'School Year', 'School', 'Event 1', 'Time 1'
+  ];
+  const noDobMapping = detectColumnMapping(noDobHeader);
+  if (noDobMapping.dob !== -1 || noDobMapping.gender !== 4 || noDobMapping.school !== 6 || noDobMapping.eventStartCol !== 7) {
+    throw new Error('testFormResponseColumnMapping: Unexpected no-DOB mapping: ' + JSON.stringify(noDobMapping));
+  }
+
+  // 4. SDIFCreator getEntriesSheetNames_ detects 'Form Entries'
+  const mockSheets = [
+    { getName: () => 'Meet', isSheetHidden: () => false },
+    { getName: () => 'Events', isSheetHidden: () => false },
+    { getName: () => 'Schools', isSheetHidden: () => false },
+    {
+      getName: () => 'Form Entries',
+      isSheetHidden: () => false,
+      getLastRow: () => 2,
+      getLastColumn: () => schoolFormHeader.length,
+      getRange: () => ({ getValues: () => [schoolFormHeader] })
+    }
+  ];
+  const mockSs = { getSheets: () => mockSheets };
+  const entrySheets = SDIFCreator.getEntriesSheetNames(mockSs);
+  if (entrySheets.length !== 1 || entrySheets[0] !== 'Form Entries') {
+    throw new Error('testFormResponseColumnMapping: Expected ["Form Entries"], got ' + JSON.stringify(entrySheets));
+  }
+
+  Logger.log('✓ testFormResponseColumnMapping passed');
+  return true;
+}
+
+function testFormPrerequisiteExtraction() {
+  const originalSpreadsheetApp = typeof SpreadsheetApp !== 'undefined' ? SpreadsheetApp : null;
+  const originalFormApp = typeof FormApp !== 'undefined' ? FormApp : null;
+  const originalPropertiesService = typeof PropertiesService !== 'undefined' ? PropertiesService : null;
+
+  function makeSheet(name, rows) {
+    let sheetName = name;
+    return {
+      getName: () => sheetName,
+      setName: (n) => { sheetName = n; },
+      getDataRange: () => ({ getValues: () => rows })
+    };
+  }
+
+  try {
+    // 1. Placeholder-only Schools should fail validation
+    const placeholderSs = {
+      getId: () => 'ss-1',
+      getSheets: () => [],
+      getSheetByName: (name) => {
+        if (name === 'Meet') {
+          return makeSheet('Meet', [
+            ['Meet Name', 'Competition Type'],
+            ['Bay Championships', 'School']
+          ]);
+        }
+        if (name === 'Events') {
+          return makeSheet('Events', [
+            ['Distance', 'Discipline', 'Events'],
+            ['50m', 'Freestyle', '50m Freestyle'],
+            ['', '', '']
+          ]);
+        }
+        if (name === 'Schools') {
+          return makeSheet('Schools', [
+            ['Team Name', 'School', 'Cluster', 'Code', 'Region Code'],
+            ['Team Name', 'School Name', '', 'UNSP', 'BP'],
+            ['', '', '', '', '']
+          ]);
+        }
+        return null;
+      }
+    };
+
+    let threwPlaceholderError = false;
+    try {
+      validateFormPrerequisites_(placeholderSs);
+    } catch (e) {
+      threwPlaceholderError = e.message.includes('placeholder');
+    }
+    if (!threwPlaceholderError) {
+      throw new Error('testFormPrerequisiteExtraction: Expected error for placeholder-only Schools sheet');
+    }
+
+    // 2. Valid workbook strips placeholders and deduplicates
+    const validSheets = [
+      makeSheet('Meet', [
+        ['Meet Name', 'Competition Type'],
+        ['Bay Championships', 'School'],
+        [],
+        [],
+        ['School Year', 'Min Age', 'Max Age'],
+        ['Y5', 9, 9],
+        ['Y6', 10, 10]
+      ]),
+      makeSheet('Events', [
+        ['Distance', 'Discipline', 'Events'],
+        ['50m', 'Freestyle', '50m Freestyle'],
+        ['50m', 'Freestyle', '50m Freestyle'],
+        ['100m', 'Backstroke', ''],
+        ['', '', '']
+      ]),
+      makeSheet('Schools', [
+        ['Team Name', 'School', 'Cluster', 'Code', 'Region Code'],
+        ['Team Name', 'School Name', '', 'UNSP', 'BP'],
+        ['Tahatai', 'Tahatai Coast School', 'Mt', 'TCS', 'BP'],
+        ['Omanu', 'Omanu School', 'Mt', 'OMA', 'BP']
+      ])
+    ];
+    const validSs = {
+      getId: () => 'ss-valid',
+      getSheets: () => validSheets,
+      getSheetByName: (name) => validSheets.find(s => s.getName() === name) || null
+    };
+
+    const prereq = validateFormPrerequisites_(validSs);
+    if (prereq.events.length !== 2 || prereq.events[0] !== '50m Freestyle' || prereq.events[1] !== '100m Backstroke') {
+      throw new Error('testFormPrerequisiteExtraction: Unexpected events: ' + JSON.stringify(prereq.events));
+    }
+    if (prereq.organizations.length !== 2 || prereq.organizations[0] !== 'Tahatai Coast School') {
+      throw new Error('testFormPrerequisiteExtraction: Unexpected organizations: ' + JSON.stringify(prereq.organizations));
+    }
+    if (prereq.schoolYears.length !== 2 || prereq.schoolYears[1] !== 'Y6') {
+      throw new Error('testFormPrerequisiteExtraction: Unexpected schoolYears: ' + JSON.stringify(prereq.schoolYears));
+    }
+
+    // 3. Mock FormApp + PropertiesService for create and in-place sync
+    const propStore = {};
+    let createCalls = 0;
+    const mockItems = [];
+
+    function makeMockItem(type) {
+      let title = '';
+      let choices = [];
+      let required = false;
+      let helpText = '';
+      let otherOpt = false;
+      const typedItem = {
+        getTitle: () => title,
+        setTitle: (t) => { title = t; return typedItem; },
+        getType: () => type,
+        setRequired: (r) => { required = r; return typedItem; },
+        setHelpText: (h) => { helpText = h; return typedItem; },
+        setChoiceValues: (c) => { choices = c.slice(); return typedItem; },
+        showOtherOption: (v) => { otherOpt = v; return typedItem; },
+        setValidation: () => typedItem,
+        _debug: () => ({ title, type, choices, required, helpText, otherOpt })
+      };
+      const genericItem = {
+        getTitle: () => title,
+        getType: () => type,
+        asTextItem: () => {
+          if (type !== 'TEXT') throw new Error('Item is not TEXT');
+          return typedItem;
+        },
+        asDateItem: () => {
+          if (type !== 'DATE') throw new Error('Item is not DATE');
+          return typedItem;
+        },
+        asListItem: () => {
+          if (type !== 'LIST') throw new Error('Item is not LIST');
+          return typedItem;
+        },
+        asMultipleChoiceItem: () => {
+          if (type !== 'MULTIPLE_CHOICE') throw new Error('Item is not MULTIPLE_CHOICE');
+          return typedItem;
+        }
+      };
+      return { typedItem, genericItem };
+    }
+
+    const mockForm = {
+      getId: () => 'form-123',
+      getPublishedUrl: () => 'https://docs.google.com/forms/d/e/form-123/viewform',
+      getEditUrl: () => 'https://docs.google.com/forms/d/form-123/edit',
+      setTitle: () => {},
+      setDescription: () => {},
+      setCollectEmail: () => {},
+      setAllowResponseEdits: () => {},
+      setDestination: () => {
+        if (!validSheets.find(s => s.getName() === 'Form Responses 1')) {
+          validSheets.push(makeSheet('Form Responses 1', []));
+        }
+      },
+      getItems: () => mockItems.map(entry => entry.genericItem),
+      addTextItem: () => { const it = makeMockItem('TEXT'); mockItems.push(it); return it.typedItem; },
+      addDateItem: () => { const it = makeMockItem('DATE'); mockItems.push(it); return it.typedItem; },
+      addListItem: () => { const it = makeMockItem('LIST'); mockItems.push(it); return it.typedItem; },
+      addMultipleChoiceItem: () => { const it = makeMockItem('MULTIPLE_CHOICE'); mockItems.push(it); return it.typedItem; },
+      deleteItem: (it) => {
+        const idx = mockItems.findIndex(entry => entry.genericItem === it || entry.typedItem === it);
+        if (idx !== -1) mockItems.splice(idx, 1);
+      }
+    };
+
+    globalThis.SpreadsheetApp = Object.assign({}, originalSpreadsheetApp || {}, {
+      getActiveSpreadsheet: () => validSs,
+      flush: () => {}
+    });
+    globalThis.PropertiesService = {
+      getDocumentProperties: () => ({
+        getProperty: (k) => propStore[k] || null,
+        setProperties: (obj) => Object.assign(propStore, obj)
+      })
+    };
+    globalThis.FormApp = {
+      DestinationType: { SPREADSHEET: 'SPREADSHEET' },
+      create: () => { createCalls++; return mockForm; },
+      openById: (id) => {
+        if (id === 'form-123') return mockForm;
+        throw new Error('Form not found');
+      },
+      createTextValidation: () => {
+        const builder = {
+          setHelpText: () => builder,
+          requireTextMatchesPattern: () => builder,
+          build: () => ({})
+        };
+        return builder;
+      }
+    };
+
+    const createRes = createOrUpdateEntryForm({ eventSlots: 2, collectEmailAndAllowEdits: true });
+    if (!createRes.success || createRes.isUpdate || createCalls !== 1 || createRes.destinationSheet !== 'Form Entries') {
+      throw new Error('testFormPrerequisiteExtraction: Unexpected create result: ' + JSON.stringify(createRes));
+    }
+    if (mockItems.some(entry => entry.typedItem.getTitle() === 'Date of Birth')) {
+      throw new Error('testFormPrerequisiteExtraction: Expected Date of Birth to be omitted when requireDobForSchool is false');
+    }
+
+    const syncWithDobRes = createOrUpdateEntryForm({ eventSlots: 2, collectEmailAndAllowEdits: true, requireDobForSchool: true });
+    if (!syncWithDobRes.success || !syncWithDobRes.isUpdate || createCalls !== 1) {
+      throw new Error('testFormPrerequisiteExtraction: Expected in-place sync without creating new Form: ' + JSON.stringify(syncWithDobRes));
+    }
+    const dobEntry = mockItems.find(entry => entry.typedItem.getTitle() === 'Date of Birth');
+    if (!dobEntry || !dobEntry.typedItem._debug().required) {
+      throw new Error('testFormPrerequisiteExtraction: Expected required Date of Birth item when requireDobForSchool is true');
+    }
+
+    const syncWithoutDobRes = createOrUpdateEntryForm({ eventSlots: 2, collectEmailAndAllowEdits: true, requireDobForSchool: false });
+    if (!syncWithoutDobRes.success || !syncWithoutDobRes.isUpdate) {
+      throw new Error('testFormPrerequisiteExtraction: Expected in-place sync when unticking requireDobForSchool');
+    }
+    if (mockItems.some(entry => entry.typedItem.getTitle() === 'Date of Birth')) {
+      throw new Error('testFormPrerequisiteExtraction: Expected Date of Birth item to be removed when requireDobForSchool is unticked');
+    }
+  } finally {
+    if (originalSpreadsheetApp) globalThis.SpreadsheetApp = originalSpreadsheetApp;
+    else delete globalThis.SpreadsheetApp;
+    if (originalFormApp) globalThis.FormApp = originalFormApp;
+    else delete globalThis.FormApp;
+    if (originalPropertiesService) globalThis.PropertiesService = originalPropertiesService;
+    else delete globalThis.PropertiesService;
+  }
+
+  Logger.log('✓ testFormPrerequisiteExtraction passed');
+  return true;
+}
+
+/**
+ * Verifies that toggling allowOtherTeam on Masters/Age Group/Open or re-enabling DOB
+ * does not leave duplicate columns in Form Entries, and migrates orphaned values.
+ */
+function testFormDuplicateColumnCleanup() {
+  const originalSpreadsheetApp = typeof SpreadsheetApp !== 'undefined' ? SpreadsheetApp : null;
+  const originalFormApp = typeof FormApp !== 'undefined' ? FormApp : null;
+  const originalPropertiesService = typeof PropertiesService !== 'undefined' ? PropertiesService : null;
+
+  try {
+    // 1. Direct cleanupDuplicateFormColumns_ test with orphaned Club column data
+    const sheetRows = [
+      ['Timestamp', 'First Name', 'Last Name', 'Date of Birth', 'Gender', 'Club', 'Event 1', 'Time 1', 'Club'],
+      ['2026-11-18', 'Jane', 'Doe', '1980-05-01', 'Female', 'Orca Masters', '50m Freestyle', '32.10', ''],
+      ['2026-11-18', 'John', 'Smith', '1975-02-10', 'Male', '', '50m Freestyle', '29.50', 'North Shore Masters']
+    ];
+    const mockDestSheet = {
+      getName: () => 'Form Entries',
+      getLastRow: () => sheetRows.length,
+      getLastColumn: () => sheetRows[0].length,
+      getRange: (r, c, numRows, numCols) => ({
+        getValues: () => sheetRows.slice(r - 1, r - 1 + numRows).map(row => row.slice(c - 1, c - 1 + numCols)),
+        setValues: (vals) => {
+          for (let i = 0; i < numRows; i++) {
+            for (let j = 0; j < numCols; j++) {
+              sheetRows[r - 1 + i][c - 1 + j] = vals[i][j];
+            }
+          }
+        }
+      }),
+      deleteColumn: (colOneBased) => {
+        sheetRows.forEach(row => row.splice(colOneBased - 1, 1));
+      }
+    };
+    const mockSsDirect = {
+      getSheetByName: (name) => (name === 'Form Entries' ? mockDestSheet : null)
+    };
+    const removed = cleanupDuplicateFormColumns_(mockSsDirect, 'Form Entries');
+    if (removed !== 1) {
+      throw new Error('testFormDuplicateColumnCleanup: Expected 1 column removed, got ' + removed);
+    }
+    const clubHeaders = sheetRows[0].filter(h => h === 'Club');
+    if (clubHeaders.length !== 1) {
+      throw new Error('testFormDuplicateColumnCleanup: Expected exactly 1 Club column, got ' + JSON.stringify(sheetRows[0]));
+    }
+    const clubColIdx = sheetRows[0].indexOf('Club');
+    if (sheetRows[1][clubColIdx] !== 'Orca Masters' || sheetRows[2][clubColIdx] !== 'North Shore Masters') {
+      throw new Error('testFormDuplicateColumnCleanup: Migration failed: ' + JSON.stringify(sheetRows));
+    }
+
+    // 2. End-to-end Masters form sync toggling allowOtherTeam (false -> true -> false)
+    const makeSheet = (name, rows) => {
+      let sheetName = name;
+      return {
+        getName: () => sheetName,
+        setName: (n) => { sheetName = n; },
+        getLastRow: () => rows.length,
+        getLastColumn: () => (rows[0] ? rows[0].length : 0),
+        getDataRange: () => ({ getValues: () => rows }),
+        getRange: (r, c, numRows, numCols) => ({
+          getValues: () => rows.slice(r - 1, r - 1 + numRows).map(row => row.slice(c - 1, c - 1 + numCols)),
+          setValues: (vals) => {
+            for (let i = 0; i < numRows; i++) {
+              for (let j = 0; j < numCols; j++) {
+                rows[r - 1 + i][c - 1 + j] = vals[i][j];
+              }
+            }
+          }
+        }),
+        deleteColumn: (colOneBased) => {
+          rows.forEach(row => row.splice(colOneBased - 1, 1));
+        },
+        _rows: rows
+      };
+    };
+
+    const mastersSheets = [
+      makeSheet('Meet', [['Meet Name', 'Competition Type'], ['Masters Champs', 'Masters']]),
+      makeSheet('Events', [['Distance', 'Discipline', 'Events'], ['50m', 'Freestyle', '50m Freestyle']]),
+      makeSheet('Teams', [['Team Code', 'Club'], ['ORC', 'Orca Masters'], ['NSM', 'North Shore Masters']])
+    ];
+    const mastersSs = {
+      getId: () => 'ss-masters',
+      getSheets: () => mastersSheets,
+      getSheetByName: (n) => mastersSheets.find(s => s.getName() === n) || null
+    };
+
+    const propStore = {};
+    const mockItems = [];
+    let responseSheetRows = null;
+
+    function makeMockItem(type) {
+      let title = '';
+      let otherOpt = false;
+      const typedItem = {
+        getTitle: () => title,
+        setTitle: (t) => {
+          title = t;
+          // Simulate Google Forms appending a column to the linked sheet on item creation
+          if (responseSheetRows && t) {
+            responseSheetRows[0].push(t);
+          }
+          return typedItem;
+        },
+        getType: () => type,
+        setRequired: () => typedItem,
+        setHelpText: () => typedItem,
+        setChoiceValues: () => typedItem,
+        showOtherOption: (v) => { otherOpt = Boolean(v); return typedItem; },
+        hasOtherOption: () => otherOpt,
+        setValidation: () => typedItem
+      };
+      const genericItem = {
+        getTitle: () => title,
+        getType: () => type,
+        asTextItem: () => typedItem,
+        asDateItem: () => typedItem,
+        asListItem: () => typedItem,
+        asMultipleChoiceItem: () => typedItem
+      };
+      return { typedItem, genericItem };
+    }
+
+    const mockForm = {
+      getId: () => 'form-masters',
+      getPublishedUrl: () => 'https://docs.google.com/forms/d/e/form-masters/viewform',
+      getEditUrl: () => 'https://docs.google.com/forms/d/form-masters/edit',
+      collectsEmail: () => true,
+      setTitle: () => {},
+      setDescription: () => {},
+      setCollectEmail: () => {},
+      setAllowResponseEdits: () => {},
+      setDestination: () => {
+        responseSheetRows = [['Timestamp', 'Email Address']];
+        mastersSheets.push(makeSheet('Form Responses 1', responseSheetRows));
+      },
+      getItems: () => mockItems.map(entry => entry.genericItem),
+      addTextItem: () => { const it = makeMockItem('TEXT'); mockItems.push(it); return it.typedItem; },
+      addDateItem: () => { const it = makeMockItem('DATE'); mockItems.push(it); return it.typedItem; },
+      addListItem: () => { const it = makeMockItem('LIST'); mockItems.push(it); return it.typedItem; },
+      addMultipleChoiceItem: () => { const it = makeMockItem('MULTIPLE_CHOICE'); mockItems.push(it); return it.typedItem; },
+      deleteItem: (it) => {
+        // Note: Google Forms leaves the old column in the linked sheet when deleting an item
+        const idx = mockItems.findIndex(entry => entry.genericItem === it || entry.typedItem === it);
+        if (idx !== -1) mockItems.splice(idx, 1);
+      }
+    };
+
+    globalThis.SpreadsheetApp = Object.assign({}, originalSpreadsheetApp || {}, {
+      getActiveSpreadsheet: () => mastersSs,
+      flush: () => {}
+    });
+    globalThis.PropertiesService = {
+      getDocumentProperties: () => ({
+        getProperty: (k) => propStore[k] || null,
+        setProperties: (obj) => Object.assign(propStore, obj)
+      })
+    };
+    globalThis.FormApp = {
+      DestinationType: { SPREADSHEET: 'SPREADSHEET' },
+      create: () => mockForm,
+      openById: () => mockForm,
+      createTextValidation: () => {
+        const b = { setHelpText: () => b, requireTextMatchesPattern: () => b, build: () => ({}) };
+        return b;
+      }
+    };
+
+    // Initial create with allowOtherTeam=false (LIST)
+    createOrUpdateEntryForm({ eventSlots: 2, allowOtherTeam: false });
+    // Sync with allowOtherTeam=true (switches to MULTIPLE_CHOICE)
+    createOrUpdateEntryForm({ eventSlots: 2, allowOtherTeam: true });
+
+    const statusAfterTrue = getStoredFormStatus();
+    if (!statusAfterTrue.allowOtherTeam || statusAfterTrue.eventSlots !== 2) {
+      throw new Error('testFormDuplicateColumnCleanup: Expected getStoredFormStatus to reflect allowOtherTeam=true and eventSlots=2, got ' + JSON.stringify(statusAfterTrue));
+    }
+
+    // Sync back with allowOtherTeam=false (switches back to LIST)
+    createOrUpdateEntryForm({ eventSlots: 2, allowOtherTeam: false });
+
+    const finalHeaders = responseSheetRows[0];
+    const finalClubCols = finalHeaders.filter(h => h === 'Club');
+    if (finalClubCols.length !== 1) {
+      throw new Error('testFormDuplicateColumnCleanup: Expected exactly 1 Club column after toggling allowOtherTeam, got ' + JSON.stringify(finalHeaders));
+    }
+  } finally {
+    if (originalSpreadsheetApp) globalThis.SpreadsheetApp = originalSpreadsheetApp;
+    else delete globalThis.SpreadsheetApp;
+    if (originalFormApp) globalThis.FormApp = originalFormApp;
+    else delete globalThis.FormApp;
+    if (originalPropertiesService) globalThis.PropertiesService = originalPropertiesService;
+    else delete globalThis.PropertiesService;
+  }
+
+  Logger.log('✓ testFormDuplicateColumnCleanup passed');
+  return true;
+}
+
+/**
+ * Verifies Teams table lookup (without Cluster column) and SDIF exception report table labels
+ * across all competition types (Masters, Age Group, Open -> Teams; School, College -> Schools).
+ */
+function testTeamsTableExportAndExceptionLabels() {
+  // 1. Teams table (no Cluster column) must resolve Code at index 2, NOT Region Code ("BP") at index 3
+  const teamsRows = [
+    ['Team Name', 'Team', 'Code', 'Region Code'],
+    ['Orca Masters', 'Orca Masters', 'ORC', 'BP'],
+    ['North Shore Masters', 'North Shore Masters', 'NSM', 'AK']
+  ];
+  const mapping = detectColumnMapping(['Timestamp', 'First Name', 'Last Name', 'Date of Birth', 'Gender', 'Club', 'Event 1', 'Time 1']);
+  const pairs = detectEventTimeColumns(['Timestamp', 'First Name', 'Last Name', 'Date of Birth', 'Gender', 'Club', 'Event 1', 'Time 1'], mapping.eventStartCol);
+  const processed = processEntryRow(
+    ['2026-11-18', 'Jane', 'Doe', '1980-05-01', 'Female', 'Orca Masters', '50m Freestyle', '32.10'],
+    pairs,
+    -1,
+    teamsRows,
+    mapping,
+    { ageUpDate: '31/12/2026' }
+  );
+  if (!processed || processed.teamCode !== 'ORC') {
+    throw new Error('testTeamsTableExportAndExceptionLabels: Expected teamCode "ORC", got "' + (processed ? processed.teamCode : null) + '"');
+  }
+
+  // 2. SDIFCreator exception report wording for Teams-based vs Schools-based meets
+  const meetCases = [
+    { competitionType: 'Masters', expectedLabel: 'Teams' },
+    { competitionType: 'Age Group', expectedLabel: 'Teams' },
+    { competitionType: 'Open', expectedLabel: 'Teams' },
+    { competitionType: 'School', expectedLabel: 'Schools' },
+    { competitionType: 'College', expectedLabel: 'Schools' }
+  ];
+
+  meetCases.forEach(function(mc) {
+    SDIFCreator.buildSdifString(
+      [{
+        teamCode: 'MISS',
+        firstName: 'Jane',
+        lastName: 'Doe',
+        dobFormatted: '01/05/1980',
+        gender: 'F',
+        eventsStr: '50m Freestyle',
+        timesStr: '00:32.10',
+        schoolYear: '',
+        age: 46
+      }],
+      {
+        meetName: mc.competitionType + ' Meet',
+        competitionType: mc.competitionType,
+        startDate: new Date(2026, 10, 18),
+        endDate: new Date(2026, 10, 18),
+        course: '25m'
+      },
+      [{ code: 'ORC', teamName: 'Orca Masters', regionCode: 'BP' }]
+    );
+
+    const exList = (typeof lastExceptions_ !== 'undefined' ? lastExceptions_ : SDIFCreator.lastExceptions_) || [];
+    const ex = exList[0];
+    if (!ex) {
+      throw new Error('testTeamsTableExportAndExceptionLabels: Expected missing team exception for ' + mc.competitionType);
+    }
+    const expectedCategory = 'Missing Team in ' + mc.expectedLabel + ' Table';
+    if (ex.category !== expectedCategory) {
+      throw new Error('testTeamsTableExportAndExceptionLabels: For ' + mc.competitionType + ' expected category "' + expectedCategory + '", got "' + ex.category + '"');
+    }
+    if (!ex.message.includes('not found in ' + mc.expectedLabel + ' table')) {
+      throw new Error('testTeamsTableExportAndExceptionLabels: For ' + mc.competitionType + ' expected message to reference "' + mc.expectedLabel + ' table", got "' + ex.message + '"');
+    }
+  });
+
+  Logger.log('✓ testTeamsTableExportAndExceptionLabels passed');
+  return true;
+}
+
 function runAllDiagnosticTests() {
   testCompetitionTypesRegistry();
   testAgeBracketsTableSchema();
@@ -1251,6 +1837,10 @@ function runAllDiagnosticTests() {
   testActivateSheetByName();
   testDuplicateTemplateForNames();
   testMeetSetupSampleHowToFillOption();
+  testFormResponseColumnMapping();
+  testFormPrerequisiteExtraction();
+  testFormDuplicateColumnCleanup();
+  testTeamsTableExportAndExceptionLabels();
   testFlexibleTimeParsing();
   Logger.log('=== ALL DIAGNOSTIC TESTS PASSED ===');
 }
