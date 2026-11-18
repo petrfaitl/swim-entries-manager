@@ -1547,6 +1547,205 @@ function testFormPrerequisiteExtraction() {
   return true;
 }
 
+/**
+ * Verifies that toggling allowOtherTeam on Masters/Age Group/Open or re-enabling DOB
+ * does not leave duplicate columns in Form Entries, and migrates orphaned values.
+ */
+function testFormDuplicateColumnCleanup() {
+  const originalSpreadsheetApp = typeof SpreadsheetApp !== 'undefined' ? SpreadsheetApp : null;
+  const originalFormApp = typeof FormApp !== 'undefined' ? FormApp : null;
+  const originalPropertiesService = typeof PropertiesService !== 'undefined' ? PropertiesService : null;
+
+  try {
+    // 1. Direct cleanupDuplicateFormColumns_ test with orphaned Club column data
+    const sheetRows = [
+      ['Timestamp', 'First Name', 'Last Name', 'Date of Birth', 'Gender', 'Club', 'Event 1', 'Time 1', 'Club'],
+      ['2026-11-18', 'Jane', 'Doe', '1980-05-01', 'Female', 'Orca Masters', '50m Freestyle', '32.10', ''],
+      ['2026-11-18', 'John', 'Smith', '1975-02-10', 'Male', '', '50m Freestyle', '29.50', 'North Shore Masters']
+    ];
+    const mockDestSheet = {
+      getName: () => 'Form Entries',
+      getLastRow: () => sheetRows.length,
+      getLastColumn: () => sheetRows[0].length,
+      getRange: (r, c, numRows, numCols) => ({
+        getValues: () => sheetRows.slice(r - 1, r - 1 + numRows).map(row => row.slice(c - 1, c - 1 + numCols)),
+        setValues: (vals) => {
+          for (let i = 0; i < numRows; i++) {
+            for (let j = 0; j < numCols; j++) {
+              sheetRows[r - 1 + i][c - 1 + j] = vals[i][j];
+            }
+          }
+        }
+      }),
+      deleteColumn: (colOneBased) => {
+        sheetRows.forEach(row => row.splice(colOneBased - 1, 1));
+      }
+    };
+    const mockSsDirect = {
+      getSheetByName: (name) => (name === 'Form Entries' ? mockDestSheet : null)
+    };
+    const removed = cleanupDuplicateFormColumns_(mockSsDirect, 'Form Entries');
+    if (removed !== 1) {
+      throw new Error('testFormDuplicateColumnCleanup: Expected 1 column removed, got ' + removed);
+    }
+    const clubHeaders = sheetRows[0].filter(h => h === 'Club');
+    if (clubHeaders.length !== 1) {
+      throw new Error('testFormDuplicateColumnCleanup: Expected exactly 1 Club column, got ' + JSON.stringify(sheetRows[0]));
+    }
+    const clubColIdx = sheetRows[0].indexOf('Club');
+    if (sheetRows[1][clubColIdx] !== 'Orca Masters' || sheetRows[2][clubColIdx] !== 'North Shore Masters') {
+      throw new Error('testFormDuplicateColumnCleanup: Migration failed: ' + JSON.stringify(sheetRows));
+    }
+
+    // 2. End-to-end Masters form sync toggling allowOtherTeam (false -> true -> false)
+    const makeSheet = (name, rows) => {
+      let sheetName = name;
+      return {
+        getName: () => sheetName,
+        setName: (n) => { sheetName = n; },
+        getLastRow: () => rows.length,
+        getLastColumn: () => (rows[0] ? rows[0].length : 0),
+        getDataRange: () => ({ getValues: () => rows }),
+        getRange: (r, c, numRows, numCols) => ({
+          getValues: () => rows.slice(r - 1, r - 1 + numRows).map(row => row.slice(c - 1, c - 1 + numCols)),
+          setValues: (vals) => {
+            for (let i = 0; i < numRows; i++) {
+              for (let j = 0; j < numCols; j++) {
+                rows[r - 1 + i][c - 1 + j] = vals[i][j];
+              }
+            }
+          }
+        }),
+        deleteColumn: (colOneBased) => {
+          rows.forEach(row => row.splice(colOneBased - 1, 1));
+        },
+        _rows: rows
+      };
+    };
+
+    const mastersSheets = [
+      makeSheet('Meet', [['Meet Name', 'Competition Type'], ['Masters Champs', 'Masters']]),
+      makeSheet('Events', [['Distance', 'Discipline', 'Events'], ['50m', 'Freestyle', '50m Freestyle']]),
+      makeSheet('Teams', [['Team Code', 'Club'], ['ORC', 'Orca Masters'], ['NSM', 'North Shore Masters']])
+    ];
+    const mastersSs = {
+      getId: () => 'ss-masters',
+      getSheets: () => mastersSheets,
+      getSheetByName: (n) => mastersSheets.find(s => s.getName() === n) || null
+    };
+
+    const propStore = {};
+    const mockItems = [];
+    let responseSheetRows = null;
+
+    function makeMockItem(type) {
+      let title = '';
+      let otherOpt = false;
+      const typedItem = {
+        getTitle: () => title,
+        setTitle: (t) => {
+          title = t;
+          // Simulate Google Forms appending a column to the linked sheet on item creation
+          if (responseSheetRows && t) {
+            responseSheetRows[0].push(t);
+          }
+          return typedItem;
+        },
+        getType: () => type,
+        setRequired: () => typedItem,
+        setHelpText: () => typedItem,
+        setChoiceValues: () => typedItem,
+        showOtherOption: (v) => { otherOpt = Boolean(v); return typedItem; },
+        hasOtherOption: () => otherOpt,
+        setValidation: () => typedItem
+      };
+      const genericItem = {
+        getTitle: () => title,
+        getType: () => type,
+        asTextItem: () => typedItem,
+        asDateItem: () => typedItem,
+        asListItem: () => typedItem,
+        asMultipleChoiceItem: () => typedItem
+      };
+      return { typedItem, genericItem };
+    }
+
+    const mockForm = {
+      getId: () => 'form-masters',
+      getPublishedUrl: () => 'https://docs.google.com/forms/d/e/form-masters/viewform',
+      getEditUrl: () => 'https://docs.google.com/forms/d/form-masters/edit',
+      collectsEmail: () => true,
+      setTitle: () => {},
+      setDescription: () => {},
+      setCollectEmail: () => {},
+      setAllowResponseEdits: () => {},
+      setDestination: () => {
+        responseSheetRows = [['Timestamp', 'Email Address']];
+        mastersSheets.push(makeSheet('Form Responses 1', responseSheetRows));
+      },
+      getItems: () => mockItems.map(entry => entry.genericItem),
+      addTextItem: () => { const it = makeMockItem('TEXT'); mockItems.push(it); return it.typedItem; },
+      addDateItem: () => { const it = makeMockItem('DATE'); mockItems.push(it); return it.typedItem; },
+      addListItem: () => { const it = makeMockItem('LIST'); mockItems.push(it); return it.typedItem; },
+      addMultipleChoiceItem: () => { const it = makeMockItem('MULTIPLE_CHOICE'); mockItems.push(it); return it.typedItem; },
+      deleteItem: (it) => {
+        // Note: Google Forms leaves the old column in the linked sheet when deleting an item
+        const idx = mockItems.findIndex(entry => entry.genericItem === it || entry.typedItem === it);
+        if (idx !== -1) mockItems.splice(idx, 1);
+      }
+    };
+
+    globalThis.SpreadsheetApp = Object.assign({}, originalSpreadsheetApp || {}, {
+      getActiveSpreadsheet: () => mastersSs,
+      flush: () => {}
+    });
+    globalThis.PropertiesService = {
+      getDocumentProperties: () => ({
+        getProperty: (k) => propStore[k] || null,
+        setProperties: (obj) => Object.assign(propStore, obj)
+      })
+    };
+    globalThis.FormApp = {
+      DestinationType: { SPREADSHEET: 'SPREADSHEET' },
+      create: () => mockForm,
+      openById: () => mockForm,
+      createTextValidation: () => {
+        const b = { setHelpText: () => b, requireTextMatchesPattern: () => b, build: () => ({}) };
+        return b;
+      }
+    };
+
+    // Initial create with allowOtherTeam=false (LIST)
+    createOrUpdateEntryForm({ eventSlots: 2, allowOtherTeam: false });
+    // Sync with allowOtherTeam=true (switches to MULTIPLE_CHOICE)
+    createOrUpdateEntryForm({ eventSlots: 2, allowOtherTeam: true });
+
+    const statusAfterTrue = getStoredFormStatus();
+    if (!statusAfterTrue.allowOtherTeam || statusAfterTrue.eventSlots !== 2) {
+      throw new Error('testFormDuplicateColumnCleanup: Expected getStoredFormStatus to reflect allowOtherTeam=true and eventSlots=2, got ' + JSON.stringify(statusAfterTrue));
+    }
+
+    // Sync back with allowOtherTeam=false (switches back to LIST)
+    createOrUpdateEntryForm({ eventSlots: 2, allowOtherTeam: false });
+
+    const finalHeaders = responseSheetRows[0];
+    const finalClubCols = finalHeaders.filter(h => h === 'Club');
+    if (finalClubCols.length !== 1) {
+      throw new Error('testFormDuplicateColumnCleanup: Expected exactly 1 Club column after toggling allowOtherTeam, got ' + JSON.stringify(finalHeaders));
+    }
+  } finally {
+    if (originalSpreadsheetApp) globalThis.SpreadsheetApp = originalSpreadsheetApp;
+    else delete globalThis.SpreadsheetApp;
+    if (originalFormApp) globalThis.FormApp = originalFormApp;
+    else delete globalThis.FormApp;
+    if (originalPropertiesService) globalThis.PropertiesService = originalPropertiesService;
+    else delete globalThis.PropertiesService;
+  }
+
+  Logger.log('✓ testFormDuplicateColumnCleanup passed');
+  return true;
+}
+
 function runAllDiagnosticTests() {
   testCompetitionTypesRegistry();
   testAgeBracketsTableSchema();
@@ -1565,6 +1764,7 @@ function runAllDiagnosticTests() {
   testMeetSetupSampleHowToFillOption();
   testFormResponseColumnMapping();
   testFormPrerequisiteExtraction();
+  testFormDuplicateColumnCleanup();
   testFlexibleTimeParsing();
   Logger.log('=== ALL DIAGNOSTIC TESTS PASSED ===');
 }

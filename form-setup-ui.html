@@ -340,6 +340,28 @@
 						}
 
 						if (res.hasExistingForm) {
+							if (res.eventSlots) {
+								document.getElementById("eventSlots").value =
+									String(res.eventSlots);
+							}
+							if (
+								typeof res.collectEmailAndAllowEdits ===
+								"boolean"
+							) {
+								document.getElementById(
+									"collectEmailAndAllowEdits",
+								).checked = res.collectEmailAndAllowEdits;
+							}
+							if (typeof res.requireDobForSchool === "boolean") {
+								document.getElementById(
+									"requireDobForSchool",
+								).checked = res.requireDobForSchool;
+							}
+							if (typeof res.allowOtherTeam === "boolean") {
+								document.getElementById(
+									"allowOtherTeam",
+								).checked = res.allowOtherTeam;
+							}
 							btnLabel.textContent = "Sync Form Options";
 							showLinks(res);
 						} else {

@@ -310,9 +310,50 @@ function getStoredFormStatus() {
 	let hasExistingForm = Boolean(formId);
 	let formMissing = false;
 
+	let collectEmailAndAllowEdits = true;
+	let eventSlots = 5;
+	let requireDobForSchool = false;
+	let allowOtherTeam = false;
+
 	if (formId && typeof FormApp !== "undefined") {
 		try {
-			FormApp.openById(formId);
+			const existingForm = FormApp.openById(formId);
+			if (typeof existingForm.collectsEmail === "function") {
+				collectEmailAndAllowEdits = Boolean(existingForm.collectsEmail());
+			}
+			const existingItems =
+				typeof existingForm.getItems === "function"
+					? existingForm.getItems()
+					: [];
+			let maxEventSlot = 0;
+			existingItems.forEach(function (item) {
+				const t = cleanFormOptionText_(item.getTitle());
+				const m = /^Event\s+(\d+)$/i.exec(t);
+				if (m) {
+					const n = parseInt(m[1], 10);
+					if (n > maxEventSlot) maxEventSlot = n;
+				}
+				if (t.toLowerCase() === "date of birth") {
+					requireDobForSchool = true;
+				}
+				if (
+					String(item.getType()) === "MULTIPLE_CHOICE" &&
+					(t.toLowerCase() === "club" || t.toLowerCase() === "team")
+				) {
+					try {
+						const mc = item.asMultipleChoiceItem();
+						allowOtherTeam =
+							typeof mc.hasOtherOption === "function"
+								? Boolean(mc.hasOtherOption())
+								: true;
+					} catch (ignoreErr) {
+						allowOtherTeam = true;
+					}
+				}
+			});
+			if (maxEventSlot >= 1 && maxEventSlot <= 9) {
+				eventSlots = maxEventSlot;
+			}
 		} catch (e) {
 			Logger.log(
 				'[formBuilder] Stored formId "%s" could not be opened: %s',
@@ -361,8 +402,107 @@ function getStoredFormStatus() {
 		orgLabel: orgLabel,
 		eventCount: eventCount,
 		organizationCount: organizationCount,
+		collectEmailAndAllowEdits: collectEmailAndAllowEdits,
+		eventSlots: eventSlots,
+		requireDobForSchool: requireDobForSchool,
+		allowOtherTeam: allowOtherTeam,
 		defaultPrivacyNotice: DEFAULT_FORM_PRIVACY_NOTICE,
 	};
+}
+
+/**
+ * Deduplicates columns in the linked response sheet when a Form item was deleted
+ * and recreated (e.g., changing LIST <-> MULTIPLE_CHOICE for Club/Team, or toggling DOB).
+ * Preserves the rightmost (actively linked) column, migrates any non-empty values from
+ * earlier orphaned columns where the active column is blank, and deletes the orphaned columns.
+ *
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss
+ * @param {string} sheetName
+ * @return {number} Number of duplicate columns removed
+ */
+function cleanupDuplicateFormColumns_(ss, sheetName) {
+	if (!ss || !sheetName) return 0;
+	const sheet = ss.getSheetByName(sheetName);
+	if (
+		!sheet ||
+		typeof sheet.getLastColumn !== "function" ||
+		typeof sheet.getLastRow !== "function"
+	) {
+		return 0;
+	}
+
+	const lastCol = sheet.getLastColumn();
+	const lastRow = sheet.getLastRow();
+	if (lastCol < 2 || lastRow < 1) return 0;
+
+	const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+	const colsByHeader = {};
+
+	headers.forEach(function (h, idx) {
+		const key = cleanFormOptionText_(h).toLowerCase();
+		if (!key) return;
+		if (!colsByHeader[key]) colsByHeader[key] = [];
+		colsByHeader[key].push(idx);
+	});
+
+	const colsToDelete = [];
+	const data =
+		lastRow > 1
+			? sheet.getRange(2, 1, lastRow - 1, lastCol).getValues()
+			: null;
+
+	Object.keys(colsByHeader).forEach(function (key) {
+		const indices = colsByHeader[key];
+		if (indices.length <= 1) return;
+
+		// Keep the rightmost column (bound to the most recently created Form item)
+		const keepIdx = indices[indices.length - 1];
+		const orphanedIndices = indices.slice(0, -1);
+
+		if (data) {
+			let migrated = false;
+			for (let r = 0; r < data.length; r++) {
+				if (cleanFormOptionText_(data[r][keepIdx]) !== "") continue;
+				for (let j = orphanedIndices.length - 1; j >= 0; j--) {
+					const val = data[r][orphanedIndices[j]];
+					if (cleanFormOptionText_(val) !== "") {
+						data[r][keepIdx] = val;
+						migrated = true;
+						break;
+					}
+				}
+			}
+			if (migrated) {
+				const keepColValues = data.map(function (row) {
+					return [row[keepIdx]];
+				});
+				sheet
+					.getRange(2, keepIdx + 1, lastRow - 1, 1)
+					.setValues(keepColValues);
+			}
+		}
+
+		orphanedIndices.forEach(function (idx) {
+			colsToDelete.push(idx);
+		});
+	});
+
+	if (colsToDelete.length === 0) return 0;
+
+	// Delete right-to-left so earlier column indices do not shift
+	colsToDelete.sort(function (a, b) {
+		return b - a;
+	});
+	colsToDelete.forEach(function (idx) {
+		sheet.deleteColumn(idx + 1);
+	});
+
+	Logger.log(
+		'[formBuilder] Removed %s duplicate orphaned column(s) from "%s".',
+		colsToDelete.length,
+		sheetName,
+	);
+	return colsToDelete.length;
 }
 
 /**
@@ -377,31 +517,51 @@ function getStoredFormStatus() {
  */
 function findOrCreateFormItem_(form, existingItems, title, expectedType) {
 	const targetTitle = title.trim().toLowerCase();
-	const match = existingItems.find(function (item) {
+	const matches = existingItems.filter(function (item) {
 		return (
 			cleanFormOptionText_(item.getTitle()).toLowerCase() === targetTitle
 		);
 	});
 
-	if (match) {
-		const actualType = String(match.getType());
-		if (actualType === expectedType) {
-			if (expectedType === "TEXT") return match.asTextItem();
-			if (expectedType === "DATE") return match.asDateItem();
-			if (expectedType === "LIST") return match.asListItem();
+	if (matches.length > 0) {
+		const exactMatch = matches.find(function (item) {
+			return String(item.getType()) === expectedType;
+		});
+
+		if (exactMatch) {
+			// Delete any extra duplicate items with the same title
+			matches.forEach(function (item) {
+				if (item !== exactMatch) {
+					try {
+						form.deleteItem(item);
+					} catch (e) {
+						Logger.log(
+							'[formBuilder] Could not delete duplicate item "%s": %s',
+							title,
+							e.message,
+						);
+					}
+				}
+			});
+			if (expectedType === "TEXT") return exactMatch.asTextItem();
+			if (expectedType === "DATE") return exactMatch.asDateItem();
+			if (expectedType === "LIST") return exactMatch.asListItem();
 			if (expectedType === "MULTIPLE_CHOICE")
-				return match.asMultipleChoiceItem();
+				return exactMatch.asMultipleChoiceItem();
 		}
-		// Remove mismatched type so it can be recreated cleanly
-		try {
-			form.deleteItem(match);
-		} catch (e) {
-			Logger.log(
-				'[formBuilder] Could not delete mismatched item "%s": %s',
-				title,
-				e.message,
-			);
-		}
+
+		// Remove all mismatched-type items so it can be recreated cleanly
+		matches.forEach(function (item) {
+			try {
+				form.deleteItem(item);
+			} catch (e) {
+				Logger.log(
+					'[formBuilder] Could not delete mismatched item "%s": %s',
+					title,
+					e.message,
+				);
+			}
+		});
 	}
 
 	let created;
@@ -638,6 +798,12 @@ function createOrUpdateEntryForm(options) {
 		);
 		timeItem.setValidation(timeValidation);
 	}
+
+	// Flush pending Form/Sheet updates and remove any orphaned duplicate columns in the linked sheet
+	if (typeof SpreadsheetApp.flush === "function") {
+		SpreadsheetApp.flush();
+	}
+	cleanupDuplicateFormColumns_(ss, destSheetName);
 
 	const publishedUrl = form.getPublishedUrl();
 	const editUrl = form.getEditUrl();
