@@ -659,6 +659,7 @@ function getSchoolCode(teamCodeData, schoolName) {
 
   let nameCol = headers.indexOf('school');
   if (nameCol === -1) nameCol = headers.indexOf('team');
+  if (nameCol === -1) nameCol = headers.indexOf('club');
   if (nameCol === -1) nameCol = headers.indexOf('team name');
   if (nameCol === -1) nameCol = 1;
 

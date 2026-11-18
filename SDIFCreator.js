@@ -104,6 +104,10 @@ const SDIFCreator = (function() {
       throw error;
     }
 
+    if (!meetInfo.teamTableName) {
+      meetInfo.teamTableName = schoolsTableName;
+    }
+
     const teamLookup = getTeamLookup(schoolsTableName);
 
     let outputFileName = config.outputFileName;
@@ -182,19 +186,33 @@ const SDIFCreator = (function() {
 
   // --- Internal Functions ---
 
+  function resolveTeamTableLabel_(meetInfo) {
+    if (meetInfo && meetInfo.teamTableName) {
+      return String(meetInfo.teamTableName);
+    }
+    if (meetInfo && meetInfo.competitionType && typeof getCompetitionTypePreset === 'function') {
+      const preset = getCompetitionTypePreset(meetInfo.competitionType);
+      if (preset && preset.orgSheetName) {
+        return preset.orgSheetName;
+      }
+    }
+    return 'Schools';
+  }
+
   function buildSdifString_(swimmerRows, meetInfo, teamLookup) {
     // Exception tracking
     const exceptions = [];
+    const tableLabel = resolveTeamTableLabel_(meetInfo);
 
-    // Validate that Schools table is not empty
+    // Validate that Schools/Teams table is not empty
     if (!teamLookup || teamLookup.length === 0) {
       exceptions.push({
         type: 'ERROR',
         category: 'Configuration Error',
         swimmer: 'N/A',
         teamCode: 'N/A',
-        field: 'Schools Table',
-        message: 'Schools table is empty or not found. Please verify the table name exists in your spreadsheet.'
+        field: tableLabel + ' Table',
+        message: tableLabel + ' table is empty or not found. Please verify the table name exists in your spreadsheet.'
       });
 
       // Generate exception report immediately so user sees the helpful error
@@ -202,7 +220,7 @@ const SDIFCreator = (function() {
       const reportFileName = 'SDIF_Exception_Report_' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyyMMdd_HHmmss") + '.txt';
       const reportUrl = generateExceptionReport_(exceptions, counts, meetInfo, reportFileName, null);
 
-      const error = new Error("Schools table is empty or not found. Please verify the table name exists in your spreadsheet.");
+      const error = new Error(tableLabel + " table is empty or not found. Please verify the table name exists in your spreadsheet.");
       error.exceptionReportUrl = reportUrl;
       throw error;
     }
@@ -298,14 +316,14 @@ const SDIFCreator = (function() {
       const teamName = teamInfo ? teamInfo.teamName : '';
       const regionCode = teamInfo ? teamInfo.regionCode : "";
 
-      // Critical: Team must exist in Schools table with both code and name
+      // Critical: Team must exist in Schools/Teams table with both code and name
       if (!teamInfo || !teamInfo.code || !teamInfo.teamName) {
         exceptions.push({
           type: 'ERROR',
-          category: 'Missing Team in Schools Table',
+          category: 'Missing Team in ' + tableLabel + ' Table',
           teamCode: teamCode,
           field: !teamInfo ? 'Team Code and Team Name' : (!teamInfo.code ? 'Team Code' : 'Team Name'),
-          message: 'Team "' + teamCode + '" not found in Schools table or missing required fields (Code, Team Name)'
+          message: 'Team "' + teamCode + '" not found in ' + tableLabel + ' table or missing required fields (Code, Team Name)'
         });
       }
 
@@ -969,10 +987,11 @@ const SDIFCreator = (function() {
       const info = { code: "", teamName: "", regionCode: "" };
       Object.keys(row).forEach(function(key) {
         const k = key.toLowerCase().replace(/\s/g, '');
-        if (k === 'code') info.code = String(row[key]);
-        else if (k === 'teamname') info.teamName = String(row[key]);
-        else if (k === 'regioncode') info.regionCode = String(row[key]);
-        else if ((k === 'school' || k === 'team') && !info.teamName) info.teamName = String(row[key]);
+        const val = row[key] != null ? String(row[key]).trim() : "";
+        if (k === 'code') info.code = val;
+        else if (k === 'teamname') info.teamName = val;
+        else if (k === 'regioncode') info.regionCode = val;
+        else if ((k === 'school' || k === 'team' || k === 'club') && !info.teamName) info.teamName = val;
       });
       return info;
     });
@@ -1023,6 +1042,7 @@ const SDIFCreator = (function() {
 
   function generateExceptionReport_(exceptions, counts, meetInfo, fileName, folderId) {
     const lines = [];
+    const tableLabel = resolveTeamTableLabel_(meetInfo);
     const timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
 
     lines.push('═══════════════════════════════════════════════════════════════');
@@ -1077,7 +1097,7 @@ const SDIFCreator = (function() {
             lines.push('  Team: ' + err.teamCode);
             lines.push('  Missing Field: ' + err.field);
             lines.push('  ⚠ This swimmer was EXCLUDED from the export');
-          } else if (err.category === 'Missing Team in Schools Table') {
+          } else if (/^Missing Team in .+ Table$/.test(err.category)) {
             lines.push('  Team Code: ' + err.teamCode);
             lines.push('  Missing Field: ' + err.field);
             lines.push('  Issue: ' + err.message);
@@ -1147,7 +1167,7 @@ const SDIFCreator = (function() {
         return e.category === 'Missing Critical Data';
       });
       const teamErrors = errors.filter(function(e) {
-        return e.category === 'Missing Team in Schools Table';
+        return /^Missing Team in .+ Table$/.test(e.category);
       });
       const eventErrors = errors.filter(function(e) {
         return e.category === 'Invalid Event Format';
@@ -1173,7 +1193,7 @@ const SDIFCreator = (function() {
       }
 
       if (teamErrors.length > 0) {
-        lines.push('  • ' + teamErrors.length + ' team(s) missing from Schools table');
+        lines.push('  • ' + teamErrors.length + ' team(s) missing from ' + tableLabel + ' table');
         lines.push('    Team information may be incomplete in Meet Manager.');
         lines.push('');
       }

@@ -1746,6 +1746,81 @@ function testFormDuplicateColumnCleanup() {
   return true;
 }
 
+/**
+ * Verifies Teams table lookup (without Cluster column) and SDIF exception report table labels
+ * across all competition types (Masters, Age Group, Open -> Teams; School, College -> Schools).
+ */
+function testTeamsTableExportAndExceptionLabels() {
+  // 1. Teams table (no Cluster column) must resolve Code at index 2, NOT Region Code ("BP") at index 3
+  const teamsRows = [
+    ['Team Name', 'Team', 'Code', 'Region Code'],
+    ['Orca Masters', 'Orca Masters', 'ORC', 'BP'],
+    ['North Shore Masters', 'North Shore Masters', 'NSM', 'AK']
+  ];
+  const mapping = detectColumnMapping(['Timestamp', 'First Name', 'Last Name', 'Date of Birth', 'Gender', 'Club', 'Event 1', 'Time 1']);
+  const pairs = detectEventTimeColumns(['Timestamp', 'First Name', 'Last Name', 'Date of Birth', 'Gender', 'Club', 'Event 1', 'Time 1'], mapping.eventStartCol);
+  const processed = processEntryRow(
+    ['2026-11-18', 'Jane', 'Doe', '1980-05-01', 'Female', 'Orca Masters', '50m Freestyle', '32.10'],
+    pairs,
+    -1,
+    teamsRows,
+    mapping,
+    { ageUpDate: '31/12/2026' }
+  );
+  if (!processed || processed.teamCode !== 'ORC') {
+    throw new Error('testTeamsTableExportAndExceptionLabels: Expected teamCode "ORC", got "' + (processed ? processed.teamCode : null) + '"');
+  }
+
+  // 2. SDIFCreator exception report wording for Teams-based vs Schools-based meets
+  const meetCases = [
+    { competitionType: 'Masters', expectedLabel: 'Teams' },
+    { competitionType: 'Age Group', expectedLabel: 'Teams' },
+    { competitionType: 'Open', expectedLabel: 'Teams' },
+    { competitionType: 'School', expectedLabel: 'Schools' },
+    { competitionType: 'College', expectedLabel: 'Schools' }
+  ];
+
+  meetCases.forEach(function(mc) {
+    SDIFCreator.buildSdifString(
+      [{
+        teamCode: 'MISS',
+        firstName: 'Jane',
+        lastName: 'Doe',
+        dobFormatted: '01/05/1980',
+        gender: 'F',
+        eventsStr: '50m Freestyle',
+        timesStr: '00:32.10',
+        schoolYear: '',
+        age: 46
+      }],
+      {
+        meetName: mc.competitionType + ' Meet',
+        competitionType: mc.competitionType,
+        startDate: new Date(2026, 10, 18),
+        endDate: new Date(2026, 10, 18),
+        course: '25m'
+      },
+      [{ code: 'ORC', teamName: 'Orca Masters', regionCode: 'BP' }]
+    );
+
+    const exList = (typeof lastExceptions_ !== 'undefined' ? lastExceptions_ : SDIFCreator.lastExceptions_) || [];
+    const ex = exList[0];
+    if (!ex) {
+      throw new Error('testTeamsTableExportAndExceptionLabels: Expected missing team exception for ' + mc.competitionType);
+    }
+    const expectedCategory = 'Missing Team in ' + mc.expectedLabel + ' Table';
+    if (ex.category !== expectedCategory) {
+      throw new Error('testTeamsTableExportAndExceptionLabels: For ' + mc.competitionType + ' expected category "' + expectedCategory + '", got "' + ex.category + '"');
+    }
+    if (!ex.message.includes('not found in ' + mc.expectedLabel + ' table')) {
+      throw new Error('testTeamsTableExportAndExceptionLabels: For ' + mc.competitionType + ' expected message to reference "' + mc.expectedLabel + ' table", got "' + ex.message + '"');
+    }
+  });
+
+  Logger.log('✓ testTeamsTableExportAndExceptionLabels passed');
+  return true;
+}
+
 function runAllDiagnosticTests() {
   testCompetitionTypesRegistry();
   testAgeBracketsTableSchema();
@@ -1765,6 +1840,7 @@ function runAllDiagnosticTests() {
   testFormResponseColumnMapping();
   testFormPrerequisiteExtraction();
   testFormDuplicateColumnCleanup();
+  testTeamsTableExportAndExceptionLabels();
   testFlexibleTimeParsing();
   Logger.log('=== ALL DIAGNOSTIC TESTS PASSED ===');
 }

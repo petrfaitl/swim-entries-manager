@@ -286,18 +286,7 @@ function resolveAgeBracket(schoolYear, bracketsMap) {
 //   return `${minutes.toString().padStart(2, '0')}:${secFormatted}`;
 // }
 //
-function getSchoolCode(data, schoolName) {
-  // 1. We skip the header row (index 0) using slice(1) to avoid false matches
-  // 2. We search the remaining rows
-  const foundRow = data.slice(1).find(row => {
-    // Compare the school name (Index 1)
-    // We use trim() to handle the leading space seen in your example data
-    return row[1].trim() === schoolName.trim();
-  });
-
-  // Return the code (Index 3) if a row was found, otherwise return null
-  return foundRow ? foundRow[3] : "UNS";
-}
+// getSchoolCode has been moved to EntryDataProcessor.js (header-aware lookup for both Schools and Teams tables).
 
 
 function getNamedTableData(spreadsheetId,tableName) {
