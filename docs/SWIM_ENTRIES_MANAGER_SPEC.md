@@ -121,12 +121,25 @@ The system shall provide a Google Sheets Add-on interface with sidebar and dialo
 - The system shall display progress and exception reports during export operations
 - The system shall support AuthMode.NONE fallback for limited permission states
 
+### 8. Programmatic Entry Form Generator
+
+The system shall generate and sync a public-facing Google Form via `FormApp` for meets where parents or individual swimmers submit their own entries.
+
+**Requirements:**
+
+- The system shall validate that `Meet`, `Events`, and the competition-appropriate organization sheet (`Schools` or `Teams`) exist and contain non-placeholder entries before creating or syncing a Form
+- The system shall tailor Form fields to the active `COMPETITION_TYPES` preset (`School Year` for School/College, with `Date of Birth` omitted unless `Require Date of Birth` is selected; required `Date of Birth` and `Team` for Age Group/Open/Masters, with an optional `"Other"` write-in team option)
+- The system shall generate `1`–`9` configurable `Event X` / `Time X` slots (`METHOD_1`) with regex seed-time validation (`^(\d{1,2}:)?\d{1,2}\.\d{2}$|^NT$`)
+- The system shall support email collection, response editing, and a configurable privacy/consent notice in the Form description
+- The system shall link responses directly to the active workbook (`Form Entries`) and persist the Form ID in `PropertiesService.getDocumentProperties()` so subsequent runs sync options in place without creating duplicate Forms
+- `EntryDataProcessor.js` shall automatically account for leading `Timestamp` and `Email Address` columns and flag/deduplicate duplicate event selections per swimmer row
+
 ## Technical Constraints
 
 - Runtime: Google Apps Script V8 runtime
 - Advanced Services: Google Sheets API v4, Google Drive API v3
 - Timezone: Pacific/Auckland (configurable)
-- OAuth Scopes: spreadsheets.currentonly, drive.file, userinfo.email, userinfo.profile, script.container.ui, script.locale
+- OAuth Scopes: spreadsheets.currentonly, spreadsheets, drive.file, userinfo.email, userinfo.profile, script.container.ui, script.locale, forms
 - The system shall use the TableApp library for table management
 - The system shall log exceptions to Stackdriver (Cloud Logging)
 

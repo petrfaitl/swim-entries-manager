@@ -1235,6 +1235,318 @@ function testMeetSetupSampleHowToFillOption() {
   return true;
 }
 
+function testFormResponseColumnMapping() {
+  // 1. School Form response header with Timestamp + Email Address
+  const schoolFormHeader = [
+    'Timestamp', 'Email Address', 'First Name', 'Last Name',
+    'Date of Birth', 'Gender', 'School Year', 'School',
+    'Event 1', 'Time 1', 'Event 2', 'Time 2', 'Event 3', 'Time 3'
+  ];
+
+  const mapping = detectColumnMapping(schoolFormHeader);
+  if (mapping.firstName !== 2 || mapping.lastName !== 3 || mapping.dob !== 4 ||
+      mapping.gender !== 5 || mapping.schoolYear !== 6 || mapping.school !== 7 ||
+      mapping.eventStartCol !== 8) {
+    throw new Error('testFormResponseColumnMapping: Unexpected mapping: ' + JSON.stringify(mapping));
+  }
+
+  const format = detectColumnFormat(schoolFormHeader, mapping.eventStartCol);
+  if (format.method !== 'METHOD_1') {
+    throw new Error('testFormResponseColumnMapping: Expected METHOD_1, got ' + format.method);
+  }
+
+  const pairs = detectEventTimeColumns(schoolFormHeader, mapping.eventStartCol);
+  if (pairs.length !== 3 || pairs[0].eventCol !== 8 || pairs[0].timeCol !== 9 ||
+      pairs[2].eventCol !== 12 || pairs[2].timeCol !== 13) {
+    throw new Error('testFormResponseColumnMapping: Unexpected event/time pairs: ' + JSON.stringify(pairs));
+  }
+
+  // 2. Duplicate event detection in processEntryRow
+  const formRow = [
+    new Date(), 'parent@example.com', 'Alex', 'Taylor',
+    '12/04/2014', 'Male', 'Y6', 'Tahatai Coast School',
+    '50m Freestyle', '35.20', '50m Freestyle', '36.00', '100m Freestyle', 'NT'
+  ];
+  const teamCodeData = [
+    ['Team Name', 'School', 'Cluster', 'Code', 'Region Code'],
+    ['Tahatai Coast School', 'Tahatai Coast School', 'Mt Cluster', 'TCS', 'BP']
+  ];
+  const processed = processEntryRow(formRow, pairs, -1, teamCodeData, mapping, { ageUpDate: '01/03/2026' });
+  if (!processed) {
+    throw new Error('testFormResponseColumnMapping: processEntryRow returned null');
+  }
+  if (processed.teamCode !== 'TCS') {
+    throw new Error('testFormResponseColumnMapping: Expected teamCode TCS, got ' + processed.teamCode);
+  }
+  if (processed.eventsStr !== '50m Freestyle, 100m Freestyle') {
+    throw new Error('testFormResponseColumnMapping: Expected deduplicated events, got ' + processed.eventsStr);
+  }
+  if (!processed.duplicateEvents || processed.duplicateEvents.length !== 1 || processed.duplicateEvents[0] !== '50m Freestyle') {
+    throw new Error('testFormResponseColumnMapping: Expected duplicateEvents=["50m Freestyle"], got ' + JSON.stringify(processed.duplicateEvents));
+  }
+
+  // 3. Omitted DOB column should not collide with Gender
+  const noDobHeader = [
+    'Timestamp', 'Email Address', 'First Name', 'Last Name',
+    'Gender', 'School Year', 'School', 'Event 1', 'Time 1'
+  ];
+  const noDobMapping = detectColumnMapping(noDobHeader);
+  if (noDobMapping.dob !== -1 || noDobMapping.gender !== 4 || noDobMapping.school !== 6 || noDobMapping.eventStartCol !== 7) {
+    throw new Error('testFormResponseColumnMapping: Unexpected no-DOB mapping: ' + JSON.stringify(noDobMapping));
+  }
+
+  // 4. SDIFCreator getEntriesSheetNames_ detects 'Form Entries'
+  const mockSheets = [
+    { getName: () => 'Meet', isSheetHidden: () => false },
+    { getName: () => 'Events', isSheetHidden: () => false },
+    { getName: () => 'Schools', isSheetHidden: () => false },
+    {
+      getName: () => 'Form Entries',
+      isSheetHidden: () => false,
+      getLastRow: () => 2,
+      getLastColumn: () => schoolFormHeader.length,
+      getRange: () => ({ getValues: () => [schoolFormHeader] })
+    }
+  ];
+  const mockSs = { getSheets: () => mockSheets };
+  const entrySheets = SDIFCreator.getEntriesSheetNames(mockSs);
+  if (entrySheets.length !== 1 || entrySheets[0] !== 'Form Entries') {
+    throw new Error('testFormResponseColumnMapping: Expected ["Form Entries"], got ' + JSON.stringify(entrySheets));
+  }
+
+  Logger.log('✓ testFormResponseColumnMapping passed');
+  return true;
+}
+
+function testFormPrerequisiteExtraction() {
+  const originalSpreadsheetApp = typeof SpreadsheetApp !== 'undefined' ? SpreadsheetApp : null;
+  const originalFormApp = typeof FormApp !== 'undefined' ? FormApp : null;
+  const originalPropertiesService = typeof PropertiesService !== 'undefined' ? PropertiesService : null;
+
+  function makeSheet(name, rows) {
+    let sheetName = name;
+    return {
+      getName: () => sheetName,
+      setName: (n) => { sheetName = n; },
+      getDataRange: () => ({ getValues: () => rows })
+    };
+  }
+
+  try {
+    // 1. Placeholder-only Schools should fail validation
+    const placeholderSs = {
+      getId: () => 'ss-1',
+      getSheets: () => [],
+      getSheetByName: (name) => {
+        if (name === 'Meet') {
+          return makeSheet('Meet', [
+            ['Meet Name', 'Competition Type'],
+            ['Bay Championships', 'School']
+          ]);
+        }
+        if (name === 'Events') {
+          return makeSheet('Events', [
+            ['Distance', 'Discipline', 'Events'],
+            ['50m', 'Freestyle', '50m Freestyle'],
+            ['', '', '']
+          ]);
+        }
+        if (name === 'Schools') {
+          return makeSheet('Schools', [
+            ['Team Name', 'School', 'Cluster', 'Code', 'Region Code'],
+            ['Team Name', 'School Name', '', 'UNSP', 'BP'],
+            ['', '', '', '', '']
+          ]);
+        }
+        return null;
+      }
+    };
+
+    let threwPlaceholderError = false;
+    try {
+      validateFormPrerequisites_(placeholderSs);
+    } catch (e) {
+      threwPlaceholderError = e.message.includes('placeholder');
+    }
+    if (!threwPlaceholderError) {
+      throw new Error('testFormPrerequisiteExtraction: Expected error for placeholder-only Schools sheet');
+    }
+
+    // 2. Valid workbook strips placeholders and deduplicates
+    const validSheets = [
+      makeSheet('Meet', [
+        ['Meet Name', 'Competition Type'],
+        ['Bay Championships', 'School'],
+        [],
+        [],
+        ['School Year', 'Min Age', 'Max Age'],
+        ['Y5', 9, 9],
+        ['Y6', 10, 10]
+      ]),
+      makeSheet('Events', [
+        ['Distance', 'Discipline', 'Events'],
+        ['50m', 'Freestyle', '50m Freestyle'],
+        ['50m', 'Freestyle', '50m Freestyle'],
+        ['100m', 'Backstroke', ''],
+        ['', '', '']
+      ]),
+      makeSheet('Schools', [
+        ['Team Name', 'School', 'Cluster', 'Code', 'Region Code'],
+        ['Team Name', 'School Name', '', 'UNSP', 'BP'],
+        ['Tahatai', 'Tahatai Coast School', 'Mt', 'TCS', 'BP'],
+        ['Omanu', 'Omanu School', 'Mt', 'OMA', 'BP']
+      ])
+    ];
+    const validSs = {
+      getId: () => 'ss-valid',
+      getSheets: () => validSheets,
+      getSheetByName: (name) => validSheets.find(s => s.getName() === name) || null
+    };
+
+    const prereq = validateFormPrerequisites_(validSs);
+    if (prereq.events.length !== 2 || prereq.events[0] !== '50m Freestyle' || prereq.events[1] !== '100m Backstroke') {
+      throw new Error('testFormPrerequisiteExtraction: Unexpected events: ' + JSON.stringify(prereq.events));
+    }
+    if (prereq.organizations.length !== 2 || prereq.organizations[0] !== 'Tahatai Coast School') {
+      throw new Error('testFormPrerequisiteExtraction: Unexpected organizations: ' + JSON.stringify(prereq.organizations));
+    }
+    if (prereq.schoolYears.length !== 2 || prereq.schoolYears[1] !== 'Y6') {
+      throw new Error('testFormPrerequisiteExtraction: Unexpected schoolYears: ' + JSON.stringify(prereq.schoolYears));
+    }
+
+    // 3. Mock FormApp + PropertiesService for create and in-place sync
+    const propStore = {};
+    let createCalls = 0;
+    const mockItems = [];
+
+    function makeMockItem(type) {
+      let title = '';
+      let choices = [];
+      let required = false;
+      let helpText = '';
+      let otherOpt = false;
+      const typedItem = {
+        getTitle: () => title,
+        setTitle: (t) => { title = t; return typedItem; },
+        getType: () => type,
+        setRequired: (r) => { required = r; return typedItem; },
+        setHelpText: (h) => { helpText = h; return typedItem; },
+        setChoiceValues: (c) => { choices = c.slice(); return typedItem; },
+        showOtherOption: (v) => { otherOpt = v; return typedItem; },
+        setValidation: () => typedItem,
+        _debug: () => ({ title, type, choices, required, helpText, otherOpt })
+      };
+      const genericItem = {
+        getTitle: () => title,
+        getType: () => type,
+        asTextItem: () => {
+          if (type !== 'TEXT') throw new Error('Item is not TEXT');
+          return typedItem;
+        },
+        asDateItem: () => {
+          if (type !== 'DATE') throw new Error('Item is not DATE');
+          return typedItem;
+        },
+        asListItem: () => {
+          if (type !== 'LIST') throw new Error('Item is not LIST');
+          return typedItem;
+        },
+        asMultipleChoiceItem: () => {
+          if (type !== 'MULTIPLE_CHOICE') throw new Error('Item is not MULTIPLE_CHOICE');
+          return typedItem;
+        }
+      };
+      return { typedItem, genericItem };
+    }
+
+    const mockForm = {
+      getId: () => 'form-123',
+      getPublishedUrl: () => 'https://docs.google.com/forms/d/e/form-123/viewform',
+      getEditUrl: () => 'https://docs.google.com/forms/d/form-123/edit',
+      setTitle: () => {},
+      setDescription: () => {},
+      setCollectEmail: () => {},
+      setAllowResponseEdits: () => {},
+      setDestination: () => {
+        if (!validSheets.find(s => s.getName() === 'Form Responses 1')) {
+          validSheets.push(makeSheet('Form Responses 1', []));
+        }
+      },
+      getItems: () => mockItems.map(entry => entry.genericItem),
+      addTextItem: () => { const it = makeMockItem('TEXT'); mockItems.push(it); return it.typedItem; },
+      addDateItem: () => { const it = makeMockItem('DATE'); mockItems.push(it); return it.typedItem; },
+      addListItem: () => { const it = makeMockItem('LIST'); mockItems.push(it); return it.typedItem; },
+      addMultipleChoiceItem: () => { const it = makeMockItem('MULTIPLE_CHOICE'); mockItems.push(it); return it.typedItem; },
+      deleteItem: (it) => {
+        const idx = mockItems.findIndex(entry => entry.genericItem === it || entry.typedItem === it);
+        if (idx !== -1) mockItems.splice(idx, 1);
+      }
+    };
+
+    globalThis.SpreadsheetApp = Object.assign({}, originalSpreadsheetApp || {}, {
+      getActiveSpreadsheet: () => validSs,
+      flush: () => {}
+    });
+    globalThis.PropertiesService = {
+      getDocumentProperties: () => ({
+        getProperty: (k) => propStore[k] || null,
+        setProperties: (obj) => Object.assign(propStore, obj)
+      })
+    };
+    globalThis.FormApp = {
+      DestinationType: { SPREADSHEET: 'SPREADSHEET' },
+      create: () => { createCalls++; return mockForm; },
+      openById: (id) => {
+        if (id === 'form-123') return mockForm;
+        throw new Error('Form not found');
+      },
+      createTextValidation: () => {
+        const builder = {
+          setHelpText: () => builder,
+          requireTextMatchesPattern: () => builder,
+          build: () => ({})
+        };
+        return builder;
+      }
+    };
+
+    const createRes = createOrUpdateEntryForm({ eventSlots: 2, collectEmailAndAllowEdits: true });
+    if (!createRes.success || createRes.isUpdate || createCalls !== 1 || createRes.destinationSheet !== 'Form Entries') {
+      throw new Error('testFormPrerequisiteExtraction: Unexpected create result: ' + JSON.stringify(createRes));
+    }
+    if (mockItems.some(entry => entry.typedItem.getTitle() === 'Date of Birth')) {
+      throw new Error('testFormPrerequisiteExtraction: Expected Date of Birth to be omitted when requireDobForSchool is false');
+    }
+
+    const syncWithDobRes = createOrUpdateEntryForm({ eventSlots: 2, collectEmailAndAllowEdits: true, requireDobForSchool: true });
+    if (!syncWithDobRes.success || !syncWithDobRes.isUpdate || createCalls !== 1) {
+      throw new Error('testFormPrerequisiteExtraction: Expected in-place sync without creating new Form: ' + JSON.stringify(syncWithDobRes));
+    }
+    const dobEntry = mockItems.find(entry => entry.typedItem.getTitle() === 'Date of Birth');
+    if (!dobEntry || !dobEntry.typedItem._debug().required) {
+      throw new Error('testFormPrerequisiteExtraction: Expected required Date of Birth item when requireDobForSchool is true');
+    }
+
+    const syncWithoutDobRes = createOrUpdateEntryForm({ eventSlots: 2, collectEmailAndAllowEdits: true, requireDobForSchool: false });
+    if (!syncWithoutDobRes.success || !syncWithoutDobRes.isUpdate) {
+      throw new Error('testFormPrerequisiteExtraction: Expected in-place sync when unticking requireDobForSchool');
+    }
+    if (mockItems.some(entry => entry.typedItem.getTitle() === 'Date of Birth')) {
+      throw new Error('testFormPrerequisiteExtraction: Expected Date of Birth item to be removed when requireDobForSchool is unticked');
+    }
+  } finally {
+    if (originalSpreadsheetApp) globalThis.SpreadsheetApp = originalSpreadsheetApp;
+    else delete globalThis.SpreadsheetApp;
+    if (originalFormApp) globalThis.FormApp = originalFormApp;
+    else delete globalThis.FormApp;
+    if (originalPropertiesService) globalThis.PropertiesService = originalPropertiesService;
+    else delete globalThis.PropertiesService;
+  }
+
+  Logger.log('✓ testFormPrerequisiteExtraction passed');
+  return true;
+}
+
 function runAllDiagnosticTests() {
   testCompetitionTypesRegistry();
   testAgeBracketsTableSchema();
@@ -1251,6 +1563,8 @@ function runAllDiagnosticTests() {
   testActivateSheetByName();
   testDuplicateTemplateForNames();
   testMeetSetupSampleHowToFillOption();
+  testFormResponseColumnMapping();
+  testFormPrerequisiteExtraction();
   testFlexibleTimeParsing();
   Logger.log('=== ALL DIAGNOSTIC TESTS PASSED ===');
 }

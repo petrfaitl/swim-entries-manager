@@ -245,6 +245,34 @@ Each entry sheet contains:
   - All conversions target standard 25m pool times
   - System automatically detects Individual Medley events and applies correct conversion
 
+## Parent / Swimmer Self-Entry via Google Form
+
+For meets where **parents** (School / College) or **swimmers themselves** (Age Group / Open / Masters) submit their own individual entries, you can generate a public-facing **Google Form** directly from your workbook.
+
+### Prerequisites
+
+Before generating a Form, ensure:
+1. **Meet Setup** has been run (`Meet`, `Events`, and `Schools` or `Teams` sheets exist).
+2. `Events` contains at least one valid event.
+3. `Schools` (or `Teams`) contains at least one real school/team (placeholder rows such as `School Name` or `Team / Club Name` are automatically ignored).
+
+### Generating & Syncing the Entry Form
+
+1. **Open the Form Generator**
+   - From the menu: **Extensions** > **Swim Entries Manager** > **Create / Sync Entry Form**
+   - Or from the sidebar: expand **Entry Form (Optional)** and click **Create / Sync Entry Form**
+2. **Configure Form Options**
+   - **Number of Event Slots**: Choose between 1 and 9 `Event` / `Time` pairs per swimmer (default: 5).
+   - **Collect Email & Allow Response Edits**: When enabled, respondents receive a confirmation email with a link to edit their submission before entries close.
+   - **Require Date of Birth** *(School / College meets)*: When checked, `Date of Birth` is displayed on the form as a required field; when unchecked, `Date of Birth` is omitted from the form so parents only select `School Year`.
+   - **Allow write-in Team / Club ("Other")** *(Age Group / Open / Masters meets)*: Lets unattached or unlisted swimmers type their team name. *(Note: Unlisted teams export with code `UNS` unless added to the `Teams` sheet before export.)*
+   - **Form Description & Privacy Notice**: Review or customize the description and privacy notice shown at the top of the Form.
+3. **Generate or Sync**
+   - Click **Generate Entry Form**. The add-on creates the Form, links responses to a `Form Entries` sheet in your workbook, and displays copyable **Responder URL** and **Form Editor URL** links.
+   - If you later add or edit events or schools/teams in your spreadsheet, reopen **Create / Sync Entry Form** and click **Sync Form Options** to update the existing Form's dropdowns in place without creating a duplicate Form.
+4. **Exporting Form Responses**
+   - `Form Entries` is automatically detected by both **Export for Meet Manager (SDIF)** and **Export to CSV**—no manual column reformatting is required.
+
 ## Exporting for Meet Manager
 
 ### Overview

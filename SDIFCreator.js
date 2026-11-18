@@ -315,6 +315,17 @@ const SDIFCreator = (function() {
 
       const swimmersInTeam = teamsMap[teamCode];
       swimmersInTeam.forEach(function(swimmer) {
+        if (swimmer.duplicateEvents && swimmer.duplicateEvents.length > 0) {
+          exceptions.push({
+            type: 'WARNING',
+            category: 'Duplicate Event',
+            swimmer: swimmer.firstName + ' ' + swimmer.lastName,
+            teamCode: swimmer.teamCode,
+            field: 'Events',
+            message: 'Duplicate event selection skipped: ' + swimmer.duplicateEvents.join(', ')
+          });
+        }
+
         const events = parseEvents_(swimmer.events, swimmer.times);
         let validEventsCount = 0;
 
@@ -810,6 +821,7 @@ const SDIFCreator = (function() {
       s.times      = row.timesStr;      // Already formatted as comma-separated string
       s.schoolYear = row.schoolYear;    // Already normalized
       s.age        = row.age;           // Integer age
+      s.duplicateEvents = row.duplicateEvents || [];
     }
 
     // Critical validations
