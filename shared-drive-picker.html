@@ -200,6 +200,22 @@
 
       loadPickerApi(function() {
         try {
+          const DIALOG_DEFAULT_WIDTH = 500;
+          const DIALOG_DEFAULT_HEIGHT = 520;
+          const PICKER_DIALOG_WIDTH = 720;
+          const PICKER_DIALOG_HEIGHT = 560;
+
+          function restoreDialogSize() {
+            if (typeof google !== 'undefined' && google.script && google.script.host) {
+              if (typeof google.script.host.setWidth === 'function') {
+                google.script.host.setWidth(DIALOG_DEFAULT_WIDTH);
+              }
+              if (typeof google.script.host.setHeight === 'function') {
+                google.script.host.setHeight(DIALOG_DEFAULT_HEIGHT);
+              }
+            }
+          }
+
           const docsView = new google.picker.DocsView(google.picker.ViewId.FOLDERS)
             .setIncludeFolders(true)
             .setSelectFolderEnabled(true)
@@ -213,9 +229,11 @@
             .addView(docsView)
             .setOAuthToken(config.oauthToken)
             .setDeveloperKey(config.apiKey)
+            .setSize(680, 500)
             .setTitle('Select Export Folder')
             .setCallback(function(data) {
               if (data.action === google.picker.Action.PICKED) {
+                restoreDialogSize();
                 const doc = data.docs && data.docs[0];
                 if (doc && doc.id) {
                   chooseBtn.disabled = true;
@@ -235,9 +253,16 @@
                     .setExportFolder(doc.id, doc.name);
                 }
               } else if (data.action === google.picker.Action.CANCEL) {
+                restoreDialogSize();
                 chooseBtn.disabled = false;
               }
             });
+
+          if (typeof google !== 'undefined' && google.script && google.script.host && google.script.host.origin) {
+            builder.setOrigin(google.script.host.origin);
+          } else {
+            builder.setOrigin(window.location.protocol + '//' + window.location.host);
+          }
 
           if (google.picker.Feature && google.picker.Feature.SUPPORT_DRIVES) {
             builder.enableFeature(google.picker.Feature.SUPPORT_DRIVES);
@@ -246,10 +271,20 @@
             builder.setAppId(config.projectNumber);
           }
 
+          if (typeof google !== 'undefined' && google.script && google.script.host) {
+            if (typeof google.script.host.setWidth === 'function') {
+              google.script.host.setWidth(PICKER_DIALOG_WIDTH);
+            }
+            if (typeof google.script.host.setHeight === 'function') {
+              google.script.host.setHeight(PICKER_DIALOG_HEIGHT);
+            }
+          }
+
           const picker = builder.build();
           picker.setVisible(true);
           chooseBtn.disabled = false;
         } catch (err) {
+          restoreDialogSize();
           chooseBtn.disabled = false;
           showPickerError('Could not open Drive Picker: ' + (err.message || String(err)));
         }
