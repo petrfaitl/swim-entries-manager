@@ -139,7 +139,7 @@ The system shall generate and sync a public-facing Google Form via `FormApp` for
 - Runtime: Google Apps Script V8 runtime
 - Advanced Services: Google Sheets API v4, Google Drive API v3
 - Timezone: Pacific/Auckland (configurable)
-- OAuth Scopes: spreadsheets.currentonly, spreadsheets, drive.file, userinfo.email, userinfo.profile, script.container.ui, script.locale, forms
+- OAuth Scopes: spreadsheets.currentonly, spreadsheets, drive.file, drive, userinfo.email, userinfo.profile, script.container.ui, script.locale, forms
 - The system shall use the TableApp library for table management
 - The system shall log exceptions to Stackdriver (Cloud Logging)
 

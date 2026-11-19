@@ -304,7 +304,8 @@ function getNamedTableData(spreadsheetId,tableName) {
 
 /**
  * Resolves the parent Google Drive folder ID for a given spreadsheet.
- * Uses Advanced Drive Service (supporting Shared Drives and `drive.file` scope).
+ * Uses Advanced Drive Service (supporting Shared Drives) with a DriveApp fallback
+ * (requires `drive` scope for pre-existing spreadsheets).
  *
  * @param {string} spreadsheetId - The ID of the Google Spreadsheet
  * @returns {string|null} The first parent folder ID, or null if in root or inaccessible
@@ -326,6 +327,17 @@ function getSpreadsheetParentFolderId_(spreadsheetId) {
     }
   } catch (e) {
     Logger.log('[utils] Drive.Files.get parent lookup failed: %s', e.message);
+  }
+
+  try {
+    if (typeof DriveApp !== 'undefined' && typeof DriveApp.getFileById === 'function') {
+      const parents = DriveApp.getFileById(spreadsheetId).getParents();
+      if (parents && parents.hasNext()) {
+        return parents.next().getId();
+      }
+    }
+  } catch (e) {
+    Logger.log('[utils] DriveApp.getFileById parent lookup failed: %s', e.message);
   }
 
   return null;
@@ -362,12 +374,18 @@ function saveTextFileToDrive_(content, mimeType, fileName, folderId) {
     Logger.log('[saveTextFileToDrive_] Advanced Drive Service failed: %s', e.message);
 
     if (folderId) {
-      Logger.log('[saveTextFileToDrive_] Falling back to My Drive root for: %s', fileName);
+      Logger.log('[saveTextFileToDrive_] Trying DriveApp.getFolderById fallback for: %s', fileName);
       try {
-        const rootFile = Drive.Files.create({ name: fileName, mimeType: mimeType }, blob, { supportsAllDrives: true });
-        fileId = rootFile.id;
+        const folder = DriveApp.getFolderById(folderId);
+        fileId = folder.createFile(blob).getId();
       } catch (e2) {
-        fileId = DriveApp.createFile(blob).getId();
+        Logger.log('[saveTextFileToDrive_] Target folder save failed, falling back to My Drive root: %s', e2.message);
+        try {
+          const rootFile = Drive.Files.create({ name: fileName, mimeType: mimeType }, blob, { supportsAllDrives: true });
+          fileId = rootFile.id;
+        } catch (e3) {
+          fileId = DriveApp.createFile(blob).getId();
+        }
       }
     } else {
       fileId = DriveApp.createFile(blob).getId();

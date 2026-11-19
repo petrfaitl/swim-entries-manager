@@ -1837,6 +1837,7 @@ function testExportFolderResolutionAndFallback() {
   let failFolderWrite = false;
   let driveParentLookup = ['FOLDER_123'];
   let driveGetThrows = false;
+  let driveAppParents = ['DRIVEAPP_FOLDER_456'];
 
   try {
     globalThis.Utilities = {
@@ -1865,12 +1866,23 @@ function testExportFolderResolutionAndFallback() {
       }
     };
     globalThis.DriveApp = {
-      getFileById: () => {
-        throw new Error('DriveApp.getFileById must not be called under drive.file scope');
-      },
-      getFolderById: () => {
-        throw new Error('DriveApp.getFolderById must not be called under drive.file scope');
-      },
+      getFileById: () => ({
+        getParents: () => {
+          let idx = 0;
+          return {
+            hasNext: () => idx < driveAppParents.length,
+            next: () => ({ getId: () => driveAppParents[idx++] })
+          };
+        }
+      }),
+      getFolderById: (folderId) => ({
+        createFile: (blob) => {
+          if (failFolderWrite) throw new Error('DriveApp folder write denied');
+          const id = 'DA_FOLDER_FILE_' + (createdFiles.length + 1);
+          createdFiles.push({ id, metadata: { name: blob.fileName, parents: [folderId] }, blob });
+          return { getId: () => id };
+        }
+      }),
       createFile: (blob) => {
         const id = 'DA_ROOT_FILE_' + (createdFiles.length + 1);
         createdFiles.push({ id, metadata: { name: blob.fileName }, blob });
@@ -1883,15 +1895,16 @@ function testExportFolderResolutionAndFallback() {
       throw new Error('Expected FOLDER_123 from Drive.Files.get');
     }
 
-    // 2. Parent folder resolution: returns null (without calling DriveApp.getFileById) when Drive.Files.get fails
+    // 2. Parent folder resolution: DriveApp.getFileById fallback when Drive.Files.get fails
     driveGetThrows = true;
-    if (getSpreadsheetParentFolderId_('SS_1') !== null) {
-      throw new Error('Expected null when Drive.Files.get fails under drive.file scope');
+    if (getSpreadsheetParentFolderId_('SS_1') !== 'DRIVEAPP_FOLDER_456') {
+      throw new Error('Expected DRIVEAPP_FOLDER_456 from DriveApp.getFileById fallback');
     }
 
     // 3. Parent folder resolution: null when no parents exist
     driveGetThrows = false;
     driveParentLookup = [];
+    driveAppParents = [];
     if (getSpreadsheetParentFolderId_('SS_1') !== null) {
       throw new Error('Expected null when spreadsheet is in My Drive root');
     }
@@ -2008,6 +2021,7 @@ function testExportFolderResolutionAndFallback() {
     if (createdFiles.length !== 1 || createdFiles[0].metadata.parents) {
       throw new Error('Expected fallback file to be saved in My Drive root without parents');
     }
+    failFolderWrite = false;
   } finally {
     if (originalDrive) globalThis.Drive = originalDrive;
     else delete globalThis.Drive;
