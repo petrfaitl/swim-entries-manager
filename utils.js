@@ -302,6 +302,81 @@ function getNamedTableData(spreadsheetId,tableName) {
   return data;
 }
 
+/**
+ * Resolves the parent Google Drive folder ID for a given spreadsheet.
+ * Uses Advanced Drive Service (supporting Shared Drives and `drive.file` scope).
+ *
+ * @param {string} spreadsheetId - The ID of the Google Spreadsheet
+ * @returns {string|null} The first parent folder ID, or null if in root or inaccessible
+ */
+function getSpreadsheetParentFolderId_(spreadsheetId) {
+  if (!spreadsheetId) {
+    return null;
+  }
+
+  try {
+    if (typeof Drive !== 'undefined' && Drive.Files && typeof Drive.Files.get === 'function') {
+      const file = Drive.Files.get(spreadsheetId, {
+        fields: 'parents',
+        supportsAllDrives: true
+      });
+      if (file && Array.isArray(file.parents) && file.parents.length > 0) {
+        return file.parents[0];
+      }
+    }
+  } catch (e) {
+    Logger.log('[utils] Drive.Files.get parent lookup failed: %s', e.message);
+  }
+
+  return null;
+}
+
+/**
+ * Saves a text file (e.g., .sd3, .csv, or .txt exception report) to Google Drive,
+ * targeting the specified folder ID and falling back to My Drive root if the folder
+ * is unavailable or not writable.
+ *
+ * @param {string} content - Text content to write
+ * @param {string} mimeType - MIME type (e.g., 'text/plain' or MimeType.CSV)
+ * @param {string} fileName - Output file name
+ * @param {string|null} [folderId] - Target Drive folder ID, or null/undefined for My Drive root
+ * @returns {string} Direct download URL for the created Drive file
+ */
+function saveTextFileToDrive_(content, mimeType, fileName, folderId) {
+  const blob = Utilities.newBlob(content, mimeType, fileName);
+  let fileId;
+
+  const fileMetadata = {
+    name: fileName,
+    mimeType: mimeType
+  };
+  if (folderId) {
+    fileMetadata.parents = [folderId];
+  }
+
+  try {
+    const file = Drive.Files.create(fileMetadata, blob, { supportsAllDrives: true });
+    fileId = file.id;
+    Logger.log('[saveTextFileToDrive_] File created via Advanced Drive Service: %s (ID: %s)', fileName, fileId);
+  } catch (e) {
+    Logger.log('[saveTextFileToDrive_] Advanced Drive Service failed: %s', e.message);
+
+    if (folderId) {
+      Logger.log('[saveTextFileToDrive_] Falling back to My Drive root for: %s', fileName);
+      try {
+        const rootFile = Drive.Files.create({ name: fileName, mimeType: mimeType }, blob, { supportsAllDrives: true });
+        fileId = rootFile.id;
+      } catch (e2) {
+        fileId = DriveApp.createFile(blob).getId();
+      }
+    } else {
+      fileId = DriveApp.createFile(blob).getId();
+    }
+  }
+
+  return "https://drive.google.com/uc?export=download&id=" + fileId;
+}
+
 
 
 

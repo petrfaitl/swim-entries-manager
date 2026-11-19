@@ -314,8 +314,8 @@ This is the **primary export method** that generates SDIF v3 format files compat
    - The system will:
      - Validate all critical data (names, DOB, gender, team codes)
      - Process events and times
-     - Generate SDIF v3 format file
-     - Create an exception report if any issues are found
+     - Generate SDIF v3 format file in the spreadsheet's Google Drive folder (falling back to My Drive root if needed)
+     - Create an exception report in the same folder if any issues are found
 
 5. **Review Results**
    - **Success (Green)**: "Successfully generated!" - No issues found
@@ -378,7 +378,7 @@ Use this option if you need CSV format for custom processing or other tools.
      - Auto-detect Event and Time columns
      - Format times correctly
      - Look up team codes
-     - Generate CSV file in Google Drive
+     - Generate CSV file in the spreadsheet's Google Drive folder (falling back to My Drive root if needed)
 
 5. **Download CSV**
    - Click the styled **"Download File"** link that appears below the status message
@@ -400,7 +400,7 @@ HAMES,Sarah,Johnson,15/01/2012,Female,"50m Freestyle, 100m Backstroke","0:35.20,
 
 ### What is an Exception Report?
 
-When you export for Meet Manager, the system validates all critical data required for successful import. If any issues are found, an **Exception Report** is automatically generated alongside your .sd3 file.
+When you export for Meet Manager, the system validates all critical data required for successful import. If any issues are found, an **Exception Report** is automatically generated alongside your .sd3 file in the spreadsheet's Google Drive folder (falling back to My Drive root if the folder is not writable).
 
 The exception report is a text file that details:
 - What data is missing or invalid

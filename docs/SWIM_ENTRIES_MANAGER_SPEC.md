@@ -76,7 +76,7 @@ The system shall export swimmer entry data to SDIF v3 (.sd3) format compatible w
     - 18m pool conversions
     - Long Course (50m) to Short Course conversions
 - The system shall use the RESIZESWIM function for time conversions
-- The system shall create the .sd3 file in Google Drive with configurable output folder
+- The system shall create the .sd3 file and any `_ExceptionReport.txt` error logs in the spreadsheet's Google Drive folder (with configurable `outputFolderId` override and My Drive root fallback if the spreadsheet is in root or the folder is not writable)
 - The system shall follow SDIF v3.0 specification with FINA organization code
 
 ### 5. CSV Export
@@ -91,7 +91,7 @@ The system shall export swimmer entry data to traditional CSV format for custom 
 - The system shall support custom output file naming (defaulting to `<SheetName>.csv` if left blank)
 - The system shall export processed swimmer data with consistent column structure
 - The system shall support the same entry format auto-detection as SDIF export
-- The system shall create the CSV file in Google Drive and provide a styled download link
+- The system shall create the CSV file in the spreadsheet's Google Drive folder (falling back to My Drive root if the spreadsheet is in root or the folder is not writable) and provide a styled download link
 
 ### 6. Data Processing & Validation
 

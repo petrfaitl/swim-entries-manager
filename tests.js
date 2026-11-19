@@ -1821,6 +1821,212 @@ function testTeamsTableExportAndExceptionLabels() {
   return true;
 }
 
+/**
+ * Verifies spreadsheet parent folder resolution, Drive export destination for .sd3, .csv,
+ * and exception reports (including early-abort error logs), and fallback to My Drive root.
+ */
+function testExportFolderResolutionAndFallback() {
+  const originalDrive = globalThis.Drive;
+  const originalDriveApp = globalThis.DriveApp;
+  const originalUtilities = globalThis.Utilities;
+  const originalSession = globalThis.Session;
+  const originalSpreadsheetApp = globalThis.SpreadsheetApp;
+  const originalTableApp = globalThis.TableApp;
+
+  const createdFiles = [];
+  let failFolderWrite = false;
+  let driveParentLookup = ['FOLDER_123'];
+  let driveGetThrows = false;
+
+  try {
+    globalThis.Utilities = {
+      newBlob: (content, mimeType, fileName) => ({ content, mimeType, fileName }),
+      formatDate: () => '20261119_120000'
+    };
+    globalThis.Session = {
+      getScriptTimeZone: () => 'Pacific/Auckland'
+    };
+    globalThis.Drive = {
+      Files: {
+        get: (id, opts) => {
+          if (driveGetThrows) throw new Error('Drive.Files.get denied');
+          if (!opts || !opts.supportsAllDrives) throw new Error('Expected supportsAllDrives: true on Drive.Files.get');
+          return { parents: driveParentLookup };
+        },
+        create: (metadata, blob, opts) => {
+          if (!opts || !opts.supportsAllDrives) throw new Error('Expected supportsAllDrives: true on Drive.Files.create');
+          if (failFolderWrite && metadata.parents && metadata.parents.length > 0) {
+            throw new Error('Permission denied on parent folder');
+          }
+          const id = 'FILE_' + (createdFiles.length + 1);
+          createdFiles.push({ id, metadata, blob });
+          return { id };
+        }
+      }
+    };
+    globalThis.DriveApp = {
+      getFileById: () => {
+        throw new Error('DriveApp.getFileById must not be called under drive.file scope');
+      },
+      getFolderById: () => {
+        throw new Error('DriveApp.getFolderById must not be called under drive.file scope');
+      },
+      createFile: (blob) => {
+        const id = 'DA_ROOT_FILE_' + (createdFiles.length + 1);
+        createdFiles.push({ id, metadata: { name: blob.fileName }, blob });
+        return { getId: () => id };
+      }
+    };
+
+    // 1. Parent folder resolution: Drive.Files.get primary
+    if (getSpreadsheetParentFolderId_('SS_1') !== 'FOLDER_123') {
+      throw new Error('Expected FOLDER_123 from Drive.Files.get');
+    }
+
+    // 2. Parent folder resolution: returns null (without calling DriveApp.getFileById) when Drive.Files.get fails
+    driveGetThrows = true;
+    if (getSpreadsheetParentFolderId_('SS_1') !== null) {
+      throw new Error('Expected null when Drive.Files.get fails under drive.file scope');
+    }
+
+    // 3. Parent folder resolution: null when no parents exist
+    driveGetThrows = false;
+    driveParentLookup = [];
+    if (getSpreadsheetParentFolderId_('SS_1') !== null) {
+      throw new Error('Expected null when spreadsheet is in My Drive root');
+    }
+
+    // Restore parent folder for export tests
+    driveParentLookup = ['MEET_FOLDER_999'];
+
+    // Mock SpreadsheetApp & TableApp for SDIFCreator.generate() and processSheetToCSV()
+    const entriesSheet = {
+      getName: () => 'TeamA',
+      getLastRow: () => 3,
+      getLastColumn: () => 8,
+      getDataRange: () => entriesSheet.getRange(1, 1, 3, 8),
+      getRange: (r, c, nr, nc) => ({
+        getValues: () => {
+          const all = [
+            ['First Name', 'Last Name', 'Date of Birth', 'Gender', 'School Year', 'School', 'Event 1', 'Time 1'],
+            ['Jane', 'Doe', '01/05/2014', 'Female', 'Y6', 'Alpha School', '50m Freestyle', '32.10'],
+            ['Sam', 'Lee', '01/05/2014', 'Male', 'Y6', 'Alpha School', '', '']
+          ];
+          return all.slice(r - 1, r - 1 + nr).map(row => row.slice(c - 1, c - 1 + nc));
+        }
+      })
+    };
+    const mockSs = {
+      getId: () => 'SS_MEET_1',
+      getSheetByName: (name) => {
+        if (name === 'TeamA') return entriesSheet;
+        if (name === 'Schools') return { getName: () => 'Schools' };
+        return null;
+      }
+    };
+    globalThis.SpreadsheetApp = {
+      getActiveSpreadsheet: () => mockSs,
+      getActive: () => mockSs
+    };
+    globalThis.TableApp = {
+      openById: () => ({
+        getTableByName: (name) => {
+          if (name === 'Meet') {
+            return {
+              getValues: () => [
+                ['Meet Name', 'Competition Type', 'Start Date', 'End Date', 'Course'],
+                ['Test Meet', 'School', '19/11/2026', '19/11/2026', '25m']
+              ]
+            };
+          }
+          if (name === 'Schools') {
+            return {
+              getValues: () => [
+                ['School', 'Team Name', 'Cluster', 'Code', 'Region Code'],
+                ['Alpha School', 'Alpha School', 'North', 'ALP', 'BP']
+              ]
+            };
+          }
+          return null;
+        }
+      })
+    };
+
+    // 4. SDIFCreator.generate() saves both .sd3 and _ExceptionReport.txt to MEET_FOLDER_999
+    createdFiles.length = 0;
+    const sdifRes = SDIFCreator.generate({
+      entriesSheetName: 'TeamA',
+      outputFileName: 'TestMeet.sd3'
+    });
+    if (!sdifRes.sdifFileUrl || !sdifRes.reportUrl) {
+      throw new Error('Expected both sdifFileUrl and reportUrl from SDIFCreator.generate');
+    }
+    if (createdFiles.length !== 2) {
+      throw new Error('Expected 2 Drive files (.sd3 + exception report), got ' + createdFiles.length);
+    }
+    createdFiles.forEach(f => {
+      if (!f.metadata.parents || f.metadata.parents[0] !== 'MEET_FOLDER_999') {
+        throw new Error('Expected file ' + f.metadata.name + ' in MEET_FOLDER_999, got ' + JSON.stringify(f.metadata.parents));
+      }
+    });
+
+    // 5. Early-abort exception report (empty Schools/Teams table) also lands in folderId
+    createdFiles.length = 0;
+    let threwEmptyTeams = false;
+    try {
+      SDIFCreator.buildSdifString(
+        [{ teamCode: 'ALP', firstName: 'Jane', lastName: 'Doe', dobFormatted: '01/05/2014', gender: 'F', eventsStr: '50m Freestyle', timesStr: '00:32.10' }],
+        { meetName: 'Test Meet', competitionType: 'School', startDate: new Date(2026, 10, 19), endDate: new Date(2026, 10, 19), course: '25m' },
+        [],
+        'MEET_FOLDER_999'
+      );
+    } catch (e) {
+      threwEmptyTeams = true;
+    }
+    if (!threwEmptyTeams) throw new Error('Expected buildSdifString to throw on empty teamLookup');
+    if (createdFiles.length !== 1 || createdFiles[0].metadata.parents[0] !== 'MEET_FOLDER_999') {
+      throw new Error('Expected early-abort exception report in MEET_FOLDER_999');
+    }
+
+    // 6. processSheetToCSV() saves .csv to MEET_FOLDER_999
+    createdFiles.length = 0;
+    const csvUrl = processSheetToCSV('TeamA', 'Schools', 'TeamA_Export');
+    if (!csvUrl.includes('FILE_')) {
+      throw new Error('Expected valid download URL from processSheetToCSV');
+    }
+    if (createdFiles.length !== 1 || createdFiles[0].metadata.parents[0] !== 'MEET_FOLDER_999') {
+      throw new Error('Expected CSV file in MEET_FOLDER_999, got ' + JSON.stringify(createdFiles));
+    }
+
+    // 7. Permission error on target folder falls back gracefully to My Drive root
+    createdFiles.length = 0;
+    failFolderWrite = true;
+    const fallbackUrl = saveTextFileToDrive_('hello', 'text/plain', 'fallback.txt', 'READONLY_FOLDER');
+    if (!fallbackUrl.includes('FILE_') && !fallbackUrl.includes('DA_ROOT_FILE_')) {
+      throw new Error('Expected fallback file URL, got ' + fallbackUrl);
+    }
+    if (createdFiles.length !== 1 || createdFiles[0].metadata.parents) {
+      throw new Error('Expected fallback file to be saved in My Drive root without parents');
+    }
+  } finally {
+    if (originalDrive) globalThis.Drive = originalDrive;
+    else delete globalThis.Drive;
+    if (originalDriveApp) globalThis.DriveApp = originalDriveApp;
+    else delete globalThis.DriveApp;
+    if (originalUtilities) globalThis.Utilities = originalUtilities;
+    else delete globalThis.Utilities;
+    if (originalSession) globalThis.Session = originalSession;
+    else delete globalThis.Session;
+    if (originalSpreadsheetApp) globalThis.SpreadsheetApp = originalSpreadsheetApp;
+    else delete globalThis.SpreadsheetApp;
+    if (originalTableApp) globalThis.TableApp = originalTableApp;
+    else delete globalThis.TableApp;
+  }
+
+  Logger.log('✓ testExportFolderResolutionAndFallback passed');
+  return true;
+}
+
 function runAllDiagnosticTests() {
   testCompetitionTypesRegistry();
   testAgeBracketsTableSchema();
@@ -1841,6 +2047,7 @@ function runAllDiagnosticTests() {
   testFormPrerequisiteExtraction();
   testFormDuplicateColumnCleanup();
   testTeamsTableExportAndExceptionLabels();
+  testExportFolderResolutionAndFallback();
   testFlexibleTimeParsing();
   Logger.log('=== ALL DIAGNOSTIC TESTS PASSED ===');
 }

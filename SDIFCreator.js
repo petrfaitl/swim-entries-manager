@@ -46,7 +46,7 @@ const SDIFCreator = (function() {
    * @param {string}   [config.meetTableName]     Named table for meet info. Default: "Meet"
    * @param {string}   [config.schoolsTableName]  Named table for school lookup. Default: "Schools"
    * @param {string}   [config.outputFileName]    File name for .sd3 output.
-   * @param {string}   [config.outputFolderId]    Drive folder ID. Default: root folder
+   * @param {string}   [config.outputFolderId]    Drive folder ID. Default: parent folder of active spreadsheet (or My Drive root)
    * @returns {string} Download URL of the .sd3 file
    */
   function generate(config) {
@@ -60,6 +60,8 @@ const SDIFCreator = (function() {
     }
 
     const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const outputFolderId = config.outputFolderId ||
+      (typeof getSpreadsheetParentFolderId_ === 'function' ? getSpreadsheetParentFolderId_(ss.getId()) : null);
     const entriesSheet = ss.getSheetByName(entriesSheetName);
     if (!entriesSheet) {
       throw new Error("SDIFCreator: Sheet '" + entriesSheetName + "' not found");
@@ -97,7 +99,7 @@ const SDIFCreator = (function() {
 
       const counts = { swimmers: 0, skippedSwimmers: processedSwimmers.length, bRecords: 0, cRecords: 0, d0Records: 0, d1Records: 0, skippedEvents: 0 };
       const reportFileName = 'SDIF_Exception_Report_' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyyMMdd_HHmmss") + '.txt';
-      const reportUrl = generateExceptionReport_(exceptions, counts, {}, reportFileName, config.outputFolderId);
+      const reportUrl = generateExceptionReport_(exceptions, counts, {}, reportFileName, outputFolderId);
 
       const error = new Error("Meet table is empty or not found. Please verify the table name exists in your spreadsheet.");
       error.exceptionReportUrl = reportUrl;
@@ -118,7 +120,7 @@ const SDIFCreator = (function() {
       outputFileName = meetNameClean + "-" + dateStr + "-" + entriesSheetNameCLean+ ".sd3";
     }
 
-    return generateFromData(processedSwimmers, meetInfo, teamLookup, outputFileName, config.outputFolderId);
+    return generateFromData(processedSwimmers, meetInfo, teamLookup, outputFileName, outputFolderId);
   }
 
   /**
@@ -130,7 +132,7 @@ const SDIFCreator = (function() {
    * @returns {string} Download URL
    */
   function generateFromData(swimmerRows, meetInfo, teamLookup, outputFileName, folderId) {
-    const sdifString = buildSdifString(swimmerRows, meetInfo, teamLookup);
+    const sdifString = buildSdifString(swimmerRows, meetInfo, teamLookup, folderId);
     const sdifFileUrl = saveToFile_(sdifString, outputFileName, folderId);
 
     // Generate exception report if there are any exceptions
@@ -152,10 +154,11 @@ const SDIFCreator = (function() {
    * @param {Array}    swimmerRows
    * @param {Object}   meetInfo
    * @param {Object[]} teamLookup
+   * @param {string}   [folderId]     Optional Drive folder ID for early-abort exception reports
    * @returns {string} Complete SDIF file contents as a string
    */
-  function buildSdifString(swimmerRows, meetInfo, teamLookup) {
-    return buildSdifString_(swimmerRows, meetInfo, teamLookup);
+  function buildSdifString(swimmerRows, meetInfo, teamLookup, folderId) {
+    return buildSdifString_(swimmerRows, meetInfo, teamLookup, folderId);
   }
 
   function showDialog() {
@@ -199,10 +202,11 @@ const SDIFCreator = (function() {
     return 'Schools';
   }
 
-  function buildSdifString_(swimmerRows, meetInfo, teamLookup) {
+  function buildSdifString_(swimmerRows, meetInfo, teamLookup, folderId) {
     // Exception tracking
     const exceptions = [];
     const tableLabel = resolveTeamTableLabel_(meetInfo);
+    const targetFolderId = folderId || (meetInfo && meetInfo.outputFolderId) || null;
 
     // Validate that Schools/Teams table is not empty
     if (!teamLookup || teamLookup.length === 0) {
@@ -218,7 +222,7 @@ const SDIFCreator = (function() {
       // Generate exception report immediately so user sees the helpful error
       const counts = { swimmers: 0, skippedSwimmers: swimmerRows.length, bRecords: 0, cRecords: 0, d0Records: 0, d1Records: 0, skippedEvents: 0 };
       const reportFileName = 'SDIF_Exception_Report_' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyyMMdd_HHmmss") + '.txt';
-      const reportUrl = generateExceptionReport_(exceptions, counts, meetInfo, reportFileName, null);
+      const reportUrl = generateExceptionReport_(exceptions, counts, meetInfo, reportFileName, targetFolderId);
 
       const error = new Error(tableLabel + " table is empty or not found. Please verify the table name exists in your spreadsheet.");
       error.exceptionReportUrl = reportUrl;
@@ -268,7 +272,7 @@ const SDIFCreator = (function() {
         skippedEvents: 0
       };
       const reportFileName = 'SDIF_Exception_Report_' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyyMMdd_HHmmss") + '.txt';
-      const reportUrl = generateExceptionReport_(exceptions, counts, meetInfo, reportFileName, null);
+      const reportUrl = generateExceptionReport_(exceptions, counts, meetInfo, reportFileName, targetFolderId);
 
       const error = new Error("No valid swimmer records after validation. Please check the exception report for details.");
       error.exceptionReportUrl = reportUrl;
@@ -998,6 +1002,10 @@ const SDIFCreator = (function() {
   }
 
   function saveToFile_(content, fileName, folderId) {
+    if (typeof saveTextFileToDrive_ === 'function') {
+      return saveTextFileToDrive_(content, 'text/plain', fileName, folderId);
+    }
+
     const blob = Utilities.newBlob(content, 'text/plain', fileName);
     let fileId;
 
@@ -1013,25 +1021,15 @@ const SDIFCreator = (function() {
 
     try {
       // Use Advanced Drive Service (v3) which is more restrictive-scope friendly
-      const file = Drive.Files.create(fileMetadata, blob);
+      const file = Drive.Files.create(fileMetadata, blob, { supportsAllDrives: true });
       fileId = file.id;
       Logger.log('[SDIFCreator] File created via Advanced Drive Service: %s (ID: %s)', fileName, fileId);
     } catch (e) {
       Logger.log('[SDIFCreator] Advanced Drive Service failed: %s. Falling back to DriveApp.', e.message);
 
-      // Fallback to DriveApp for backward compatibility or if Advanced Service is misconfigured
+      // Fallback to My Drive root (DriveApp.getFolderById requires drive.readonly/drive scope)
       let driveFile;
-      if (folderId) {
-        try {
-          const folder = DriveApp.getFolderById(folderId);
-          driveFile = folder.createFile(blob);
-        } catch (e2) {
-          Logger.log('[SDIFCreator] DriveApp folder save failed, falling back to root: %s', e2.message);
-          driveFile = DriveApp.createFile(blob);
-        }
-      } else {
-        driveFile = DriveApp.createFile(blob);
-      }
+      driveFile = DriveApp.createFile(blob);
       fileId = driveFile.getId();
     }
 
