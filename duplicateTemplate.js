@@ -176,6 +176,9 @@ function activateSheetByName(sheetName) {
  * Shows a dialog to let user select template name and range
  */
 function showCreateSheetsDialog() {
+  if (typeof ensureSpreadsheetAuthorizedOrPrompt_ === 'function' && !ensureSpreadsheetAuthorizedOrPrompt_()) {
+    return;
+  }
   const ui = SpreadsheetApp.getUi();
 
   const html = HtmlService.createTemplateFromFile('sheets-from-template-ui')

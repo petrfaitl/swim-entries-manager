@@ -418,9 +418,76 @@ function getExportFolderStatus(spreadsheetId) {
 }
 
 /**
- * Returns OAuth token and Google Picker API configuration for client-side folder selection.
+ * Checks whether the active or specified spreadsheet is accessible under the
+ * non-sensitive `drive.file` scope (i.e., created by or authorized via Picker).
  *
- * @returns {{ oauthToken: string, apiKey: string, projectNumber: string }}
+ * @param {string} [spreadsheetId] - The Google Spreadsheet ID
+ * @returns {boolean} True if `Drive.Files.get` succeeds; false on 403/404 or error
+ * @private
+ */
+function isSpreadsheetAuthorized_(spreadsheetId) {
+  try {
+    let resolvedId = spreadsheetId;
+    if (!resolvedId && typeof SpreadsheetApp !== 'undefined' && SpreadsheetApp.getActiveSpreadsheet) {
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      resolvedId = ss ? ss.getId() : null;
+    }
+    if (!resolvedId) {
+      return false;
+    }
+    if (typeof Drive !== 'undefined' && Drive.Files && typeof Drive.Files.get === 'function') {
+      const file = Drive.Files.get(resolvedId, {
+        fields: 'id',
+        supportsAllDrives: true
+      });
+      return Boolean(file && file.id);
+    }
+    return false;
+  } catch (e) {
+    Logger.log('[utils] Spreadsheet drive.file authorization check failed: %s', e.message);
+    return false;
+  }
+}
+
+/**
+ * Returns the combined Workspace & Export Setup status for the active spreadsheet,
+ * including `drive.file` authorization state and active export folder destination.
+ *
+ * @param {string} [spreadsheetId] - Optional Spreadsheet ID
+ * @returns {{ spreadsheetId: string, spreadsheetName: string, isAuthorized: boolean, exportFolder: { folderId: string|null, folderName: string, source: 'picker'|'auto'|'root', pickerConfigured: boolean } }}
+ */
+function getWorkspaceSetupStatus(spreadsheetId) {
+  let resolvedId = spreadsheetId || '';
+  let resolvedName = '';
+  try {
+    if (typeof SpreadsheetApp !== 'undefined' && SpreadsheetApp.getActiveSpreadsheet) {
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      if (ss) {
+        if (!resolvedId && typeof ss.getId === 'function') {
+          resolvedId = ss.getId() || '';
+        }
+        if (typeof ss.getName === 'function') {
+          resolvedName = ss.getName() || '';
+        }
+      }
+    }
+  } catch (e) {
+    Logger.log('[utils] Failed to read active spreadsheet metadata: %s', e.message);
+  }
+
+  return {
+    spreadsheetId: resolvedId,
+    spreadsheetName: resolvedName,
+    isAuthorized: isSpreadsheetAuthorized_(resolvedId),
+    exportFolder: getExportFolderStatus(resolvedId)
+  };
+}
+
+/**
+ * Returns OAuth token, Google Picker API configuration, and active spreadsheet metadata
+ * for client-side spreadsheet authorization and folder selection.
+ *
+ * @returns {{ oauthToken: string, apiKey: string, projectNumber: string, spreadsheetId: string, spreadsheetName: string }}
  */
 function getDrivePickerConfig() {
   const scriptProps = (typeof PropertiesService !== 'undefined' && PropertiesService.getScriptProperties)
@@ -432,10 +499,26 @@ function getDrivePickerConfig() {
     ? ScriptApp.getOAuthToken()
     : '';
 
+  let spreadsheetId = '';
+  let spreadsheetName = '';
+  try {
+    if (typeof SpreadsheetApp !== 'undefined' && SpreadsheetApp.getActiveSpreadsheet) {
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      if (ss) {
+        spreadsheetId = typeof ss.getId === 'function' ? (ss.getId() || '') : '';
+        spreadsheetName = typeof ss.getName === 'function' ? (ss.getName() || '') : '';
+      }
+    }
+  } catch (e) {
+    Logger.log('[utils] Failed to read active spreadsheet metadata for Picker: %s', e.message);
+  }
+
   return {
     oauthToken: oauthToken,
     apiKey: String(apiKey).trim(),
-    projectNumber: String(projectNumber).trim()
+    projectNumber: String(projectNumber).trim(),
+    spreadsheetId: spreadsheetId,
+    spreadsheetName: spreadsheetName
   };
 }
 

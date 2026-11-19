@@ -2105,6 +2105,193 @@ function testExportFolderResolutionAndFallback() {
   return true;
 }
 
+/**
+ * Verifies Workspace & Export Setup helpers (`isSpreadsheetAuthorized_`, `getWorkspaceSetupStatus`,
+ * `getDrivePickerConfig`), TableApp `SHEET_NOT_AUTHORIZED` 403/404 handling, and `buildAdminSidebarCard()`
+ * rendering of the Workspace & Export Setup section above Meet Setup.
+ */
+function testWorkspaceSetupAndSidebar() {
+  const originalDrive = globalThis.Drive;
+  const originalSpreadsheetApp = globalThis.SpreadsheetApp;
+  const originalSheets = globalThis.Sheets;
+  const originalPropertiesService = globalThis.PropertiesService;
+  const originalScriptApp = globalThis.ScriptApp;
+  const originalCardService = globalThis.CardService;
+
+  let allowDriveGet = true;
+  const mockSs = {
+    getId: () => 'SS_AUTH_123',
+    getName: () => '2026 Regional Swim Meet'
+  };
+
+  try {
+    globalThis.SpreadsheetApp = {
+      getActiveSpreadsheet: () => mockSs,
+      getActive: () => mockSs
+    };
+
+    globalThis.Drive = {
+      Files: {
+        get: (id) => {
+          if (!allowDriveGet) {
+            throw new Error('API call to drive.files.get failed with error: File not found: ' + id);
+          }
+          if (id === 'SS_AUTH_123') {
+            return { id: 'SS_AUTH_123', parents: ['FOLDER_1'] };
+          }
+          return { id: id, name: 'Exports' };
+        }
+      }
+    };
+
+    globalThis.PropertiesService = {
+      getDocumentProperties: () => ({
+        getProperty: () => null,
+        setProperty: () => {},
+        deleteProperty: () => {}
+      }),
+      getScriptProperties: () => ({
+        getProperty: (k) => (k === 'GOOGLE_PICKER_API_KEY' ? 'KEY_123' : 'PROJ_456')
+      })
+    };
+
+    globalThis.ScriptApp = {
+      getOAuthToken: () => 'TOKEN_ABC'
+    };
+
+    // 1. Authorized state
+    allowDriveGet = true;
+    if (isSpreadsheetAuthorized_() !== true) {
+      throw new Error('Expected isSpreadsheetAuthorized_() to return true when Drive.Files.get succeeds');
+    }
+    const readyStatus = getWorkspaceSetupStatus();
+    if (!readyStatus.isAuthorized || readyStatus.spreadsheetId !== 'SS_AUTH_123' || readyStatus.spreadsheetName !== '2026 Regional Swim Meet') {
+      throw new Error('Unexpected getWorkspaceSetupStatus() ready result: ' + JSON.stringify(readyStatus));
+    }
+
+    // 2. Unauthorized state (403/404)
+    allowDriveGet = false;
+    if (isSpreadsheetAuthorized_() !== false) {
+      throw new Error('Expected isSpreadsheetAuthorized_() to return false when Drive.Files.get throws');
+    }
+    const unauthStatus = getWorkspaceSetupStatus();
+    if (unauthStatus.isAuthorized !== false) {
+      throw new Error('Expected getWorkspaceSetupStatus().isAuthorized === false');
+    }
+
+    // 3. getDrivePickerConfig includes spreadsheetId and spreadsheetName
+    const pickerCfg = getDrivePickerConfig();
+    if (pickerCfg.spreadsheetId !== 'SS_AUTH_123' || pickerCfg.spreadsheetName !== '2026 Regional Swim Meet') {
+      throw new Error('Expected getDrivePickerConfig() to include active spreadsheetId and spreadsheetName');
+    }
+
+    // 4. batchUpdate_ throws SHEET_NOT_AUTHORIZED on 403/404
+    globalThis.Sheets = {
+      Spreadsheets: {
+        batchUpdate: () => {
+          throw new Error('Requested entity was not found (404)');
+        }
+      }
+    };
+    let threwAuthError = false;
+    try {
+      batchUpdate_('SS_AUTH_123', [{ addTable: {} }]);
+    } catch (e) {
+      threwAuthError = String(e.message).indexOf('SHEET_NOT_AUTHORIZED') === 0;
+    }
+    if (!threwAuthError) {
+      throw new Error('Expected batchUpdate_() to throw SHEET_NOT_AUTHORIZED on 403/404');
+    }
+
+    // 5. buildAdminSidebarCard() renders Workspace & Export Setup above Meet Setup in both states
+    const buildMockCardService = () => {
+      const makeChain = (obj) => {
+        const proxy = new Proxy(obj, {
+          get(target, prop) {
+            if (prop in target) return target[prop];
+            return () => proxy;
+          }
+        });
+        return proxy;
+      };
+      return {
+        TextButtonStyle: { FILLED: 'FILLED', TEXT: 'TEXT', BORDERLESS: 'BORDERLESS' },
+        Icon: { DESCRIPTION: 'DESCRIPTION', BOOKMARK: 'BOOKMARK' },
+        newCardBuilder: () => {
+          const sections = [];
+          const card = {
+            _sections: sections,
+            addSection(sec) { sections.push(sec); return builder; },
+            build() { return { sections }; }
+          };
+          const builder = makeChain(card);
+          return builder;
+        },
+        newCardHeader: () => makeChain({}),
+        newCardSection: () => {
+          const sec = { header: '', texts: [], widgets: [] };
+          const chain = {
+            setHeader(h) { sec.header = h; return proxy; },
+            addWidget(w) { sec.widgets.push(w); if (w && w._text) sec.texts.push(w._text); return proxy; }
+          };
+          const proxy = makeChain(Object.assign(sec, chain));
+          return proxy;
+        },
+        newDecoratedText: () => {
+          const w = { _text: '' };
+          return makeChain(Object.assign(w, { setText(t) { w._text = t; return this; } }));
+        },
+        newTextParagraph: () => {
+          const w = { _text: '' };
+          return makeChain(Object.assign(w, { setText(t) { w._text = t; return this; } }));
+        },
+        newButtonSet: () => makeChain({}),
+        newTextButton: () => makeChain({}),
+        newIconImage: () => makeChain({}),
+        newMaterialIcon: () => makeChain({}),
+        newAction: () => makeChain({}),
+        newFixedFooter: () => makeChain({})
+      };
+    };
+
+    globalThis.CardService = buildMockCardService();
+
+    allowDriveGet = false;
+    const unauthCard = buildAdminSidebarCard();
+    if (!unauthCard.sections[0] || unauthCard.sections[0].header !== 'Workspace & Export Setup') {
+      throw new Error('Expected first sidebar section to be Workspace & Export Setup');
+    }
+    if (!unauthCard.sections[1] || unauthCard.sections[1].header !== 'Meet Setup') {
+      throw new Error('Expected second sidebar section to be Meet Setup');
+    }
+    if (!unauthCard.sections[0].texts.some(t => t.includes('Action Required: Authorize Spreadsheet'))) {
+      throw new Error('Expected unauthorized sidebar section to show Action Required warning');
+    }
+
+    allowDriveGet = true;
+    const readyCard = buildAdminSidebarCard();
+    if (!readyCard.sections[0].texts.some(t => t.includes('Workspace Ready'))) {
+      throw new Error('Expected authorized sidebar section to show Workspace Ready');
+    }
+  } finally {
+    if (originalDrive) globalThis.Drive = originalDrive;
+    else delete globalThis.Drive;
+    if (originalSpreadsheetApp) globalThis.SpreadsheetApp = originalSpreadsheetApp;
+    else delete globalThis.SpreadsheetApp;
+    if (originalSheets) globalThis.Sheets = originalSheets;
+    else delete globalThis.Sheets;
+    if (originalPropertiesService) globalThis.PropertiesService = originalPropertiesService;
+    else delete globalThis.PropertiesService;
+    if (originalScriptApp) globalThis.ScriptApp = originalScriptApp;
+    else delete globalThis.ScriptApp;
+    if (originalCardService) globalThis.CardService = originalCardService;
+    else delete globalThis.CardService;
+  }
+
+  Logger.log('✓ testWorkspaceSetupAndSidebar passed');
+  return true;
+}
+
 function runAllDiagnosticTests() {
   testCompetitionTypesRegistry();
   testAgeBracketsTableSchema();
@@ -2126,6 +2313,7 @@ function runAllDiagnosticTests() {
   testFormDuplicateColumnCleanup();
   testTeamsTableExportAndExceptionLabels();
   testExportFolderResolutionAndFallback();
+  testWorkspaceSetupAndSidebar();
   testFlexibleTimeParsing();
   Logger.log('=== ALL DIAGNOSTIC TESTS PASSED ===');
 }

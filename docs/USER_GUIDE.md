@@ -44,6 +44,10 @@ When you first open the add-on:
 
 Use this sequence for a standard meet setup:
 
+0. **Workspace & Export Setup (First-Time Sheet Authorization)**
+   - At the top of the **Swim Entries Manager** sidepanel (or via **Extensions** > **Swim Entries Manager** > **Workspace & Export Setup** / **Set Export Destination**), click **Authorize & Setup** (or **Change Export Folder**):
+     - **Authorize This Spreadsheet**: Select the active spreadsheet in Google Picker so table creation and updates work under the non-sensitive `drive.file` permission. (If you click **Meet Setup**, **Create Team Sheets**, or **Create Relay Tables** before authorizing, this dialog opens automatically.)
+     - **Export Destination Folder**: Optionally choose a My Drive or Shared Drive folder where `.sd3`, `.csv`, and `_ExceptionReport.txt` files will be saved.
 1. **Create Core Tables (STEP 1)**
    - Create all tables marked as required.
    - At minimum, create `Team Officials`, `Events for Individual Entries Template`, and `Schools for Individual Entries Template`.
@@ -308,7 +312,7 @@ This is the **primary export method** that generates SDIF v3 format files compat
    - **Meet Table Name**: Confirm the meet details table (default: "Meet")
    - **School/Team Table Name**: Select the schools, teams, or team officials table from the dropdown (automatically detects and pre-selects `Schools`, `Teams`, or `Team Officials` based on your workbook)
    - **Output File Name**: Leave blank for auto-generated name, or specify custom name
-   - **Destination Folder**: Shows the active Drive folder. Click **Choose Folder...** to pick any My Drive or Shared Drive folder via Google Picker (saved per spreadsheet across `.sd3`, `.csv`, and exception reports), or **Reset** to revert to automatic detection / My Drive root.
+   - **Destination Folder**: Shows the active Drive folder. Click **Change...** to open **Workspace & Export Setup**, where you can pick any My Drive or Shared Drive folder via Google Picker (saved per spreadsheet across `.sd3`, `.csv`, and exception reports) or **Reset** to revert to automatic detection / My Drive root.
 
 4. **Generate SDIF File**
    - Click **"Generate SD3 File"**
@@ -372,7 +376,7 @@ Use this option if you need CSV format for custom processing or other tools.
    - **Entries Sheet**: Select the sheet containing swimmer entries (system sheets like `Meet`, `Events`, `Schools`, `Teams`, `Team Officials`, and default sheets like `Sheet1` are automatically filtered out)
    - **School/Team Table Name**: Select the schools, teams, or team officials table from the dropdown (automatically detects and pre-selects `Schools`, `Teams`, or `Team Officials` based on your workbook)
    - **Output File Name**: Leave blank for auto-generated name (`<SheetName>.csv`), or specify a custom name
-   - **Destination Folder**: Shows the active Drive folder. Click **Choose Folder...** to pick a target Drive folder via Google Picker, or **Reset** to revert to automatic detection / My Drive root.
+   - **Destination Folder**: Shows the active Drive folder. Click **Change...** to open **Workspace & Export Setup**, where you can pick a target Drive folder via Google Picker or **Reset** to revert to automatic detection / My Drive root.
 
 4. **Export**
    - Click **"Export to CSV"**
