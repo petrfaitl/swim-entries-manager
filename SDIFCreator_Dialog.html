@@ -31,6 +31,8 @@
     <label for="fileName">Output File Name <span class="hint">auto-generated if blank</span></label>
     <input type="text" id="fileName" placeholder="Leave blank for auto-generation">
   </div>
+
+<?!= HtmlService.createHtmlOutputFromFile('shared-drive-picker').getContent(); ?>
 </div>
 
 <button id="generateBtn" type="button">
@@ -103,6 +105,10 @@
             if (tableName === 'Schools') opt.selected = true;
             schoolsTableSelect.appendChild(opt);
           });
+        }
+
+        if (typeof window.updateExportFolderUI === 'function' && options && options.exportFolder) {
+          window.updateExportFolderUI(options.exportFolder);
         }
       }).withFailureHandler(err => {
         status.textContent = "Error loading export options: " + err.message;

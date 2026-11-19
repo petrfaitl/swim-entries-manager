@@ -1239,18 +1239,23 @@ const SDIFCreator = (function() {
 })();
 
 /**
- * Retrieves valid entry sheets and available School/Team tables for the SDIF export dialog.
- * @return {{ entrySheets: string[], schoolTeamTables: string[], defaultSchoolTeamTable: string }}
+ * Retrieves valid entry sheets, available School/Team tables, and active export folder status
+ * for the SDIF and CSV export dialogs.
+ * @return {{ entrySheets: string[], schoolTeamTables: string[], defaultSchoolTeamTable: string, exportFolder: { folderId: string|null, folderName: string, source: string, pickerConfigured: boolean } }}
  */
 function getSDIFExportOptions() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const entrySheets = getEntriesSheetNames_(ss);
   const tableOptions = getSchoolTeamTableNames_(ss);
+  const exportFolder = (typeof getExportFolderStatus === 'function')
+    ? getExportFolderStatus(ss ? ss.getId() : null)
+    : { folderId: null, folderName: 'My Drive (root)', source: 'root', pickerConfigured: false };
 
   return {
     entrySheets: entrySheets,
     schoolTeamTables: tableOptions.tables,
-    defaultSchoolTeamTable: tableOptions.defaultTable
+    defaultSchoolTeamTable: tableOptions.defaultTable,
+    exportFolder: exportFolder
   };
 }
 

@@ -5,75 +5,106 @@ sessionId: session-261117-091644-2mkw
 # Requirements
 
 ### Overview & Goals
-Update the **Help & Quick Start** card (`showHelpCard()` in `ui.js`) in the Google Sheets Add-on sidepanel so every workflow step, field requirement, exception report item, and best-practice tip matches the current functionality of **Swim Entries Manager**.
+Migrate **Swim Entries Manager** off the restricted `https://www.googleapis.com/auth/drive` OAuth scope to `https://www.googleapis.com/auth/drive.file` paired with the **Google Picker API**. Users will be able to select and persist a target Google Drive folder (including Shared Drives) for `.sd3`, `.csv`, and `_ExceptionReport.txt` exports without triggering Google's restricted-scope security verification.
 
 ### Scope
 - **In Scope:**
-  - Updating `quickStartSection`, `criticalFieldsSection`, `exceptionReportsSection`, and `tipsSection` inside `showHelpCard()` (`ui.js`).
-  - Aligning terminology with the current sidebar (`buildAdminSidebarCard` and `buildExportCard`) and Add-on menu (`onOpen`): **Meet Setup**, **Create Team Entry Sheets**, **Entry Form (Optional)**, **Create Relay Tables (Optional)**, **Export for Meet Manager**, and **Export to CSV**.
+  - Removing `https://www.googleapis.com/auth/drive` from `appsscript.json` and removing `DriveApp.getFileById` / `DriveApp.getFolderById` calls in `utils.js`.
+  - Adding per-spreadsheet export folder persistence (`PropertiesService.getDocumentProperties()`) and Picker configuration (`PropertiesService.getScriptProperties()`) in `utils.js`.
+  - Adding a shared Google Picker folder-selection UI (`shared-drive-picker.html`) integrated into both `SDIFCreator_Dialog.html` and `export-csv-ui.html`.
+  - Updating `SDIFCreator.js` (`getSDIFExportOptions`, `generate`) and `exportToCSV.js` (`processSheetToCSV`) to surface and use the persisted/resolved folder.
+  - Updating `tests.js`, `docs/SWIM_ENTRIES_MANAGER_SPEC.md`, `docs/USER_GUIDE.md`, and `README.md`.
 - **Out of Scope:**
-  - Modifying `buildAdminSidebarCard()`, `buildExportCard()`, or `showAboutCard()` in `ui.js`.
-  - Rewriting `docs/USER_GUIDE.md` or `docs/SWIM_ENTRIES_MANAGER_SPEC.md`.
+  - Modifying Google Form creation/sync (`formBuilder.js`) or SDIF/CSV data formatting.
+  - Adding a custom UI for entering the Google Cloud Picker API key (configured once in Apps Script Script Properties).
 
 ### Functional Requirements
-- **FR-1 (Quick Start Workflow):** Replace references to "Create Core Tables" with **Meet Setup (STEP 1)**, describing competition type selection (`School`, `College`, `Age Group`, `Open`, `Masters`) and auto-generated sheets (`Meet`, `AgeBrackets` for School/College, `Events`, `Schools`/`Teams`, `Individual Events Template`, and optional `Team Officials` / `How to fill entries`).
-- **FR-2 (Entry Collection & Relays):** Document both **Create Team Entry Sheets (STEP 2)** and **Entry Form (Optional)** (`Create / Sync Entry Form`), as well as **Create Relay Tables (STEP 3, Optional)**.
-- **FR-3 (Critical Data Requirements):** Reflect competition-type-aware requirements: `Date of Birth` is required for `Age Group`, `Open`, and `Masters`, whereas `School` and `College` meets accept `School Year` (mapped via `AgeBrackets` on `Meet`) when `Date of Birth` is omitted; team codes/names are validated against `Schools` (`School`/`College`) or `Teams` (`Age Group`/`Open`/`Masters`).
-- **FR-4 (Exception Reports & Best Practices):** Reference both `Schools` and `Teams` tables, include duplicate-event warnings, and advise re-syncing the Entry Form when `Events` or `Schools`/`Teams` change.
+- **FR-1 (`drive.file` Scope Only):** `appsscript.json` shall declare `https://www.googleapis.com/auth/drive.file` and omit `https://www.googleapis.com/auth/drive` and `drive.readonly`.
+- **FR-2 (Google Picker Folder Selection):** Both the SDIF Export dialog and CSV Export dialog shall show the active export destination and provide a **Choose Folder...** button that opens Google Picker (`Folders` view, supporting My Drive and Shared Drives). Selecting a folder grants `drive.file` write access to that folder ID.
+- **FR-3 (Per-Spreadsheet Persistence & Reset):** The selected `folderId` and `folderName` shall be stored in `PropertiesService.getDocumentProperties()` so `.sd3`, `.csv`, and `_ExceptionReport.txt` exports share the chosen folder across sessions. Users shall also be able to clear the selection to revert to automatic detection / My Drive root.
+- **FR-4 (Automatic Fallback):** When no Picker folder is stored, `getSpreadsheetParentFolderId_()` shall attempt `Drive.Files.get(spreadsheetId, { fields: 'parents', supportsAllDrives: true })` (which succeeds under `drive.file` for spreadsheets created by or opened with the add-on) and silently fall back to My Drive root (`null`) when inaccessible.
+- **FR-5 (Graceful Unconfigured Picker State):** If `GOOGLE_PICKER_API_KEY` is not configured in `PropertiesService.getScriptProperties()`, exports shall continue working via `drive.file` lookup or My Drive root, and the dialog shall display a non-blocking setup hint.
 
 # Technical Design
 
 ### Current Implementation
-`showHelpCard()` in `ui.js` (lines 467–581) builds a `CardService` card with five sections:
-1. `quickStartSection` — still describes the removed "Create Core Tables (STEP 1)" dialog, omits `AgeBrackets`, omits the `Teams` table alternative, omits **Entry Form (Optional)** (`form-setup-ui.html` / `formBuilder.js`), and omits **Create Relay Tables (STEP 3)**.
-2. `criticalFieldsSection` — states `Date of Birth (DD/MM/YYYY)` is always required and only references the `Schools` table.
-3. `exceptionReportsSection` — only mentions missing teams in `Schools` table and omits duplicate-event warnings added in `SDIFCreator.js` / `EntryDataProcessor.js`.
-4. `tipsSection` — only mentions adding teams to the `Schools` table and does not mention re-syncing the Entry Form.
-5. `resourcesSection` — links to `docs/USER_GUIDE.md`, GitHub issues, and `recorder@lvwasc.co.nz` (already up to date).
+- `appsscript.json` requests `https://www.googleapis.com/auth/drive` (a restricted scope).
+- `utils.js` implements `getSpreadsheetParentFolderId_()` using `Drive.Files.get` + `DriveApp.getFileById`, and `saveTextFileToDrive_()` using `Drive.Files.create` + `DriveApp.getFolderById` + `DriveApp.createFile`. Both `DriveApp.getFileById` and `DriveApp.getFolderById` fail under `drive.file`.
+- `SDIFCreator.js` (`getSDIFExportOptions()`, `SDIFCreator.generate()`, `processSheetToSd3()`) and `exportToCSV.js` (`processSheetToCSV()`) resolve the target folder via `getSpreadsheetParentFolderId_()`.
+- `SDIFCreator_Dialog.html` and `export-csv-ui.html` both include `shared-dialog-styles.html` and call `getSDIFExportOptions()` on load.
 
-### Proposed Changes
-All changes are localized to `showHelpCard()` in `ui.js` using `CardService.newTextParagraph().setText(...)` with `CardService`-supported HTML (`<b>`, `<i>`, `<br>`):
+### Key Decisions
+1. **Store Picker Credentials in `ScriptProperties`:** Read `GOOGLE_PICKER_API_KEY` and `GOOGLE_CLOUD_PROJECT_NUMBER` from `PropertiesService.getScriptProperties()` rather than hardcoding keys in source control.
+2. **Persist Selected Folder in `DocumentProperties`:** Store `SEM_EXPORT_FOLDER_ID` and `SEM_EXPORT_FOLDER_NAME` per spreadsheet (matching `formBuilder.js`), shared by both SDIF and CSV exports.
+3. **Shared HTML Partial (`shared-drive-picker.html`):** Extract the Picker loader (`https://apis.google.com/js/api.js`, `gapi.load('picker')`, `PickerBuilder`) and folder-bar markup into a reusable partial included via `HtmlService.createHtmlOutputFromFile('shared-drive-picker').getContent()` in both export dialogs.
 
-- **`quickStartSection` ("Quick Start Workflow"):**
-  - **1. Meet Setup (STEP 1):** Select Competition Type (`School`, `College`, `Age Group`, `Open`, `Masters`) and enter meet details to auto-generate `Meet` (with `AgeBrackets` for School/College), `Events`, `Schools` or `Teams`, and `Individual Events Template` (plus optional `Team Officials` and `How to fill entries` sample).
-  - **2. Review & Populate Tables:** Verify `Events` (`Distance` and `Discipline`; `Event` is auto-generated), add participating organisations to `Schools` or `Teams` (with `Code` and `Team Name`), and populate `Team Officials` if enabled.
-  - **3. Collect Entries (STEP 2 / Optional):** Duplicate `Individual Events Template` per school, cluster, or team via **Create Team Sheets**, or generate a public Google Form via **Create / Sync Entry Form** (responses land in `Form Entries`). Optionally run **Create Relay Tables (STEP 3)** for relay meets.
-  - **4. Fill Swimmer Entries:** **Required:** `First Name`, `Last Name`, `Gender`, valid `School`/`Team`/`Club`, plus `Date of Birth` (Age Group/Open/Masters) or `School Year` (School/College). **Recommended:** Entry times.
-  - **5. Export for Meet Manager (STEP 4):** Generate an SDIF (`.sd3`) file and review any Exception Report warnings/errors. Alternative: **Export to CSV**.
-- **`criticalFieldsSection` ("Critical Data Requirements"):**
-  - Clarify that `Date of Birth (DD/MM/YYYY)` is required for `Age Group`, `Open`, and `Masters`, while `School` and `College` meets can use `School Year` (mapped in `AgeBrackets`) when DOB is omitted.
-  - State that `Team Code` and `Team Name` must exist in the `Schools` or `Teams` table.
-  - Retain the existing `[Distance] [Stroke]` event format examples.
-- **`exceptionReportsSection` ("Understanding Exception Reports"):**
-  - Update `"Missing teams in Schools table"` to `"Missing teams in Schools / Teams table"`.
-  - Add `"Duplicate event entries (duplicates skipped, warning only)"`.
-- **`tipsSection` ("Best Practices"):**
-  - Update `"Add all teams to Schools table first"` to `"Add all teams/schools to the Schools or Teams table first"`.
-  - Add `"Re-sync your Entry Form after updating Events, Schools, or Teams"`.
+### Architecture Diagram
+```mermaid
+graph LR
+  Dialog["SDIF / CSV Export Dialog"] -->|"getSDIFExportOptions()"| Server["SDIFCreator.js / utils.js"]
+  Dialog -->|"Choose Folder"| PickerAPI["Google Picker API (drive.file)"]
+  Server -->|"getOAuthToken + ScriptProps"| PickerAPI
+  PickerAPI -->|"folderId + folderName"| Dialog
+  Dialog -->|"setExportFolder()"| DocProps["DocumentProperties"]
+  Server -->|"read folderId / Drive.Files.get"| DocProps
+  Server -->|"saveTextFileToDrive_()"| DriveV3["Drive.Files.create (supportsAllDrives)"]
+```
+
+### Data Models / Contracts
+In `utils.js`:
+- `EXPORT_FOLDER_PROP_KEYS`:
+  - `FOLDER_ID: 'SEM_EXPORT_FOLDER_ID'`
+  - `FOLDER_NAME: 'SEM_EXPORT_FOLDER_NAME'`
+  - `PICKER_API_KEY: 'GOOGLE_PICKER_API_KEY'`
+  - `CLOUD_PROJECT_NUMBER: 'GOOGLE_CLOUD_PROJECT_NUMBER'`
+- `getExportFolderStatus(spreadsheetId)` → `{ folderId: string|null, folderName: string, source: 'picker'|'auto'|'root', pickerConfigured: boolean }`
+- `getDrivePickerConfig()` → `{ oauthToken: string, apiKey: string, projectNumber: string }`
+- `setExportFolder(folderId, folderName)` → `{ folderId: string, folderName: string, source: 'picker' }`
+- `clearExportFolder()` → `getExportFolderStatus(ss.getId())`
+- `getSpreadsheetParentFolderId_(spreadsheetId)`: checks `DocumentProperties` (`SEM_EXPORT_FOLDER_ID`) first, then `Drive.Files.get(spreadsheetId, { fields: 'parents', supportsAllDrives: true })`, returning `null` if unavailable.
+- `saveTextFileToDrive_(content, mimeType, fileName, folderId)`: uses `Drive.Files.create` with `parents: [folderId]` and `{ supportsAllDrives: true }`, falling back directly to My Drive root (`Drive.Files.create` without `parents`, then `DriveApp.createFile`) without calling `DriveApp.getFolderById`.
+
+### File Structure
+- **Modified:** `appsscript.json`, `utils.js`, `SDIFCreator.js`, `exportToCSV.js`, `SDIFCreator_Dialog.html`, `export-csv-ui.html`, `tests.js`, `docs/SWIM_ENTRIES_MANAGER_SPEC.md`, `docs/USER_GUIDE.md`, `README.md`
+- **Added:** `shared-drive-picker.html`
+
+### Risks
+- **Missing GCP Setup:** Google Picker requires `GOOGLE_PICKER_API_KEY` (with Google Picker API enabled in GCP) and `GOOGLE_CLOUD_PROJECT_NUMBER` (`setAppId`) in Script Properties so `drive.file` grants bind to the OAuth client. Mitigation: document the one-time Script Properties setup in `docs/SWIM_ENTRIES_MANAGER_SPEC.md` and degrade gracefully in the UI when unconfigured.
 
 # Testing
 
 ### Validation Approach
-1. **Static & Runtime Check in Node.js:**
-   - Load `ui.js` in a Node.js `vm` context with a lightweight `CardService` mock (`newCardBuilder`, `newCardHeader`, `newCardSection`, `newTextParagraph`, `newButtonSet`, `newTextButton`, `newOpenLink`, `newNavigation`, `Icon`).
-   - Invoke `showHelpCard()` and assert that all text paragraphs render without runtime errors and that all `CardService` HTML tags (`<b>`, `<i>`, `<br>`) are balanced.
-2. **Parity & Regression Assertions:**
-   - Verify the rendered Help text no longer contains `"Create Core Tables"`.
-   - Verify the rendered Help text mentions `Meet Setup`, `Entry Form`, `Create Relay Tables`, `Schools` and `Teams`, `School Year` / `AgeBrackets`, and duplicate-event warnings.
+1. **Automated Node.js Diagnostic Suite (`tests.js`):**
+   - Assert `appsscript.json` includes `drive.file` and excludes `https://www.googleapis.com/auth/drive` and `drive.readonly`.
+   - Assert `getSpreadsheetParentFolderId_()` returns the `DocumentProperties` folder ID when set, falls back to `Drive.Files.get` when unset, returns `null` when `Drive.Files.get` throws, and never calls `DriveApp.getFileById`.
+   - Assert `setExportFolder()`, `clearExportFolder()`, `getExportFolderStatus()`, and `getDrivePickerConfig()` with mocked `PropertiesService` and `ScriptApp`.
+   - Assert `saveTextFileToDrive_()` never calls `DriveApp.getFolderById` and falls back to My Drive root when writing to `folderId` fails.
+2. **HTML / Template Sanity Check:**
+   - Verify `shared-drive-picker.html`, `SDIFCreator_Dialog.html`, and `export-csv-ui.html` render cleanly and contain no syntax errors.
 
 # Delivery Steps
 
-### ✓ Step 1: Update Quick Start and Critical Data sections in showHelpCard
-The Quick Start Workflow and Critical Data Requirements sections of `showHelpCard()` in `ui.js` accurately reflect Meet Setup, Entry Forms, Relay Tables, and competition-type-aware swimmer fields.
+### ✓ Step 1: Migrate Drive OAuth scope and server-side folder persistence
+`appsscript.json` uses `drive.file` only, and `utils.js` supports Picker-selected folder persistence and `drive.file`-safe Drive operations.
 
-- Replace the legacy "Create Core Tables (STEP 1)" instructions in `quickStartSection` with **Meet Setup (STEP 1)**, covering competition types (`School`, `College`, `Age Group`, `Open`, `Masters`) and auto-generated sheets (`Meet` with `AgeBrackets`, `Events`, `Schools`/`Teams`, `Individual Events Template`, plus optional `Team Officials` and `How to fill entries`).
-- Update table population guidance in `quickStartSection` for `Events`, `Schools` / `Teams`, and optional `Team Officials`.
-- Update entry collection steps to cover both **Create Team Entry Sheets (STEP 2)** and **Entry Form (Optional)** (`Create / Sync Entry Form` -> `Form Entries`), and add **Create Relay Tables (STEP 3, Optional)**.
-- Update swimmer entry and `criticalFieldsSection` requirements to distinguish `Date of Birth` (`Age Group`, `Open`, `Masters`) vs `School Year` + `AgeBrackets` (`School`, `College`), and `Schools` vs `Teams` table lookups.
+- Remove `https://www.googleapis.com/auth/drive` from `oauthScopes` in `appsscript.json`.
+- Remove `DriveApp.getFileById` from `getSpreadsheetParentFolderId_()` and `DriveApp.getFolderById` from `saveTextFileToDrive_()` in `utils.js`.
+- Add `EXPORT_FOLDER_PROP_KEYS`, `getExportFolderStatus()`, `getDrivePickerConfig()`, `setExportFolder()`, and `clearExportFolder()` in `utils.js`, and update `getSpreadsheetParentFolderId_()` to prioritize `SEM_EXPORT_FOLDER_ID` from `DocumentProperties`.
 
-### ✓ Step 2: Update Exception Reports, Best Practices, and verify showHelpCard
-The Exception Reports and Best Practices sections of `showHelpCard()` in `ui.js` match current validation behavior, and the card renders cleanly without errors.
+### ✓ Step 2: Integrate export folder status into SDIF and CSV exporters
+Both `SDIFCreator.js` and `exportToCSV.js` resolve and expose the export folder cleanly under `drive.file`.
 
-- Update `exceptionReportsSection` in `ui.js` to reference `Schools / Teams table` and include duplicate-event warnings alongside missing critical data, invalid event formats, and swimmers with no events.
-- Update `tipsSection` in `ui.js` to reference `Schools or Teams` tables and remind users to re-sync the Entry Form (`Create / Sync Entry Form`) after updating `Events`, `Schools`, or `Teams`.
-- Verify `showHelpCard()` in a Node.js check with a mocked `CardService` to confirm the card builds cleanly, all HTML tags (`<b>`, `<i>`, `<br>`) are valid, and no references to `Create Core Tables` remain.
+- Update `getSDIFExportOptions()` in `SDIFCreator.js` to return `exportFolder: getExportFolderStatus(ss.getId())`.
+- Verify `SDIFCreator.generate()`, `processSheetToSd3()`, and `processSheetToCSV()` (`exportToCSV.js`) use `getSpreadsheetParentFolderId_()` and `saveTextFileToDrive_()` without restricted-scope fallbacks.
+
+### ✓ Step 3: Add shared Google Picker UI to SDIF and CSV export dialogs
+Users can view, pick, and reset the export Drive folder directly inside both export dialogs.
+
+- Create `shared-drive-picker.html` with the folder-status bar, **Choose Folder...** / **Reset** controls, and `gapi.load('picker')` integration (`google.picker.ViewId.FOLDERS`, `setSelectFolderEnabled(true)`, `setEnableDrives(true)`, `setAppId`).
+- Include `shared-drive-picker.html` in `SDIFCreator_Dialog.html` and `export-csv-ui.html` and wire it to `options.exportFolder` on dialog initialization.
+
+### ✓ Step 4: Update diagnostic tests and documentation
+The Node.js diagnostic suite verifies `drive.file` compliance and Picker persistence, and docs reflect the new scope and setup.
+
+- Update `testExportFolderResolutionAndFallback()` in `tests.js` to test `appsscript.json` scopes, `DocumentProperties` folder persistence, `getExportFolderStatus()` / `getDrivePickerConfig()`, and `drive.file`-only `DriveApp` assertions; run `runAllDiagnosticTests()`.
+- Update `docs/SWIM_ENTRIES_MANAGER_SPEC.md`, `docs/USER_GUIDE.md`, and `README.md` to remove `drive` scope references and document the `ScriptProperties` setup for Google Picker (`GOOGLE_PICKER_API_KEY`, `GOOGLE_CLOUD_PROJECT_NUMBER`).

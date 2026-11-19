@@ -308,6 +308,7 @@ This is the **primary export method** that generates SDIF v3 format files compat
    - **Meet Table Name**: Confirm the meet details table (default: "Meet")
    - **School/Team Table Name**: Select the schools, teams, or team officials table from the dropdown (automatically detects and pre-selects `Schools`, `Teams`, or `Team Officials` based on your workbook)
    - **Output File Name**: Leave blank for auto-generated name, or specify custom name
+   - **Destination Folder**: Shows the active Drive folder. Click **Choose Folder...** to pick any My Drive or Shared Drive folder via Google Picker (saved per spreadsheet across `.sd3`, `.csv`, and exception reports), or **Reset** to revert to automatic detection / My Drive root.
 
 4. **Generate SDIF File**
    - Click **"Generate SD3 File"**
@@ -371,6 +372,7 @@ Use this option if you need CSV format for custom processing or other tools.
    - **Entries Sheet**: Select the sheet containing swimmer entries (system sheets like `Meet`, `Events`, `Schools`, `Teams`, `Team Officials`, and default sheets like `Sheet1` are automatically filtered out)
    - **School/Team Table Name**: Select the schools, teams, or team officials table from the dropdown (automatically detects and pre-selects `Schools`, `Teams`, or `Team Officials` based on your workbook)
    - **Output File Name**: Leave blank for auto-generated name (`<SheetName>.csv`), or specify a custom name
+   - **Destination Folder**: Shows the active Drive folder. Click **Choose Folder...** to pick a target Drive folder via Google Picker, or **Reset** to revert to automatic detection / My Drive root.
 
 4. **Export**
    - Click **"Export to CSV"**

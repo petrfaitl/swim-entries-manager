@@ -1832,14 +1832,52 @@ function testExportFolderResolutionAndFallback() {
   const originalSession = globalThis.Session;
   const originalSpreadsheetApp = globalThis.SpreadsheetApp;
   const originalTableApp = globalThis.TableApp;
+  const originalPropertiesService = globalThis.PropertiesService;
+  const originalScriptApp = globalThis.ScriptApp;
 
   const createdFiles = [];
+  const docPropsStore = {};
+  const scriptPropsStore = {};
   let failFolderWrite = false;
   let driveParentLookup = ['FOLDER_123'];
   let driveGetThrows = false;
-  let driveAppParents = ['DRIVEAPP_FOLDER_456'];
 
   try {
+    // 0. Verify appsscript.json declares drive.file and omits restricted drive / drive.readonly scopes
+    if (typeof require === 'function') {
+      const fs = require('fs');
+      const path = require('path');
+      const manifestPath = path.join(process.cwd(), 'appsscript.json');
+      if (fs.existsSync(manifestPath)) {
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+        const scopes = manifest.oauthScopes || [];
+        if (!scopes.includes('https://www.googleapis.com/auth/drive.file')) {
+          throw new Error('appsscript.json must include https://www.googleapis.com/auth/drive.file');
+        }
+        if (scopes.includes('https://www.googleapis.com/auth/drive')) {
+          throw new Error('appsscript.json must NOT include restricted https://www.googleapis.com/auth/drive scope');
+        }
+        if (scopes.includes('https://www.googleapis.com/auth/drive.readonly')) {
+          throw new Error('appsscript.json must NOT include restricted https://www.googleapis.com/auth/drive.readonly scope');
+        }
+      }
+    }
+
+    globalThis.PropertiesService = {
+      getDocumentProperties: () => ({
+        getProperty: (k) => (k in docPropsStore ? docPropsStore[k] : null),
+        setProperty: (k, v) => { docPropsStore[k] = String(v); },
+        deleteProperty: (k) => { delete docPropsStore[k]; }
+      }),
+      getScriptProperties: () => ({
+        getProperty: (k) => (k in scriptPropsStore ? scriptPropsStore[k] : null),
+        setProperty: (k, v) => { scriptPropsStore[k] = String(v); },
+        deleteProperty: (k) => { delete scriptPropsStore[k]; }
+      })
+    };
+    globalThis.ScriptApp = {
+      getOAuthToken: () => 'MOCK_OAUTH_TOKEN'
+    };
     globalThis.Utilities = {
       newBlob: (content, mimeType, fileName) => ({ content, mimeType, fileName }),
       formatDate: () => '20261119_120000'
@@ -1852,6 +1890,9 @@ function testExportFolderResolutionAndFallback() {
         get: (id, opts) => {
           if (driveGetThrows) throw new Error('Drive.Files.get denied');
           if (!opts || !opts.supportsAllDrives) throw new Error('Expected supportsAllDrives: true on Drive.Files.get');
+          if (opts.fields === 'name') {
+            return { name: 'Folder ' + id };
+          }
           return { parents: driveParentLookup };
         },
         create: (metadata, blob, opts) => {
@@ -1866,23 +1907,12 @@ function testExportFolderResolutionAndFallback() {
       }
     };
     globalThis.DriveApp = {
-      getFileById: () => ({
-        getParents: () => {
-          let idx = 0;
-          return {
-            hasNext: () => idx < driveAppParents.length,
-            next: () => ({ getId: () => driveAppParents[idx++] })
-          };
-        }
-      }),
-      getFolderById: (folderId) => ({
-        createFile: (blob) => {
-          if (failFolderWrite) throw new Error('DriveApp folder write denied');
-          const id = 'DA_FOLDER_FILE_' + (createdFiles.length + 1);
-          createdFiles.push({ id, metadata: { name: blob.fileName, parents: [folderId] }, blob });
-          return { getId: () => id };
-        }
-      }),
+      getFileById: () => {
+        throw new Error('DriveApp.getFileById must not be called under drive.file scope');
+      },
+      getFolderById: () => {
+        throw new Error('DriveApp.getFolderById must not be called under drive.file scope');
+      },
       createFile: (blob) => {
         const id = 'DA_ROOT_FILE_' + (createdFiles.length + 1);
         createdFiles.push({ id, metadata: { name: blob.fileName }, blob });
@@ -1890,23 +1920,53 @@ function testExportFolderResolutionAndFallback() {
       }
     };
 
-    // 1. Parent folder resolution: Drive.Files.get primary
+    // 1. Parent folder resolution: Drive.Files.get primary under drive.file
     if (getSpreadsheetParentFolderId_('SS_1') !== 'FOLDER_123') {
       throw new Error('Expected FOLDER_123 from Drive.Files.get');
     }
 
-    // 2. Parent folder resolution: DriveApp.getFileById fallback when Drive.Files.get fails
+    // 2. Parent folder resolution: returns null (without calling DriveApp.getFileById) when Drive.Files.get fails
     driveGetThrows = true;
-    if (getSpreadsheetParentFolderId_('SS_1') !== 'DRIVEAPP_FOLDER_456') {
-      throw new Error('Expected DRIVEAPP_FOLDER_456 from DriveApp.getFileById fallback');
+    if (getSpreadsheetParentFolderId_('SS_1') !== null) {
+      throw new Error('Expected null when Drive.Files.get fails under drive.file scope');
     }
 
     // 3. Parent folder resolution: null when no parents exist
     driveGetThrows = false;
     driveParentLookup = [];
-    driveAppParents = [];
     if (getSpreadsheetParentFolderId_('SS_1') !== null) {
       throw new Error('Expected null when spreadsheet is in My Drive root');
+    }
+
+    // 3b. Picker folder persistence, status, and config
+    driveParentLookup = ['AUTO_FOLDER_1'];
+    const unconfiguredStatus = getExportFolderStatus('SS_1');
+    if (unconfiguredStatus.pickerConfigured !== false || unconfiguredStatus.source !== 'auto' || unconfiguredStatus.folderId !== 'AUTO_FOLDER_1') {
+      throw new Error('Unexpected unconfigured status: ' + JSON.stringify(unconfiguredStatus));
+    }
+
+    scriptPropsStore.GOOGLE_PICKER_API_KEY = 'TEST_API_KEY';
+    scriptPropsStore.GOOGLE_CLOUD_PROJECT_NUMBER = '1234567890';
+    const pickerCfg = getDrivePickerConfig();
+    if (pickerCfg.oauthToken !== 'MOCK_OAUTH_TOKEN' || pickerCfg.apiKey !== 'TEST_API_KEY' || pickerCfg.projectNumber !== '1234567890') {
+      throw new Error('Unexpected getDrivePickerConfig result: ' + JSON.stringify(pickerCfg));
+    }
+
+    const savedFolder = setExportFolder('PICKER_FOLDER_777', 'Meet Exports');
+    if (savedFolder.folderId !== 'PICKER_FOLDER_777' || savedFolder.folderName !== 'Meet Exports' || savedFolder.source !== 'picker') {
+      throw new Error('Unexpected setExportFolder result: ' + JSON.stringify(savedFolder));
+    }
+    if (getSpreadsheetParentFolderId_('SS_1') !== 'PICKER_FOLDER_777') {
+      throw new Error('Expected getSpreadsheetParentFolderId_ to prioritize Picker folder');
+    }
+    const pickerStatus = getExportFolderStatus('SS_1');
+    if (pickerStatus.source !== 'picker' || pickerStatus.folderName !== 'Meet Exports' || pickerStatus.pickerConfigured !== true) {
+      throw new Error('Unexpected Picker status: ' + JSON.stringify(pickerStatus));
+    }
+
+    const clearedStatus = clearExportFolder();
+    if (clearedStatus.source !== 'root' || clearedStatus.folderId !== null) {
+      throw new Error('Expected clearExportFolder to revert to root when active spreadsheet is unavailable, got ' + JSON.stringify(clearedStatus));
     }
 
     // Restore parent folder for export tests
@@ -2035,6 +2095,10 @@ function testExportFolderResolutionAndFallback() {
     else delete globalThis.SpreadsheetApp;
     if (originalTableApp) globalThis.TableApp = originalTableApp;
     else delete globalThis.TableApp;
+    if (originalPropertiesService) globalThis.PropertiesService = originalPropertiesService;
+    else delete globalThis.PropertiesService;
+    if (originalScriptApp) globalThis.ScriptApp = originalScriptApp;
+    else delete globalThis.ScriptApp;
   }
 
   Logger.log('✓ testExportFolderResolutionAndFallback passed');
