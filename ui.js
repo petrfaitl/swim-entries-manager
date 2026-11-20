@@ -72,7 +72,10 @@ function refreshWorkspaceSidebar() {
  * @private
  */
 function ensureSpreadsheetAuthorizedOrPrompt_() {
-	if (typeof isSpreadsheetAuthorized_ === "function" && !isSpreadsheetAuthorized_()) {
+	if (
+		typeof isSpreadsheetAuthorized_ === "function" &&
+		!isSpreadsheetAuthorized_()
+	) {
 		showWorkspaceSetupDialog();
 		return false;
 	}
@@ -110,26 +113,31 @@ function buildAdminSidebarCard() {
 	// ── Card 1: Templates ──────────────────────────────────────────────────
 	const templatesCard = CardService.newCardBuilder().setHeader(
 		CardService.newCardHeader()
-			.setTitle("Swim Meet Templates")
+			.setTitle("<b>Swim Meet Templates</b>")
 			.setSubtitle(
 				"Creates essential template tables for managing a meet.",
 			)
 			.setImageUrl(encodedImageURL),
 	);
 
-	const workspaceStatus = (typeof getWorkspaceSetupStatus === "function")
-		? getWorkspaceSetupStatus()
-		: {
-			isAuthorized: true,
-			exportFolder: { folderName: "My Drive (root)", source: "root" }
-		};
-	const folderName = (workspaceStatus.exportFolder && workspaceStatus.exportFolder.folderName)
-		? workspaceStatus.exportFolder.folderName
-		: "My Drive (root)";
+	const workspaceStatus =
+		typeof getWorkspaceSetupStatus === "function"
+			? getWorkspaceSetupStatus()
+			: {
+					isAuthorized: true,
+					exportFolder: {
+						folderName: "My Drive (root)",
+						source: "root",
+					},
+				};
+	const folderName =
+		workspaceStatus.exportFolder && workspaceStatus.exportFolder.folderName
+			? workspaceStatus.exportFolder.folderName
+			: "My Drive (root)";
 
 	// Section 0: Workspace & Export Setup (Top-level status & launch)
 	const workspaceSetupSection = CardService.newCardSection()
-		.setHeader("Workspace & Export Setup")
+		.setHeader("<b>Workspace & Export Setup</b>")
 		.setCollapsible(true)
 		.setNumUncollapsibleWidgets(1);
 
@@ -146,7 +154,9 @@ function buildAdminSidebarCard() {
 			)
 			.addWidget(
 				CardService.newTextParagraph().setText(
-					"Grant file access to this spreadsheet before creating or updating tables, and optionally choose an export folder.<br>Export folder: <i>" + folderName + "</i>",
+					"Grant file access to this spreadsheet before creating or updating tables, and optionally choose an export folder.<br>Export folder: <i>" +
+						folderName +
+						"</i>",
 				),
 			)
 			.addWidget(
@@ -154,7 +164,9 @@ function buildAdminSidebarCard() {
 					.addButton(
 						CardService.newTextButton()
 							.setText("Authorize & Setup")
-							.setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+							.setTextButtonStyle(
+								CardService.TextButtonStyle.FILLED,
+							)
 							.setBackgroundColor("#D97706")
 							.setOnClickAction(
 								CardService.newAction().setFunctionName(
@@ -165,7 +177,9 @@ function buildAdminSidebarCard() {
 					.addButton(
 						CardService.newTextButton()
 							.setText("Refresh Status")
-							.setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+							.setTextButtonStyle(
+								CardService.TextButtonStyle.FILLED,
+							)
 							.setBackgroundColor("#64748B")
 							.setOnClickAction(
 								CardService.newAction().setFunctionName(
@@ -178,10 +192,12 @@ function buildAdminSidebarCard() {
 		workspaceSetupSection
 			.addWidget(
 				CardService.newDecoratedText()
-					.setText("<b>Workspace Ready</b>")
+					.setText("<font color='#287f28'>Workspace Ready</font>")
 					.setStartIcon(
 						CardService.newIconImage().setMaterialIcon(
-							CardService.newMaterialIcon().setName("check_circle"),
+							CardService.newMaterialIcon().setName(
+								"check_circle",
+							),
 						),
 					),
 			)
@@ -195,7 +211,9 @@ function buildAdminSidebarCard() {
 					.addButton(
 						CardService.newTextButton()
 							.setText("Change Export Folder")
-							.setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+							.setTextButtonStyle(
+								CardService.TextButtonStyle.FILLED,
+							)
 							.setBackgroundColor("#0397B3")
 							.setOnClickAction(
 								CardService.newAction().setFunctionName(
@@ -206,7 +224,9 @@ function buildAdminSidebarCard() {
 					.addButton(
 						CardService.newTextButton()
 							.setText("Refresh Status")
-							.setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+							.setTextButtonStyle(
+								CardService.TextButtonStyle.FILLED,
+							)
 							.setBackgroundColor("#64748B")
 							.setOnClickAction(
 								CardService.newAction().setFunctionName(
@@ -219,17 +239,9 @@ function buildAdminSidebarCard() {
 
 	// Section 1: Meet Setup
 	const createTablesSection = CardService.newCardSection()
-		.setHeader("Meet Setup")
+		.setHeader("<b>Meet Setup</b>")
 		.setCollapsible(true)
-		.addWidget(
-			CardService.newDecoratedText()
-				.setText("<b>STEP 1</b>")
-				.setStartIcon(
-					CardService.newIconImage().setMaterialIcon(
-						CardService.newMaterialIcon().setName("looks_one"),
-					),
-				),
-		)
+
 		.addWidget(
 			CardService.newTextParagraph().setText(
 				"Configure your meet parameters, build your event and team sheets and swimmer entry templates.",
@@ -251,17 +263,9 @@ function buildAdminSidebarCard() {
 
 	// Section 2: Create Sheets from Templates
 	const createSheetsSection = CardService.newCardSection()
-		.setHeader("Create Team Entry Sheets")
+		.setHeader("<b>Create Team Entry Sheets</b>")
 		.setCollapsible(true)
-		.addWidget(
-			CardService.newDecoratedText()
-				.setText("<b>STEP 2</b>")
-				.setStartIcon(
-					CardService.newIconImage().setMaterialIcon(
-						CardService.newMaterialIcon().setName("looks_two"),
-					),
-				),
-		)
+
 		.addWidget(
 			CardService.newTextParagraph().setText(
 				"After setting up your meet parameters, duplicate the Individual Entry template sheet for each school/cluster or team to allow coordinators to fill in entries separately.",
@@ -283,7 +287,7 @@ function buildAdminSidebarCard() {
 
 	// Section 2b: Create / Sync Entry Form (Optional)
 	const createFormSection = CardService.newCardSection()
-		.setHeader("Entry Form (Optional)")
+		.setHeader("<b>Alternative: Entry Form</b>")
 		.setCollapsible(true)
 		.addWidget(
 			CardService.newTextParagraph().setText(
@@ -306,17 +310,9 @@ function buildAdminSidebarCard() {
 
 	// Section 3: Create Relay Tables (Optional)
 	const createRelaySection = CardService.newCardSection()
-		.setHeader("Create Relay Tables (Optional)")
+		.setHeader("<b>Optional: Create Relay Tables</b>")
 		.setCollapsible(true)
-		.addWidget(
-			CardService.newDecoratedText()
-				.setText("<b>STEP 3</b>")
-				.setStartIcon(
-					CardService.newIconImage().setMaterialIcon(
-						CardService.newMaterialIcon().setName("looks_3"),
-					),
-				),
-		)
+
 		.addWidget(
 			CardService.newTextParagraph().setText(
 				"This is optional and only needed if your meet includes relay events.",
@@ -411,17 +407,9 @@ function buildExportCard() {
 	);
 
 	const sdifExportSection = CardService.newCardSection()
-		.setHeader("Export for Meet Manager (Recommended)")
+		.setHeader("<b>Export for Meet Manager (Recommended)</b>")
 		.setCollapsible(false)
-		.addWidget(
-			CardService.newDecoratedText()
-				.setText("<b>STEP 4</b>")
-				.setStartIcon(
-					CardService.newIconImage().setMaterialIcon(
-						CardService.newMaterialIcon().setName("looks_4"),
-					),
-				),
-		)
+
 		.addWidget(
 			CardService.newTextParagraph().setText(
 				"Generate an SDIF (.sd3) file ready for import into Hy-Tek Meet Manager. This is the recommended export method for most users.",
@@ -442,7 +430,7 @@ function buildExportCard() {
 		);
 
 	const csvExportSection = CardService.newCardSection()
-		.setHeader("Alternative: Export to CSV")
+		.setHeader("<b>Alternative: Export to CSV</b>")
 		.setCollapsible(true)
 		.addWidget(
 			CardService.newTextParagraph().setText(
@@ -524,7 +512,7 @@ function showAboutCard() {
 	const aboutCard = CardService.newCardBuilder().setHeader(
 		CardService.newCardHeader()
 			.setTitle("About Swim Entries Manager")
-			.setSubtitle("v2.0"),
+			.setSubtitle("v2.3"),
 	);
 
 	const descriptionSection = CardService.newCardSection()
@@ -626,27 +614,32 @@ function showHelpCard() {
 		.setHeader("Quick Start Workflow")
 		.addWidget(
 			CardService.newTextParagraph().setText(
-				"<b>1. Meet Setup (STEP 1)</b><br>Select your Competition Type (<i>School</i>, <i>College</i>, <i>Age Group</i>, <i>Open</i>, or <i>Masters</i>) and enter meet details. This auto-generates <i>Meet</i> (with <i>AgeBrackets</i> for School/College), <i>Events</i>, <i>Schools</i> or <i>Teams</i>, and <i>Individual Events Template</i> (plus optional <i>Team Officials</i> and <i>How to fill entries</i>).",
+				"<b>1. Workspace &amp; Export Setup</b><br>Authorize the active spreadsheet via <b>Authorize &amp; Setup</b> (grants <i>drive.file</i> access for table creation and updates) and optionally choose a Drive folder for exports (defaults to <i>My Drive (root)</i>). Click <b>Refresh Status</b> in the sidepanel after closing the setup modal if the status does not update immediately.",
 			),
 		)
 		.addWidget(
 			CardService.newTextParagraph().setText(
-				"<b>2. Review &amp; Populate Tables</b><br>• <i>Events:</i> Enter Distance and Discipline (Event name is auto-generated)<br>• <i>Schools / Teams:</i> Add participating organisations with Code and Team Name<br>• <i>Team Officials (if enabled):</i> Enter team/school/cluster officials",
+				"<b>2. Meet Setup</b><br>Select your Competition Type (<i>School</i>, <i>College</i>, <i>Age Group</i>, <i>Open</i>, or <i>Masters</i>) and enter meet details. This auto-generates <i>Meet</i> (with <i>AgeBrackets</i> for School/College), <i>Events</i>, <i>Schools</i> or <i>Teams</i>, and <i>Individual Events Template</i> (plus optional <i>Team Officials</i> and <i>How to fill entries</i>).",
 			),
 		)
 		.addWidget(
 			CardService.newTextParagraph().setText(
-				"<b>3. Collect Entries (STEP 2 / Optional)</b><br>• <i>Create Team Entry Sheets (STEP 2):</i> Duplicate <i>Individual Events Template</i> per school, cluster, or team via <b>Create Team Sheets</b>.<br>• <i>Entry Form (Optional):</i> Generate a public Google Form via <b>Create / Sync Entry Form</b> (responses land in <i>Form Entries</i>).<br>• <i>Create Relay Tables (STEP 3, Optional):</i> Generate relay sheets if your meet includes relay events.",
+				"<b>3. Review &amp; Populate Tables</b><br>• <i>Events:</i> Enter Distance and Discipline (Event name is auto-generated)<br>• <i>Schools / Teams:</i> Add participating organisations with Code and Team Name<br>• <i>Team Officials (if enabled):</i> Enter team/school/cluster officials",
 			),
 		)
 		.addWidget(
 			CardService.newTextParagraph().setText(
-				"<b>4. Fill Swimmer Entries</b><br><b>Required:</b> First Name, Last Name, Gender, valid School/Team/Club, plus Date of Birth (<i>Age Group</i>, <i>Open</i>, <i>Masters</i>) or School Year (<i>School</i>, <i>College</i>)<br><b>Recommended:</b> Entry times",
+				"<b>4. Collect Entries</b><br>• <i>Create Team Entry Sheets:</i> Duplicate <i>Individual Events Template</i> per school, cluster, or team via <b>Create Team Sheets</b>.<br>• <i>Alternative: Entry Form:</i> Generate a public Google Form via <b>Create / Sync Entry Form</b> (responses land in <i>Form Entries</i>).<br>• <i>Optional: Create Relay Tables:</i> Generate relay sheets if your meet includes relay events.",
 			),
 		)
 		.addWidget(
 			CardService.newTextParagraph().setText(
-				"<b>5. Export for Meet Manager (STEP 4)</b><br>Generate an SDIF (.sd3) file and review any Exception Report warnings/errors. Alternative: <b>Export to CSV</b>.",
+				"<b>5. Fill Swimmer Entries</b><br><b>Required:</b> First Name, Last Name, Gender, valid School/Team/Club, plus Date of Birth (<i>Age Group</i>, <i>Open</i>, <i>Masters</i>) or School Year (<i>School</i>, <i>College</i>)<br><b>Recommended:</b> Entry times",
+			),
+		)
+		.addWidget(
+			CardService.newTextParagraph().setText(
+				"<b>6. Export for Meet Manager</b><br>• Generate an SDIF (.sd3) file and review any Exception Report warnings/errors (saved to your configured export folder or <i>My Drive (root)</i>).<br>• <i>Alternative: Export to CSV:</i> Export entries as a CSV file for manual processing or external tools.",
 			),
 		);
 
@@ -685,7 +678,7 @@ function showHelpCard() {
 		.setHeader("Best Practices")
 		.addWidget(
 			CardService.newTextParagraph().setText(
-				"✓ Fill in all required fields before exporting<br>✓ Use dropdown values when available<br>✓ Add all teams/schools to the Schools or Teams table first<br>✓ Re-sync your Entry Form (<b>Create / Sync Entry Form</b>) after updating Events, Schools, or Teams<br>✓ Use correct event naming format<br>✓ Run test export early to catch data issues",
+				"✓ Authorize your spreadsheet in <b>Workspace &amp; Export Setup</b> before creating tables<br>✓ Fill in all required fields before exporting<br>✓ Use dropdown values when available<br>✓ Add all teams/schools to the Schools or Teams table first<br>✓ Re-sync your Entry Form (<b>Create / Sync Entry Form</b>) after updating Events, Schools, or Teams<br>✓ Use correct event naming format<br>✓ Run test export early to catch data issues",
 			),
 		);
 
