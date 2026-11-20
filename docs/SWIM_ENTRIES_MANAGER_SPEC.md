@@ -76,7 +76,11 @@ The system shall export swimmer entry data to SDIF v3 (.sd3) format compatible w
     - 18m pool conversions
     - Long Course (50m) to Short Course conversions
 - The system shall use the RESIZESWIM function for time conversions
-- The system shall create the .sd3 file in Google Drive with configurable output folder
+- The system shall provide a dedicated **Workspace & Export Setup** workflow (`workspace-setup-ui.html`, `720×560` modal) accessible from the top of the sidepanel (above **Meet Setup**), from the Add-on menu (**Workspace & Export Setup** and **Set Export Destination**), and automatically via a `drive.file` authorization guard (`ensureSpreadsheetAuthorizedOrPrompt_()`) when launching table creation dialogs:
+    - **Authorize This Spreadsheet**: Uses Google Picker (`DocsView(ViewId.SPREADSHEETS)` pre-filtered by the active spreadsheet name) to grant `drive.file` access to the active spreadsheet so `Sheets.Spreadsheets.batchUpdate` (`TableApp`) works without the sensitive `spreadsheets` OAuth scope.
+    - **Export Destination Folder**: Uses Google Picker (`DocsView(ViewId.FOLDERS)` with `SUPPORT_DRIVES`) to persist `folderId`/`folderName` in `DocumentProperties` (`setExportFolder()` / `clearExportFolder()`).
+- The system shall create the .sd3 file and any `_ExceptionReport.txt` error logs in the Picker-selected export folder (persisted per spreadsheet in `DocumentProperties`), falling back to the spreadsheet's Google Drive folder (when accessible under `drive.file`) or My Drive root
+- The system shall display a read-only Destination Folder summary bar (`shared-drive-picker.html`) in both the SDIF and CSV export dialogs with a **Change...** button that opens `showWorkspaceSetupDialog()`
 - The system shall follow SDIF v3.0 specification with FINA organization code
 
 ### 5. CSV Export
@@ -91,7 +95,7 @@ The system shall export swimmer entry data to traditional CSV format for custom 
 - The system shall support custom output file naming (defaulting to `<SheetName>.csv` if left blank)
 - The system shall export processed swimmer data with consistent column structure
 - The system shall support the same entry format auto-detection as SDIF export
-- The system shall create the CSV file in Google Drive and provide a styled download link
+- The system shall create the CSV file in the Picker-selected export folder (or spreadsheet folder / My Drive root fallback) and provide a styled download link
 
 ### 6. Data Processing & Validation
 
@@ -139,7 +143,8 @@ The system shall generate and sync a public-facing Google Form via `FormApp` for
 - Runtime: Google Apps Script V8 runtime
 - Advanced Services: Google Sheets API v4, Google Drive API v3
 - Timezone: Pacific/Auckland (configurable)
-- OAuth Scopes: spreadsheets.currentonly, spreadsheets, drive.file, userinfo.email, userinfo.profile, script.container.ui, script.locale, forms
+- OAuth Scopes: spreadsheets.currentonly, drive.file, userinfo.email, userinfo.profile, script.container.ui, script.locale, forms
+- Google Picker Configuration (`PropertiesService.getScriptProperties()`): `GOOGLE_PICKER_API_KEY` (Google Cloud API key with Google Picker API enabled) and `GOOGLE_CLOUD_PROJECT_NUMBER` (GCP project number passed to `PickerBuilder.setAppId()` so `drive.file` folder grants bind to the add-on's OAuth client)
 - The system shall use the TableApp library for table management
 - The system shall log exceptions to Stackdriver (Cloud Logging)
 

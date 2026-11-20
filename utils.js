@@ -302,6 +302,351 @@ function getNamedTableData(spreadsheetId,tableName) {
   return data;
 }
 
+const EXPORT_FOLDER_PROP_KEYS = {
+  FOLDER_ID: 'SEM_EXPORT_FOLDER_ID',
+  FOLDER_NAME: 'SEM_EXPORT_FOLDER_NAME',
+  PICKER_API_KEY: 'GOOGLE_PICKER_API_KEY',
+  CLOUD_PROJECT_NUMBER: 'GOOGLE_CLOUD_PROJECT_NUMBER'
+};
+
+/**
+ * Returns the persisted Picker-selected export folder from DocumentProperties, if any.
+ *
+ * @returns {{ folderId: string, folderName: string }|null}
+ * @private
+ */
+function getStoredExportFolder_() {
+  try {
+    if (typeof PropertiesService === 'undefined' || !PropertiesService.getDocumentProperties) {
+      return null;
+    }
+    const docProps = PropertiesService.getDocumentProperties();
+    const folderId = docProps.getProperty(EXPORT_FOLDER_PROP_KEYS.FOLDER_ID);
+    if (!folderId) {
+      return null;
+    }
+    const folderName = docProps.getProperty(EXPORT_FOLDER_PROP_KEYS.FOLDER_NAME) || 'Selected Drive Folder';
+    return { folderId: folderId, folderName: folderName };
+  } catch (e) {
+    Logger.log('[utils] Failed to read stored export folder: %s', e.message);
+    return null;
+  }
+}
+
+/**
+ * Checks whether Google Picker credentials are configured in ScriptProperties.
+ *
+ * @returns {boolean}
+ * @private
+ */
+function isDrivePickerConfigured_() {
+  try {
+    if (typeof PropertiesService === 'undefined' || !PropertiesService.getScriptProperties) {
+      return false;
+    }
+    const apiKey = PropertiesService.getScriptProperties().getProperty(EXPORT_FOLDER_PROP_KEYS.PICKER_API_KEY);
+    return Boolean(apiKey && String(apiKey).trim());
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * Returns the active export folder status for the given spreadsheet.
+ *
+ * @param {string} [spreadsheetId] - The ID of the Google Spreadsheet
+ * @returns {{ folderId: string|null, folderName: string, source: 'picker'|'auto'|'root', pickerConfigured: boolean }}
+ */
+function getExportFolderStatus(spreadsheetId) {
+  const pickerConfigured = isDrivePickerConfigured_();
+  const stored = getStoredExportFolder_();
+  if (stored && stored.folderId) {
+    return {
+      folderId: stored.folderId,
+      folderName: stored.folderName,
+      source: 'picker',
+      pickerConfigured: pickerConfigured
+    };
+  }
+
+  let resolvedId = spreadsheetId;
+  if (!resolvedId && typeof SpreadsheetApp !== 'undefined' && SpreadsheetApp.getActiveSpreadsheet) {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    resolvedId = ss ? ss.getId() : null;
+  }
+
+  if (resolvedId) {
+    try {
+      if (typeof Drive !== 'undefined' && Drive.Files && typeof Drive.Files.get === 'function') {
+        const file = Drive.Files.get(resolvedId, {
+          fields: 'parents',
+          supportsAllDrives: true
+        });
+        if (file && Array.isArray(file.parents) && file.parents.length > 0) {
+          const autoFolderId = file.parents[0];
+          let autoFolderName = 'Spreadsheet Folder';
+          try {
+            const folderMeta = Drive.Files.get(autoFolderId, {
+              fields: 'name',
+              supportsAllDrives: true
+            });
+            if (folderMeta && folderMeta.name) {
+              autoFolderName = folderMeta.name;
+            }
+          } catch (nameErr) {
+            Logger.log('[utils] Drive.Files.get folder name lookup failed: %s', nameErr.message);
+          }
+          return {
+            folderId: autoFolderId,
+            folderName: autoFolderName,
+            source: 'auto',
+            pickerConfigured: pickerConfigured
+          };
+        }
+      }
+    } catch (e) {
+      Logger.log('[utils] Drive.Files.get parent lookup failed: %s', e.message);
+    }
+  }
+
+  return {
+    folderId: null,
+    folderName: 'My Drive (root)',
+    source: 'root',
+    pickerConfigured: pickerConfigured
+  };
+}
+
+/**
+ * Checks whether the active or specified spreadsheet is accessible under the
+ * non-sensitive `drive.file` scope (i.e., created by or authorized via Picker).
+ *
+ * @param {string} [spreadsheetId] - The Google Spreadsheet ID
+ * @returns {boolean} True if `Drive.Files.get` succeeds; false on 403/404 or error
+ * @private
+ */
+function isSpreadsheetAuthorized_(spreadsheetId) {
+  try {
+    let resolvedId = spreadsheetId;
+    if (!resolvedId && typeof SpreadsheetApp !== 'undefined' && SpreadsheetApp.getActiveSpreadsheet) {
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      resolvedId = ss ? ss.getId() : null;
+    }
+    if (!resolvedId) {
+      return false;
+    }
+    if (typeof Drive !== 'undefined' && Drive.Files && typeof Drive.Files.get === 'function') {
+      const file = Drive.Files.get(resolvedId, {
+        fields: 'id',
+        supportsAllDrives: true
+      });
+      return Boolean(file && file.id);
+    }
+    return false;
+  } catch (e) {
+    Logger.log('[utils] Spreadsheet drive.file authorization check failed: %s', e.message);
+    return false;
+  }
+}
+
+/**
+ * Returns the combined Workspace & Export Setup status for the active spreadsheet,
+ * including `drive.file` authorization state and active export folder destination.
+ *
+ * @param {string} [spreadsheetId] - Optional Spreadsheet ID
+ * @returns {{ spreadsheetId: string, spreadsheetName: string, isAuthorized: boolean, exportFolder: { folderId: string|null, folderName: string, source: 'picker'|'auto'|'root', pickerConfigured: boolean } }}
+ */
+function getWorkspaceSetupStatus(spreadsheetId) {
+  let resolvedId = spreadsheetId || '';
+  let resolvedName = '';
+  try {
+    if (typeof SpreadsheetApp !== 'undefined' && SpreadsheetApp.getActiveSpreadsheet) {
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      if (ss) {
+        if (!resolvedId && typeof ss.getId === 'function') {
+          resolvedId = ss.getId() || '';
+        }
+        if (typeof ss.getName === 'function') {
+          resolvedName = ss.getName() || '';
+        }
+      }
+    }
+  } catch (e) {
+    Logger.log('[utils] Failed to read active spreadsheet metadata: %s', e.message);
+  }
+
+  return {
+    spreadsheetId: resolvedId,
+    spreadsheetName: resolvedName,
+    isAuthorized: isSpreadsheetAuthorized_(resolvedId),
+    exportFolder: getExportFolderStatus(resolvedId)
+  };
+}
+
+/**
+ * Returns OAuth token, Google Picker API configuration, and active spreadsheet metadata
+ * for client-side spreadsheet authorization and folder selection.
+ *
+ * @returns {{ oauthToken: string, apiKey: string, projectNumber: string, spreadsheetId: string, spreadsheetName: string }}
+ */
+function getDrivePickerConfig() {
+  const scriptProps = (typeof PropertiesService !== 'undefined' && PropertiesService.getScriptProperties)
+    ? PropertiesService.getScriptProperties()
+    : null;
+  const apiKey = scriptProps ? (scriptProps.getProperty(EXPORT_FOLDER_PROP_KEYS.PICKER_API_KEY) || '') : '';
+  const projectNumber = scriptProps ? (scriptProps.getProperty(EXPORT_FOLDER_PROP_KEYS.CLOUD_PROJECT_NUMBER) || '') : '';
+  const oauthToken = (typeof ScriptApp !== 'undefined' && typeof ScriptApp.getOAuthToken === 'function')
+    ? ScriptApp.getOAuthToken()
+    : '';
+
+  let spreadsheetId = '';
+  let spreadsheetName = '';
+  try {
+    if (typeof SpreadsheetApp !== 'undefined' && SpreadsheetApp.getActiveSpreadsheet) {
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      if (ss) {
+        spreadsheetId = typeof ss.getId === 'function' ? (ss.getId() || '') : '';
+        spreadsheetName = typeof ss.getName === 'function' ? (ss.getName() || '') : '';
+      }
+    }
+  } catch (e) {
+    Logger.log('[utils] Failed to read active spreadsheet metadata for Picker: %s', e.message);
+  }
+
+  return {
+    oauthToken: oauthToken,
+    apiKey: String(apiKey).trim(),
+    projectNumber: String(projectNumber).trim(),
+    spreadsheetId: spreadsheetId,
+    spreadsheetName: spreadsheetName
+  };
+}
+
+/**
+ * Persists a Google Picker-selected export folder in DocumentProperties for the active spreadsheet.
+ *
+ * @param {string} folderId - Selected Google Drive folder ID
+ * @param {string} [folderName] - Display name of the selected folder
+ * @returns {{ folderId: string, folderName: string, source: 'picker' }}
+ */
+function setExportFolder(folderId, folderName) {
+  if (!folderId || !String(folderId).trim()) {
+    throw new Error('A valid Drive folder ID is required.');
+  }
+  const cleanId = String(folderId).trim();
+  const cleanName = (folderName && String(folderName).trim()) ? String(folderName).trim() : 'Selected Drive Folder';
+
+  const docProps = PropertiesService.getDocumentProperties();
+  docProps.setProperty(EXPORT_FOLDER_PROP_KEYS.FOLDER_ID, cleanId);
+  docProps.setProperty(EXPORT_FOLDER_PROP_KEYS.FOLDER_NAME, cleanName);
+
+  return {
+    folderId: cleanId,
+    folderName: cleanName,
+    source: 'picker'
+  };
+}
+
+/**
+ * Clears any persisted Google Picker export folder for the active spreadsheet
+ * and returns the newly resolved automatic/root folder status.
+ *
+ * @returns {{ folderId: string|null, folderName: string, source: 'picker'|'auto'|'root', pickerConfigured: boolean }}
+ */
+function clearExportFolder() {
+  const docProps = PropertiesService.getDocumentProperties();
+  docProps.deleteProperty(EXPORT_FOLDER_PROP_KEYS.FOLDER_ID);
+  docProps.deleteProperty(EXPORT_FOLDER_PROP_KEYS.FOLDER_NAME);
+
+  let spreadsheetId = null;
+  if (typeof SpreadsheetApp !== 'undefined' && SpreadsheetApp.getActiveSpreadsheet) {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    spreadsheetId = ss ? ss.getId() : null;
+  }
+  return getExportFolderStatus(spreadsheetId);
+}
+
+/**
+ * Resolves the target Google Drive folder ID for exports associated with a spreadsheet.
+ * Checks DocumentProperties for a Picker-selected folder first, then uses Advanced Drive Service
+ * (`drive.file` scope, supporting Shared Drives), returning null if unavailable.
+ *
+ * @param {string} spreadsheetId - The ID of the Google Spreadsheet
+ * @returns {string|null} The target folder ID, or null if in root or inaccessible
+ */
+function getSpreadsheetParentFolderId_(spreadsheetId) {
+  const stored = getStoredExportFolder_();
+  if (stored && stored.folderId) {
+    return stored.folderId;
+  }
+
+  if (!spreadsheetId) {
+    return null;
+  }
+
+  try {
+    if (typeof Drive !== 'undefined' && Drive.Files && typeof Drive.Files.get === 'function') {
+      const file = Drive.Files.get(spreadsheetId, {
+        fields: 'parents',
+        supportsAllDrives: true
+      });
+      if (file && Array.isArray(file.parents) && file.parents.length > 0) {
+        return file.parents[0];
+      }
+    }
+  } catch (e) {
+    Logger.log('[utils] Drive.Files.get parent lookup failed: %s', e.message);
+  }
+
+  return null;
+}
+
+/**
+ * Saves a text file (e.g., .sd3, .csv, or .txt exception report) to Google Drive,
+ * targeting the specified folder ID and falling back to My Drive root if the folder
+ * is unavailable or not writable.
+ *
+ * @param {string} content - Text content to write
+ * @param {string} mimeType - MIME type (e.g., 'text/plain' or MimeType.CSV)
+ * @param {string} fileName - Output file name
+ * @param {string|null} [folderId] - Target Drive folder ID, or null/undefined for My Drive root
+ * @returns {string} Direct download URL for the created Drive file
+ */
+function saveTextFileToDrive_(content, mimeType, fileName, folderId) {
+  const blob = Utilities.newBlob(content, mimeType, fileName);
+  let fileId;
+
+  const fileMetadata = {
+    name: fileName,
+    mimeType: mimeType
+  };
+  if (folderId) {
+    fileMetadata.parents = [folderId];
+  }
+
+  try {
+    const file = Drive.Files.create(fileMetadata, blob, { supportsAllDrives: true });
+    fileId = file.id;
+    Logger.log('[saveTextFileToDrive_] File created via Advanced Drive Service: %s (ID: %s)', fileName, fileId);
+  } catch (e) {
+    Logger.log('[saveTextFileToDrive_] Advanced Drive Service failed: %s', e.message);
+
+    if (folderId) {
+      Logger.log('[saveTextFileToDrive_] Falling back to My Drive root for: %s', fileName);
+      try {
+        const rootFile = Drive.Files.create({ name: fileName, mimeType: mimeType }, blob, { supportsAllDrives: true });
+        fileId = rootFile.id;
+      } catch (e2) {
+        fileId = DriveApp.createFile(blob).getId();
+      }
+    } else {
+      fileId = DriveApp.createFile(blob).getId();
+    }
+  }
+
+  return "https://drive.google.com/uc?export=download&id=" + fileId;
+}
+
 
 
 

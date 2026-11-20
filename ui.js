@@ -7,11 +7,14 @@ function onOpen(e) {
 		Logger.log("Not enough permissions to create menu yet.");
 		menu.addItem("Start Add-on", "showSidebar");
 	} else {
-		menu.addItem("Meet Setup", "showMeetSetupDialog")
+		menu.addItem("Workspace & Export Setup", "showWorkspaceSetupDialog")
+			.addSeparator()
+			.addItem("Meet Setup", "showMeetSetupDialog")
 			.addItem("Create Sheets from Template", "showCreateSheetsDialog")
 			.addItem("Create / Sync Entry Form", "showFormSetupDialog")
 			.addItem("Create Relay Tables", "showCreateRelayTablesDialog")
 			.addSeparator()
+			.addItem("Set Export Destination", "showWorkspaceSetupDialog")
 			.addItem("Export for Meet Manager", "showSDIFCreatorDialog")
 			.addItem("Export to CSV", "exportEntriesToCSV");
 	}
@@ -32,7 +35,54 @@ function showCreateTablesDialog() {
 	return showMeetSetupDialog();
 }
 
+/**
+ * Opens the dedicated 720x560 Workspace & Export Setup modal dialog
+ * for authorizing the active spreadsheet under drive.file and choosing
+ * the export destination folder.
+ */
+function showWorkspaceSetupDialog() {
+	const html = HtmlService.createTemplateFromFile("workspace-setup-ui")
+		.evaluate()
+		.setWidth(720)
+		.setHeight(560);
+
+	SpreadsheetApp.getUi().showModalDialog(html, "Workspace & Export Setup");
+}
+
+/**
+ * Refreshes the main Admin sidepanel card in-place so changes made in the
+ * Workspace & Export Setup modal (authorization and export folder) are reflected.
+ *
+ * @returns {GoogleAppsScript.Card_Service.ActionResponse}
+ */
+function refreshWorkspaceSidebar() {
+	return CardService.newActionResponseBuilder()
+		.setNavigation(
+			CardService.newNavigation().updateCard(buildAdminSidebarCard()),
+		)
+		.build();
+}
+
+/**
+ * Checks whether the active spreadsheet is authorized under `drive.file`.
+ * If unauthorized, automatically opens the Workspace & Export Setup dialog
+ * and returns false so the caller can abort cleanly before running `batchUpdate`.
+ *
+ * @returns {boolean} True if authorized, false if setup dialog was launched
+ * @private
+ */
+function ensureSpreadsheetAuthorizedOrPrompt_() {
+	if (typeof isSpreadsheetAuthorized_ === "function" && !isSpreadsheetAuthorized_()) {
+		showWorkspaceSetupDialog();
+		return false;
+	}
+	return true;
+}
+
 function showCreateRelayTablesDialog() {
+	if (!ensureSpreadsheetAuthorizedOrPrompt_()) {
+		return;
+	}
 	const html = HtmlService.createTemplateFromFile("relay-ui-full")
 		.evaluate()
 		.setWidth(520)
@@ -66,6 +116,102 @@ function buildAdminSidebarCard() {
 			)
 			.setImageUrl(encodedImageURL),
 	);
+
+	const workspaceStatus = (typeof getWorkspaceSetupStatus === "function")
+		? getWorkspaceSetupStatus()
+		: {
+			isAuthorized: true,
+			exportFolder: { folderName: "My Drive (root)", source: "root" }
+		};
+	const folderName = (workspaceStatus.exportFolder && workspaceStatus.exportFolder.folderName)
+		? workspaceStatus.exportFolder.folderName
+		: "My Drive (root)";
+
+	// Section 0: Workspace & Export Setup (Top-level status & launch)
+	const workspaceSetupSection = CardService.newCardSection()
+		.setHeader("Workspace & Export Setup")
+		.setCollapsible(false);
+
+	if (!workspaceStatus.isAuthorized) {
+		workspaceSetupSection
+			.addWidget(
+				CardService.newDecoratedText()
+					.setText("<b>Action Required: Authorize Spreadsheet</b>")
+					.setStartIcon(
+						CardService.newIconImage().setMaterialIcon(
+							CardService.newMaterialIcon().setName("warning"),
+						),
+					),
+			)
+			.addWidget(
+				CardService.newTextParagraph().setText(
+					"Grant file access to this spreadsheet before creating or updating tables, and optionally choose an export folder.<br>Export folder: <i>" + folderName + "</i>",
+				),
+			)
+			.addWidget(
+				CardService.newButtonSet()
+					.addButton(
+						CardService.newTextButton()
+							.setText("Authorize & Setup")
+							.setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+							.setBackgroundColor("#D97706")
+							.setOnClickAction(
+								CardService.newAction().setFunctionName(
+									"showWorkspaceSetupDialog",
+								),
+							),
+					)
+					.addButton(
+						CardService.newTextButton()
+							.setText("Refresh Status")
+							.setTextButtonStyle(CardService.TextButtonStyle.TEXT)
+							.setOnClickAction(
+								CardService.newAction().setFunctionName(
+									"refreshWorkspaceSidebar",
+								),
+							),
+					),
+			);
+	} else {
+		workspaceSetupSection
+			.addWidget(
+				CardService.newDecoratedText()
+					.setText("<b>Workspace Ready</b>")
+					.setStartIcon(
+						CardService.newIconImage().setMaterialIcon(
+							CardService.newMaterialIcon().setName("check_circle"),
+						),
+					),
+			)
+			.addWidget(
+				CardService.newTextParagraph().setText(
+					"Export folder: <b>" + folderName + "</b>",
+				),
+			)
+			.addWidget(
+				CardService.newButtonSet()
+					.addButton(
+						CardService.newTextButton()
+							.setText("Change Export Folder")
+							.setTextButtonStyle(CardService.TextButtonStyle.TEXT)
+							.setOnClickAction(
+								CardService.newAction().setFunctionName(
+									"showWorkspaceSetupDialog",
+								),
+							),
+					)
+					.addButton(
+						CardService.newTextButton()
+							.setText("Refresh Status")
+							.setTextButtonStyle(CardService.TextButtonStyle.TEXT)
+							.setOnClickAction(
+								CardService.newAction().setFunctionName(
+									"refreshWorkspaceSidebar",
+								),
+							),
+					),
+			);
+	}
 
 	// Section 1: Meet Setup
 	const createTablesSection = CardService.newCardSection()
@@ -208,6 +354,7 @@ function buildAdminSidebarCard() {
 		);
 
 	templatesCard
+		.addSection(workspaceSetupSection)
 		.addSection(createTablesSection)
 		.addSection(createSheetsSection)
 		.addSection(createFormSection)

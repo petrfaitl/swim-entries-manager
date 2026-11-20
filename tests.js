@@ -1821,6 +1821,516 @@ function testTeamsTableExportAndExceptionLabels() {
   return true;
 }
 
+/**
+ * Verifies spreadsheet parent folder resolution, Drive export destination for .sd3, .csv,
+ * and exception reports (including early-abort error logs), and fallback to My Drive root.
+ */
+function testExportFolderResolutionAndFallback() {
+  const originalDrive = globalThis.Drive;
+  const originalDriveApp = globalThis.DriveApp;
+  const originalUtilities = globalThis.Utilities;
+  const originalSession = globalThis.Session;
+  const originalSpreadsheetApp = globalThis.SpreadsheetApp;
+  const originalTableApp = globalThis.TableApp;
+  const originalPropertiesService = globalThis.PropertiesService;
+  const originalScriptApp = globalThis.ScriptApp;
+
+  const createdFiles = [];
+  const docPropsStore = {};
+  const scriptPropsStore = {};
+  let failFolderWrite = false;
+  let driveParentLookup = ['FOLDER_123'];
+  let driveGetThrows = false;
+
+  try {
+    // 0. Verify appsscript.json declares drive.file and omits restricted drive / drive.readonly scopes
+    if (typeof require === 'function') {
+      const fs = require('fs');
+      const path = require('path');
+      const manifestPath = path.join(process.cwd(), 'appsscript.json');
+      if (fs.existsSync(manifestPath)) {
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+        const scopes = manifest.oauthScopes || [];
+        if (!scopes.includes('https://www.googleapis.com/auth/drive.file')) {
+          throw new Error('appsscript.json must include https://www.googleapis.com/auth/drive.file');
+        }
+        if (scopes.includes('https://www.googleapis.com/auth/drive')) {
+          throw new Error('appsscript.json must NOT include restricted https://www.googleapis.com/auth/drive scope');
+        }
+        if (scopes.includes('https://www.googleapis.com/auth/drive.readonly')) {
+          throw new Error('appsscript.json must NOT include restricted https://www.googleapis.com/auth/drive.readonly scope');
+        }
+      }
+    }
+
+    globalThis.PropertiesService = {
+      getDocumentProperties: () => ({
+        getProperty: (k) => (k in docPropsStore ? docPropsStore[k] : null),
+        setProperty: (k, v) => { docPropsStore[k] = String(v); },
+        deleteProperty: (k) => { delete docPropsStore[k]; }
+      }),
+      getScriptProperties: () => ({
+        getProperty: (k) => (k in scriptPropsStore ? scriptPropsStore[k] : null),
+        setProperty: (k, v) => { scriptPropsStore[k] = String(v); },
+        deleteProperty: (k) => { delete scriptPropsStore[k]; }
+      })
+    };
+    globalThis.ScriptApp = {
+      getOAuthToken: () => 'MOCK_OAUTH_TOKEN'
+    };
+    globalThis.Utilities = {
+      newBlob: (content, mimeType, fileName) => ({ content, mimeType, fileName }),
+      formatDate: () => '20261119_120000'
+    };
+    globalThis.Session = {
+      getScriptTimeZone: () => 'Pacific/Auckland'
+    };
+    globalThis.Drive = {
+      Files: {
+        get: (id, opts) => {
+          if (driveGetThrows) throw new Error('Drive.Files.get denied');
+          if (!opts || !opts.supportsAllDrives) throw new Error('Expected supportsAllDrives: true on Drive.Files.get');
+          if (opts.fields === 'name') {
+            return { name: 'Folder ' + id };
+          }
+          return { parents: driveParentLookup };
+        },
+        create: (metadata, blob, opts) => {
+          if (!opts || !opts.supportsAllDrives) throw new Error('Expected supportsAllDrives: true on Drive.Files.create');
+          if (failFolderWrite && metadata.parents && metadata.parents.length > 0) {
+            throw new Error('Permission denied on parent folder');
+          }
+          const id = 'FILE_' + (createdFiles.length + 1);
+          createdFiles.push({ id, metadata, blob });
+          return { id };
+        }
+      }
+    };
+    globalThis.DriveApp = {
+      getFileById: () => {
+        throw new Error('DriveApp.getFileById must not be called under drive.file scope');
+      },
+      getFolderById: () => {
+        throw new Error('DriveApp.getFolderById must not be called under drive.file scope');
+      },
+      createFile: (blob) => {
+        const id = 'DA_ROOT_FILE_' + (createdFiles.length + 1);
+        createdFiles.push({ id, metadata: { name: blob.fileName }, blob });
+        return { getId: () => id };
+      }
+    };
+
+    // 1. Parent folder resolution: Drive.Files.get primary under drive.file
+    if (getSpreadsheetParentFolderId_('SS_1') !== 'FOLDER_123') {
+      throw new Error('Expected FOLDER_123 from Drive.Files.get');
+    }
+
+    // 2. Parent folder resolution: returns null (without calling DriveApp.getFileById) when Drive.Files.get fails
+    driveGetThrows = true;
+    if (getSpreadsheetParentFolderId_('SS_1') !== null) {
+      throw new Error('Expected null when Drive.Files.get fails under drive.file scope');
+    }
+
+    // 3. Parent folder resolution: null when no parents exist
+    driveGetThrows = false;
+    driveParentLookup = [];
+    if (getSpreadsheetParentFolderId_('SS_1') !== null) {
+      throw new Error('Expected null when spreadsheet is in My Drive root');
+    }
+
+    // 3b. Picker folder persistence, status, and config
+    driveParentLookup = ['AUTO_FOLDER_1'];
+    const unconfiguredStatus = getExportFolderStatus('SS_1');
+    if (unconfiguredStatus.pickerConfigured !== false || unconfiguredStatus.source !== 'auto' || unconfiguredStatus.folderId !== 'AUTO_FOLDER_1') {
+      throw new Error('Unexpected unconfigured status: ' + JSON.stringify(unconfiguredStatus));
+    }
+
+    scriptPropsStore.GOOGLE_PICKER_API_KEY = 'TEST_API_KEY';
+    scriptPropsStore.GOOGLE_CLOUD_PROJECT_NUMBER = '1234567890';
+    const pickerCfg = getDrivePickerConfig();
+    if (pickerCfg.oauthToken !== 'MOCK_OAUTH_TOKEN' || pickerCfg.apiKey !== 'TEST_API_KEY' || pickerCfg.projectNumber !== '1234567890') {
+      throw new Error('Unexpected getDrivePickerConfig result: ' + JSON.stringify(pickerCfg));
+    }
+
+    const savedFolder = setExportFolder('PICKER_FOLDER_777', 'Meet Exports');
+    if (savedFolder.folderId !== 'PICKER_FOLDER_777' || savedFolder.folderName !== 'Meet Exports' || savedFolder.source !== 'picker') {
+      throw new Error('Unexpected setExportFolder result: ' + JSON.stringify(savedFolder));
+    }
+    if (getSpreadsheetParentFolderId_('SS_1') !== 'PICKER_FOLDER_777') {
+      throw new Error('Expected getSpreadsheetParentFolderId_ to prioritize Picker folder');
+    }
+    const pickerStatus = getExportFolderStatus('SS_1');
+    if (pickerStatus.source !== 'picker' || pickerStatus.folderName !== 'Meet Exports' || pickerStatus.pickerConfigured !== true) {
+      throw new Error('Unexpected Picker status: ' + JSON.stringify(pickerStatus));
+    }
+
+    const clearedStatus = clearExportFolder();
+    if (clearedStatus.source !== 'root' || clearedStatus.folderId !== null) {
+      throw new Error('Expected clearExportFolder to revert to root when active spreadsheet is unavailable, got ' + JSON.stringify(clearedStatus));
+    }
+
+    // Restore parent folder for export tests
+    driveParentLookup = ['MEET_FOLDER_999'];
+
+    // Mock SpreadsheetApp & TableApp for SDIFCreator.generate() and processSheetToCSV()
+    const entriesSheet = {
+      getName: () => 'TeamA',
+      getLastRow: () => 3,
+      getLastColumn: () => 8,
+      getDataRange: () => entriesSheet.getRange(1, 1, 3, 8),
+      getRange: (r, c, nr, nc) => ({
+        getValues: () => {
+          const all = [
+            ['First Name', 'Last Name', 'Date of Birth', 'Gender', 'School Year', 'School', 'Event 1', 'Time 1'],
+            ['Jane', 'Doe', '01/05/2014', 'Female', 'Y6', 'Alpha School', '50m Freestyle', '32.10'],
+            ['Sam', 'Lee', '01/05/2014', 'Male', 'Y6', 'Alpha School', '', '']
+          ];
+          return all.slice(r - 1, r - 1 + nr).map(row => row.slice(c - 1, c - 1 + nc));
+        }
+      })
+    };
+    const mockSs = {
+      getId: () => 'SS_MEET_1',
+      getSheetByName: (name) => {
+        if (name === 'TeamA') return entriesSheet;
+        if (name === 'Schools') return { getName: () => 'Schools' };
+        return null;
+      }
+    };
+    globalThis.SpreadsheetApp = {
+      getActiveSpreadsheet: () => mockSs,
+      getActive: () => mockSs
+    };
+    globalThis.TableApp = {
+      openById: () => ({
+        getTableByName: (name) => {
+          if (name === 'Meet') {
+            return {
+              getValues: () => [
+                ['Meet Name', 'Competition Type', 'Start Date', 'End Date', 'Course'],
+                ['Test Meet', 'School', '19/11/2026', '19/11/2026', '25m']
+              ]
+            };
+          }
+          if (name === 'Schools') {
+            return {
+              getValues: () => [
+                ['School', 'Team Name', 'Cluster', 'Code', 'Region Code'],
+                ['Alpha School', 'Alpha School', 'North', 'ALP', 'BP']
+              ]
+            };
+          }
+          return null;
+        }
+      })
+    };
+
+    // 4. SDIFCreator.generate() saves both .sd3 and _ExceptionReport.txt to MEET_FOLDER_999
+    createdFiles.length = 0;
+    const sdifRes = SDIFCreator.generate({
+      entriesSheetName: 'TeamA',
+      outputFileName: 'TestMeet.sd3'
+    });
+    if (!sdifRes.sdifFileUrl || !sdifRes.reportUrl) {
+      throw new Error('Expected both sdifFileUrl and reportUrl from SDIFCreator.generate');
+    }
+    if (createdFiles.length !== 2) {
+      throw new Error('Expected 2 Drive files (.sd3 + exception report), got ' + createdFiles.length);
+    }
+    createdFiles.forEach(f => {
+      if (!f.metadata.parents || f.metadata.parents[0] !== 'MEET_FOLDER_999') {
+        throw new Error('Expected file ' + f.metadata.name + ' in MEET_FOLDER_999, got ' + JSON.stringify(f.metadata.parents));
+      }
+    });
+
+    // 5. Early-abort exception report (empty Schools/Teams table) also lands in folderId
+    createdFiles.length = 0;
+    let threwEmptyTeams = false;
+    try {
+      SDIFCreator.buildSdifString(
+        [{ teamCode: 'ALP', firstName: 'Jane', lastName: 'Doe', dobFormatted: '01/05/2014', gender: 'F', eventsStr: '50m Freestyle', timesStr: '00:32.10' }],
+        { meetName: 'Test Meet', competitionType: 'School', startDate: new Date(2026, 10, 19), endDate: new Date(2026, 10, 19), course: '25m' },
+        [],
+        'MEET_FOLDER_999'
+      );
+    } catch (e) {
+      threwEmptyTeams = true;
+    }
+    if (!threwEmptyTeams) throw new Error('Expected buildSdifString to throw on empty teamLookup');
+    if (createdFiles.length !== 1 || createdFiles[0].metadata.parents[0] !== 'MEET_FOLDER_999') {
+      throw new Error('Expected early-abort exception report in MEET_FOLDER_999');
+    }
+
+    // 6. processSheetToCSV() saves .csv to MEET_FOLDER_999
+    createdFiles.length = 0;
+    const csvUrl = processSheetToCSV('TeamA', 'Schools', 'TeamA_Export');
+    if (!csvUrl.includes('FILE_')) {
+      throw new Error('Expected valid download URL from processSheetToCSV');
+    }
+    if (createdFiles.length !== 1 || createdFiles[0].metadata.parents[0] !== 'MEET_FOLDER_999') {
+      throw new Error('Expected CSV file in MEET_FOLDER_999, got ' + JSON.stringify(createdFiles));
+    }
+
+    // 7. Permission error on target folder falls back gracefully to My Drive root
+    createdFiles.length = 0;
+    failFolderWrite = true;
+    const fallbackUrl = saveTextFileToDrive_('hello', 'text/plain', 'fallback.txt', 'READONLY_FOLDER');
+    if (!fallbackUrl.includes('FILE_') && !fallbackUrl.includes('DA_ROOT_FILE_')) {
+      throw new Error('Expected fallback file URL, got ' + fallbackUrl);
+    }
+    if (createdFiles.length !== 1 || createdFiles[0].metadata.parents) {
+      throw new Error('Expected fallback file to be saved in My Drive root without parents');
+    }
+    failFolderWrite = false;
+  } finally {
+    if (originalDrive) globalThis.Drive = originalDrive;
+    else delete globalThis.Drive;
+    if (originalDriveApp) globalThis.DriveApp = originalDriveApp;
+    else delete globalThis.DriveApp;
+    if (originalUtilities) globalThis.Utilities = originalUtilities;
+    else delete globalThis.Utilities;
+    if (originalSession) globalThis.Session = originalSession;
+    else delete globalThis.Session;
+    if (originalSpreadsheetApp) globalThis.SpreadsheetApp = originalSpreadsheetApp;
+    else delete globalThis.SpreadsheetApp;
+    if (originalTableApp) globalThis.TableApp = originalTableApp;
+    else delete globalThis.TableApp;
+    if (originalPropertiesService) globalThis.PropertiesService = originalPropertiesService;
+    else delete globalThis.PropertiesService;
+    if (originalScriptApp) globalThis.ScriptApp = originalScriptApp;
+    else delete globalThis.ScriptApp;
+  }
+
+  Logger.log('✓ testExportFolderResolutionAndFallback passed');
+  return true;
+}
+
+/**
+ * Verifies Workspace & Export Setup helpers (`isSpreadsheetAuthorized_`, `getWorkspaceSetupStatus`,
+ * `getDrivePickerConfig`), TableApp `SHEET_NOT_AUTHORIZED` 403/404 handling, and `buildAdminSidebarCard()`
+ * rendering of the Workspace & Export Setup section above Meet Setup.
+ */
+function testWorkspaceSetupAndSidebar() {
+  const originalDrive = globalThis.Drive;
+  const originalSpreadsheetApp = globalThis.SpreadsheetApp;
+  const originalSheets = globalThis.Sheets;
+  const originalPropertiesService = globalThis.PropertiesService;
+  const originalScriptApp = globalThis.ScriptApp;
+  const originalCardService = globalThis.CardService;
+
+  let allowDriveGet = true;
+  const mockSs = {
+    getId: () => 'SS_AUTH_123',
+    getName: () => '2026 Regional Swim Meet'
+  };
+
+  try {
+    globalThis.SpreadsheetApp = {
+      getActiveSpreadsheet: () => mockSs,
+      getActive: () => mockSs
+    };
+
+    globalThis.Drive = {
+      Files: {
+        get: (id) => {
+          if (!allowDriveGet) {
+            throw new Error('API call to drive.files.get failed with error: File not found: ' + id);
+          }
+          if (id === 'SS_AUTH_123') {
+            return { id: 'SS_AUTH_123', parents: ['FOLDER_1'] };
+          }
+          return { id: id, name: 'Exports' };
+        }
+      }
+    };
+
+    const docPropsStore = {};
+    globalThis.PropertiesService = {
+      getDocumentProperties: () => ({
+        getProperty: (k) => (k in docPropsStore ? docPropsStore[k] : null),
+        setProperty: (k, v) => { docPropsStore[k] = String(v); },
+        deleteProperty: (k) => { delete docPropsStore[k]; }
+      }),
+      getScriptProperties: () => ({
+        getProperty: (k) => (k === 'GOOGLE_PICKER_API_KEY' ? 'KEY_123' : 'PROJ_456')
+      })
+    };
+
+    globalThis.ScriptApp = {
+      getOAuthToken: () => 'TOKEN_ABC'
+    };
+
+    // 1. Authorized state
+    allowDriveGet = true;
+    if (isSpreadsheetAuthorized_() !== true) {
+      throw new Error('Expected isSpreadsheetAuthorized_() to return true when Drive.Files.get succeeds');
+    }
+    const readyStatus = getWorkspaceSetupStatus();
+    if (!readyStatus.isAuthorized || readyStatus.spreadsheetId !== 'SS_AUTH_123' || readyStatus.spreadsheetName !== '2026 Regional Swim Meet') {
+      throw new Error('Unexpected getWorkspaceSetupStatus() ready result: ' + JSON.stringify(readyStatus));
+    }
+
+    // 2. Unauthorized state (403/404)
+    allowDriveGet = false;
+    if (isSpreadsheetAuthorized_() !== false) {
+      throw new Error('Expected isSpreadsheetAuthorized_() to return false when Drive.Files.get throws');
+    }
+    const unauthStatus = getWorkspaceSetupStatus();
+    if (unauthStatus.isAuthorized !== false) {
+      throw new Error('Expected getWorkspaceSetupStatus().isAuthorized === false');
+    }
+
+    // 3. getDrivePickerConfig includes spreadsheetId and spreadsheetName
+    const pickerCfg = getDrivePickerConfig();
+    if (pickerCfg.spreadsheetId !== 'SS_AUTH_123' || pickerCfg.spreadsheetName !== '2026 Regional Swim Meet') {
+      throw new Error('Expected getDrivePickerConfig() to include active spreadsheetId and spreadsheetName');
+    }
+
+    // 4. batchUpdate_ throws SHEET_NOT_AUTHORIZED on 403/404
+    globalThis.Sheets = {
+      Spreadsheets: {
+        batchUpdate: () => {
+          throw new Error('Requested entity was not found (404)');
+        }
+      }
+    };
+    let threwAuthError = false;
+    try {
+      batchUpdate_('SS_AUTH_123', [{ addTable: {} }]);
+    } catch (e) {
+      threwAuthError = String(e.message).indexOf('SHEET_NOT_AUTHORIZED') === 0;
+    }
+    if (!threwAuthError) {
+      throw new Error('Expected batchUpdate_() to throw SHEET_NOT_AUTHORIZED on 403/404');
+    }
+
+    // 5. buildAdminSidebarCard() renders Workspace & Export Setup above Meet Setup in both states
+    const buildMockCardService = () => {
+      const makeChain = (obj) => {
+        const proxy = new Proxy(obj, {
+          get(target, prop) {
+            if (prop in target) return target[prop];
+            return () => proxy;
+          }
+        });
+        return proxy;
+      };
+      return {
+        TextButtonStyle: { FILLED: 'FILLED', TEXT: 'TEXT', BORDERLESS: 'BORDERLESS' },
+        Icon: { DESCRIPTION: 'DESCRIPTION', BOOKMARK: 'BOOKMARK' },
+        newCardBuilder: () => {
+          const sections = [];
+          const card = {
+            _sections: sections,
+            addSection(sec) { sections.push(sec); return builder; },
+            build() { return { sections }; }
+          };
+          const builder = makeChain(card);
+          return builder;
+        },
+        newCardHeader: () => makeChain({}),
+        newCardSection: () => {
+          const sec = { header: '', texts: [], widgets: [], buttons: [] };
+          const chain = {
+            setHeader(h) { sec.header = h; return proxy; },
+            addWidget(w) {
+              sec.widgets.push(w);
+              if (w && w._text) sec.texts.push(w._text);
+              if (w && Array.isArray(w._buttons)) sec.buttons.push(...w._buttons);
+              return proxy;
+            }
+          };
+          const proxy = makeChain(Object.assign(sec, chain));
+          return proxy;
+        },
+        newDecoratedText: () => {
+          const w = { _text: '' };
+          return makeChain(Object.assign(w, { setText(t) { w._text = t; return this; } }));
+        },
+        newTextParagraph: () => {
+          const w = { _text: '' };
+          return makeChain(Object.assign(w, { setText(t) { w._text = t; return this; } }));
+        },
+        newButtonSet: () => {
+          const bs = { _buttons: [] };
+          return makeChain(Object.assign(bs, { addButton(b) { bs._buttons.push(b); return this; } }));
+        },
+        newTextButton: () => {
+          const b = { _text: '', _actionFn: '' };
+          return makeChain(Object.assign(b, {
+            setText(t) { b._text = t; return this; },
+            setOnClickAction(a) { b._actionFn = a && a._fn ? a._fn : ''; return this; }
+          }));
+        },
+        newIconImage: () => makeChain({}),
+        newMaterialIcon: () => makeChain({}),
+        newAction: () => {
+          const a = { _fn: '' };
+          return makeChain(Object.assign(a, { setFunctionName(fn) { a._fn = fn; return this; } }));
+        },
+        newNavigation: () => ({
+          updateCard(card) { return { _updatedCard: card }; }
+        }),
+        newActionResponseBuilder: () => {
+          const resp = { _nav: null };
+          return makeChain(Object.assign(resp, {
+            setNavigation(n) { resp._nav = n; return this; },
+            build() { return resp; }
+          }));
+        },
+        newFixedFooter: () => makeChain({})
+      };
+    };
+
+    globalThis.CardService = buildMockCardService();
+
+    allowDriveGet = false;
+    const unauthCard = buildAdminSidebarCard();
+    if (!unauthCard.sections[0] || unauthCard.sections[0].header !== 'Workspace & Export Setup') {
+      throw new Error('Expected first sidebar section to be Workspace & Export Setup');
+    }
+    if (!unauthCard.sections[1] || unauthCard.sections[1].header !== 'Meet Setup') {
+      throw new Error('Expected second sidebar section to be Meet Setup');
+    }
+    if (!unauthCard.sections[0].texts.some(t => t.includes('Action Required: Authorize Spreadsheet'))) {
+      throw new Error('Expected unauthorized sidebar section to show Action Required warning');
+    }
+    if (!unauthCard.sections[0].buttons.some(b => b._text === 'Refresh Status' && b._actionFn === 'refreshWorkspaceSidebar')) {
+      throw new Error('Expected unauthorized sidebar section to include Refresh Status button');
+    }
+
+    allowDriveGet = true;
+    setExportFolder('FOLDER_PICKED', 'Swim Exports 2026');
+    const refreshResp = refreshWorkspaceSidebar();
+    const readyCard = refreshResp && refreshResp._nav && refreshResp._nav._updatedCard;
+    if (!readyCard || !readyCard.sections[0].texts.some(t => t.includes('Workspace Ready'))) {
+      throw new Error('Expected refreshWorkspaceSidebar() to return updated card with Workspace Ready');
+    }
+    if (!readyCard.sections[0].texts.some(t => t.includes('Swim Exports 2026'))) {
+      throw new Error('Expected refreshed sidebar card to display Picker-selected export folder name');
+    }
+    if (!readyCard.sections[0].buttons.some(b => b._text === 'Refresh Status' && b._actionFn === 'refreshWorkspaceSidebar')) {
+      throw new Error('Expected authorized sidebar section to include Refresh Status button');
+    }
+  } finally {
+    if (originalDrive) globalThis.Drive = originalDrive;
+    else delete globalThis.Drive;
+    if (originalSpreadsheetApp) globalThis.SpreadsheetApp = originalSpreadsheetApp;
+    else delete globalThis.SpreadsheetApp;
+    if (originalSheets) globalThis.Sheets = originalSheets;
+    else delete globalThis.Sheets;
+    if (originalPropertiesService) globalThis.PropertiesService = originalPropertiesService;
+    else delete globalThis.PropertiesService;
+    if (originalScriptApp) globalThis.ScriptApp = originalScriptApp;
+    else delete globalThis.ScriptApp;
+    if (originalCardService) globalThis.CardService = originalCardService;
+    else delete globalThis.CardService;
+  }
+
+  Logger.log('✓ testWorkspaceSetupAndSidebar passed');
+  return true;
+}
+
 function runAllDiagnosticTests() {
   testCompetitionTypesRegistry();
   testAgeBracketsTableSchema();
@@ -1841,6 +2351,8 @@ function runAllDiagnosticTests() {
   testFormPrerequisiteExtraction();
   testFormDuplicateColumnCleanup();
   testTeamsTableExportAndExceptionLabels();
+  testExportFolderResolutionAndFallback();
+  testWorkspaceSetupAndSidebar();
   testFlexibleTimeParsing();
   Logger.log('=== ALL DIAGNOSTIC TESTS PASSED ===');
 }

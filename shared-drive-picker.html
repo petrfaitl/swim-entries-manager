@@ -1,0 +1,132 @@
+<style>
+  .folder-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 7px 10px;
+    border: 1.5px solid #e0e3ed;
+    border-radius: 7px;
+    background: #fafbfd;
+  }
+
+  .folder-info {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .folder-name {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #1a1a2e;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .folder-source {
+    font-size: 10.5px;
+    color: #7b8299;
+  }
+
+  .folder-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .btn-folder {
+    width: auto;
+    padding: 5px 10px;
+    margin: 0;
+    font-size: 11.5px;
+    font-weight: 500;
+    border-radius: 6px;
+    border: 1px solid #d0d5e2;
+    background: #ffffff;
+    color: #1a1a2e;
+    cursor: pointer;
+    box-shadow: none;
+    transition: background 0.15s, border-color 0.15s;
+  }
+
+  .btn-folder:hover:not(:disabled) {
+    background: #f0f3fa;
+    border-color: #0397B3;
+    transform: none;
+    box-shadow: none;
+  }
+
+  .btn-folder:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  .picker-error {
+    margin-top: 4px;
+    font-size: 11px;
+    color: #c62828;
+    display: none;
+  }
+</style>
+
+<div class="field" id="exportFolderField">
+  <label>Destination Folder</label>
+  <div class="folder-bar">
+    <div class="folder-info">
+      <div class="folder-name" id="exportFolderName">Loading...</div>
+      <div class="folder-source" id="exportFolderSource"></div>
+    </div>
+    <div class="folder-actions">
+      <button type="button" class="btn-folder" id="changeFolderBtn">Change...</button>
+    </div>
+  </div>
+  <div class="picker-error" id="pickerError"></div>
+</div>
+
+<script>
+  (function() {
+    const folderNameEl = document.getElementById('exportFolderName');
+    const folderSourceEl = document.getElementById('exportFolderSource');
+    const changeBtn = document.getElementById('changeFolderBtn');
+    const errorEl = document.getElementById('pickerError');
+
+    function showPickerError(msg) {
+      if (!msg) {
+        errorEl.textContent = '';
+        errorEl.style.display = 'none';
+      } else {
+        errorEl.textContent = msg;
+        errorEl.style.display = 'block';
+      }
+    }
+
+    function sourceLabel(source) {
+      if (source === 'picker') return 'Selected via Google Picker';
+      if (source === 'auto') return 'Spreadsheet folder (automatic)';
+      return 'My Drive root (fallback)';
+    }
+
+    window.updateExportFolderUI = function(folderStatus) {
+      if (!folderStatus) return;
+      folderNameEl.textContent = folderStatus.folderName || 'My Drive (root)';
+      folderSourceEl.textContent = sourceLabel(folderStatus.source);
+      showPickerError('');
+    };
+
+    changeBtn.addEventListener('click', function() {
+      showPickerError('');
+      changeBtn.disabled = true;
+      google.script.run
+        .withSuccessHandler(function() {
+          changeBtn.disabled = false;
+        })
+        .withFailureHandler(function(err) {
+          changeBtn.disabled = false;
+          showPickerError('Could not open Workspace & Export Setup: ' + (err.message || err));
+        })
+        .showWorkspaceSetupDialog();
+    });
+  })();
+</script>

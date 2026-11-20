@@ -1,0 +1,578 @@
+<!doctype html>
+<html>
+	<head>
+		<?!=
+		HtmlService.createHtmlOutputFromFile('shared-dialog-styles').getContent();
+		?>
+		<style>
+			.status-banner {
+				display: flex;
+				align-items: flex-start;
+				justify-content: space-between;
+				gap: 12px;
+				padding: 10px 12px;
+				border-radius: 8px;
+				border: 1.5px solid #e0e3ed;
+				background: #fafbfd;
+				margin-bottom: 10px;
+			}
+			.status-banner.ready {
+				border-color: #b7e4c7;
+				background: #f1fbf4;
+			}
+			.status-banner.warning {
+				border-color: #ffe082;
+				background: #fffdf0;
+			}
+			.status-text {
+				flex: 1;
+				min-width: 0;
+			}
+			.status-title {
+				font-size: 13px;
+				font-weight: 600;
+				color: #1a1a2e;
+				margin-bottom: 3px;
+			}
+			.status-banner.ready .status-title {
+				color: #1b5e20;
+			}
+			.status-banner.warning .status-title {
+				color: #8a5300;
+			}
+			.status-desc {
+				font-size: 11.5px;
+				color: #4a5068;
+				line-height: 1.4;
+			}
+			.folder-bar {
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				gap: 10px;
+				padding: 9px 12px;
+				border: 1.5px solid #e0e3ed;
+				border-radius: 8px;
+				background: #fafbfd;
+			}
+			.folder-info {
+				min-width: 0;
+				flex: 1;
+			}
+			.folder-name {
+				font-size: 13px;
+				font-weight: 600;
+				color: #1a1a2e;
+				white-space: nowrap;
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
+			.folder-source {
+				font-size: 11px;
+				color: #7b8299;
+				margin-top: 2px;
+			}
+			.action-row {
+				display: flex;
+				align-items: center;
+				gap: 8px;
+				flex-shrink: 0;
+			}
+			.btn-inline {
+				width: auto;
+				padding: 7px 14px;
+				margin: 0;
+				font-size: 12px;
+				font-weight: 600;
+				border-radius: 6px;
+				cursor: pointer;
+				white-space: nowrap;
+			}
+			.btn-secondary-inline {
+				width: auto;
+				padding: 6px 12px;
+				margin: 0;
+				font-size: 12px;
+				font-weight: 500;
+				border-radius: 6px;
+				border: 1px solid #d0d5e2;
+				background: #ffffff;
+				color: #1a1a2e;
+				cursor: pointer;
+				box-shadow: none;
+				white-space: nowrap;
+			}
+			.btn-secondary-inline:hover:not(:disabled) {
+				background: #f0f3fa;
+				border-color: #0397b3;
+				transform: none;
+				box-shadow: none;
+			}
+			.btn-secondary-inline:disabled,
+			.btn-inline:disabled {
+				opacity: 0.55;
+				cursor: not-allowed;
+			}
+			.btn-reset {
+				color: #7b8299;
+			}
+			.inline-msg {
+				margin-top: 6px;
+				font-size: 11.5px;
+				line-height: 1.4;
+				display: none;
+			}
+			.inline-msg.error {
+				color: #c62828;
+				display: block;
+			}
+			.inline-msg.info {
+				color: #4a5068;
+				display: block;
+			}
+			.inline-msg.success {
+				color: #1b5e20;
+				display: block;
+			}
+			.footer-actions {
+				display: flex;
+				justify-content: flex-end;
+				margin-top: 14px;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="header">
+			<h2>Workspace &amp; Export Setup</h2>
+			<p>
+				Authorize this spreadsheet for table operations and choose where
+				exports are saved.
+			</p>
+		</div>
+
+		<div class="section">
+			<div class="section-label">1. Authorize This Spreadsheet</div>
+			<div id="authBanner" class="status-banner">
+				<div class="status-text">
+					<div id="authTitle" class="status-title">Checking authorization...</div>
+					<div id="authDesc" class="status-desc">
+						Verifying Google Drive file access for the active spreadsheet.
+					</div>
+				</div>
+				<div class="action-row">
+					<button type="button" id="authorizeSheetBtn" class="btn-inline" disabled>
+						Authorize This Spreadsheet
+					</button>
+				</div>
+			</div>
+			<div id="authMessage" class="inline-msg"></div>
+		</div>
+
+		<div class="section">
+			<div class="section-label">2. Export Destination Folder</div>
+			<div class="folder-bar">
+				<div class="folder-info">
+					<div id="exportFolderName" class="folder-name">Loading...</div>
+					<div id="exportFolderSource" class="folder-source"></div>
+				</div>
+				<div class="action-row">
+					<button type="button" id="chooseFolderBtn" class="btn-secondary-inline" disabled>
+						Choose Folder...
+					</button>
+					<button
+						type="button"
+						id="resetFolderBtn"
+						class="btn-secondary-inline btn-reset"
+						style="display: none"
+					>
+						Reset
+					</button>
+				</div>
+			</div>
+			<div id="pickerUnconfiguredHint" class="inline-msg">
+				Google Picker unavailable (<code>GOOGLE_PICKER_API_KEY</code> not
+				configured in Script Properties). Exports will save to the spreadsheet
+				folder or My Drive root.
+			</div>
+			<div id="folderMessage" class="inline-msg"></div>
+		</div>
+
+		<div class="footer-actions">
+			<button type="button" id="doneBtn" class="btn-inline">Done</button>
+		</div>
+
+		<script>
+			(function() {
+				const authBanner = document.getElementById('authBanner');
+				const authTitle = document.getElementById('authTitle');
+				const authDesc = document.getElementById('authDesc');
+				const authorizeBtn = document.getElementById('authorizeSheetBtn');
+				const authMsg = document.getElementById('authMessage');
+
+				const folderNameEl = document.getElementById('exportFolderName');
+				const folderSourceEl = document.getElementById('exportFolderSource');
+				const chooseBtn = document.getElementById('chooseFolderBtn');
+				const resetBtn = document.getElementById('resetFolderBtn');
+				const hintEl = document.getElementById('pickerUnconfiguredHint');
+				const folderMsg = document.getElementById('folderMessage');
+
+				const doneBtn = document.getElementById('doneBtn');
+
+				let pickerApiLoaded = false;
+				let pickerScriptLoading = false;
+				let currentStatus = null;
+
+				function setInlineMessage(el, text, type) {
+					if (!text) {
+						el.textContent = '';
+						el.className = 'inline-msg';
+					} else {
+						el.textContent = text;
+						el.className = 'inline-msg ' + (type || 'info');
+					}
+				}
+
+				function sourceLabel(source) {
+					if (source === 'picker') return 'Selected via Google Picker';
+					if (source === 'auto') return 'Spreadsheet folder (automatic)';
+					return 'My Drive root (fallback)';
+				}
+
+				function renderStatus(status) {
+					currentStatus = status;
+					const sheetLabel = status.spreadsheetName
+						? '"' + status.spreadsheetName + '"'
+						: 'this spreadsheet';
+					const pickerConfigured = status.exportFolder && status.exportFolder.pickerConfigured;
+
+					if (status.isAuthorized) {
+						authBanner.className = 'status-banner ready';
+						authTitle.textContent = 'Spreadsheet Authorized';
+						authDesc.textContent =
+							'Table operations are enabled for ' + sheetLabel + ' under drive.file.';
+						authorizeBtn.textContent = 'Re-authorize';
+						authorizeBtn.className = 'btn-secondary-inline';
+					} else {
+						authBanner.className = 'status-banner warning';
+						authTitle.textContent = 'Action Required: Authorize Spreadsheet';
+						authDesc.textContent =
+							'Select ' +
+							sheetLabel +
+							' in Google Picker to grant drive.file access for creating and updating tables.';
+						authorizeBtn.textContent = 'Authorize This Spreadsheet';
+						authorizeBtn.className = 'btn-inline';
+					}
+
+					if (status.exportFolder) {
+						folderNameEl.textContent = status.exportFolder.folderName || 'My Drive (root)';
+						folderSourceEl.textContent = sourceLabel(status.exportFolder.source);
+						resetBtn.style.display =
+							status.exportFolder.source === 'picker' ? 'inline-block' : 'none';
+					}
+
+					if (!pickerConfigured) {
+						authorizeBtn.disabled = true;
+						chooseBtn.disabled = true;
+						hintEl.className = 'inline-msg info';
+					} else {
+						authorizeBtn.disabled = false;
+						chooseBtn.disabled = false;
+						hintEl.className = 'inline-msg';
+					}
+				}
+
+				function refreshStatus(onDone) {
+					google.script.run
+						.withSuccessHandler(function(status) {
+							renderStatus(status);
+							if (typeof onDone === 'function') onDone(status);
+						})
+						.withFailureHandler(function(err) {
+							setInlineMessage(
+								authMsg,
+								'Could not load workspace status: ' + (err.message || err),
+								'error'
+							);
+						})
+						.getWorkspaceSetupStatus();
+				}
+
+				function loadPickerApi(callback, onError) {
+					if (pickerApiLoaded && window.google && window.google.picker) {
+						callback();
+						return;
+					}
+					if (window.gapi && typeof window.gapi.load === 'function') {
+						window.gapi.load('picker', function() {
+							pickerApiLoaded = true;
+							callback();
+						});
+						return;
+					}
+					if (pickerScriptLoading) return;
+					pickerScriptLoading = true;
+
+					const script = document.createElement('script');
+					script.src = 'https://apis.google.com/js/api.js';
+					script.async = true;
+					script.defer = true;
+					script.onload = function() {
+						pickerScriptLoading = false;
+						if (window.gapi && typeof window.gapi.load === 'function') {
+							window.gapi.load('picker', function() {
+								pickerApiLoaded = true;
+								callback();
+							});
+						} else {
+							onError('Failed to initialize Google Picker API.');
+						}
+					};
+					script.onerror = function() {
+						pickerScriptLoading = false;
+						onError('Could not load Google Picker script. Check network access.');
+					};
+					document.head.appendChild(script);
+				}
+
+				function applyCommonPickerSettings(builder, config) {
+					if (typeof google !== 'undefined' && google.script && google.script.host && google.script.host.origin) {
+						builder.setOrigin(google.script.host.origin);
+					} else {
+						builder.setOrigin(window.location.protocol + '//' + window.location.host);
+					}
+					if (config.projectNumber) {
+						builder.setAppId(config.projectNumber);
+					}
+					return builder;
+				}
+
+				function openSpreadsheetAuthPicker(config) {
+					if (!config || !config.apiKey || !config.oauthToken) {
+						authorizeBtn.disabled = false;
+						setInlineMessage(authMsg, 'Picker configuration is incomplete.', 'error');
+						return;
+					}
+
+					loadPickerApi(
+						function() {
+							try {
+								const sheetsView = new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS);
+								if (config.spreadsheetName) {
+									sheetsView.setQuery(config.spreadsheetName);
+								}
+
+								const builder = new google.picker.PickerBuilder()
+									.addView(sheetsView)
+									.setOAuthToken(config.oauthToken)
+									.setDeveloperKey(config.apiKey)
+									.setSize(680, 500)
+									.setTitle(
+										config.spreadsheetName
+											? 'Select "' + config.spreadsheetName + '"'
+											: 'Select Active Spreadsheet'
+									)
+									.setCallback(function(data) {
+										if (data.action === google.picker.Action.PICKED) {
+											const doc = data.docs && data.docs[0];
+											if (!doc || !doc.id) {
+												authorizeBtn.disabled = false;
+												setInlineMessage(authMsg, 'No spreadsheet was selected.', 'error');
+												return;
+											}
+											if (config.spreadsheetId && doc.id !== config.spreadsheetId) {
+												authorizeBtn.disabled = false;
+												setInlineMessage(
+													authMsg,
+													'You selected "' +
+														(doc.name || doc.id) +
+														'", which is a different file. Please click Authorize again and select "' +
+														(config.spreadsheetName || config.spreadsheetId) +
+														'".',
+													'error'
+												);
+												return;
+											}
+											setInlineMessage(authMsg, 'Verifying spreadsheet authorization...', 'info');
+											refreshStatus(function(updated) {
+												authorizeBtn.disabled = false;
+												if (updated && updated.isAuthorized) {
+													setInlineMessage(
+														authMsg,
+														'Spreadsheet authorized successfully. Click "Refresh Status" in the side panel after closing this dialog.',
+														'success'
+													);
+												} else {
+													setInlineMessage(
+														authMsg,
+														'Selected file, but Drive authorization is not yet active. Please try again.',
+														'error'
+													);
+												}
+											});
+										} else if (data.action === google.picker.Action.CANCEL) {
+											authorizeBtn.disabled = false;
+										}
+									});
+
+								if (google.picker.Feature && google.picker.Feature.SUPPORT_DRIVES) {
+									builder.enableFeature(google.picker.Feature.SUPPORT_DRIVES);
+								}
+								applyCommonPickerSettings(builder, config);
+
+								const picker = builder.build();
+								picker.setVisible(true);
+								authorizeBtn.disabled = false;
+							} catch (err) {
+								authorizeBtn.disabled = false;
+								setInlineMessage(
+									authMsg,
+									'Could not open Spreadsheet Picker: ' + (err.message || err),
+									'error'
+								);
+							}
+						},
+						function(errMsg) {
+							authorizeBtn.disabled = false;
+							setInlineMessage(authMsg, errMsg, 'error');
+						}
+					);
+				}
+
+				function openExportFolderPicker(config) {
+					if (!config || !config.apiKey || !config.oauthToken) {
+						chooseBtn.disabled = false;
+						setInlineMessage(folderMsg, 'Picker configuration is incomplete.', 'error');
+						return;
+					}
+
+					loadPickerApi(
+						function() {
+							try {
+								const docsView = new google.picker.DocsView(google.picker.ViewId.FOLDERS)
+									.setIncludeFolders(true)
+									.setSelectFolderEnabled(true);
+
+								const builder = new google.picker.PickerBuilder()
+									.addView(docsView)
+									.setOAuthToken(config.oauthToken)
+									.setDeveloperKey(config.apiKey)
+									.setSize(680, 500)
+									.setTitle('Select Export Folder')
+									.setCallback(function(data) {
+										if (data.action === google.picker.Action.PICKED) {
+											const doc = data.docs && data.docs[0];
+											if (doc && doc.id) {
+												chooseBtn.disabled = true;
+												setInlineMessage(folderMsg, 'Saving export folder...', 'info');
+												google.script.run
+													.withSuccessHandler(function(saved) {
+														chooseBtn.disabled = false;
+														setInlineMessage(
+															folderMsg,
+															'Export folder saved: ' + (saved.folderName || doc.name) + '. Click "Refresh Status" in the side panel after closing this dialog.',
+															'success'
+														);
+														refreshStatus();
+													})
+													.withFailureHandler(function(err) {
+														chooseBtn.disabled = false;
+														setInlineMessage(
+															folderMsg,
+															'Failed to save folder: ' + (err.message || err),
+															'error'
+														);
+													})
+													.setExportFolder(doc.id, doc.name);
+											}
+										} else if (data.action === google.picker.Action.CANCEL) {
+											chooseBtn.disabled = false;
+										}
+									});
+
+								if (google.picker.Feature && google.picker.Feature.SUPPORT_DRIVES) {
+									builder.enableFeature(google.picker.Feature.SUPPORT_DRIVES);
+								}
+								applyCommonPickerSettings(builder, config);
+
+								const picker = builder.build();
+								picker.setVisible(true);
+								chooseBtn.disabled = false;
+							} catch (err) {
+								chooseBtn.disabled = false;
+								setInlineMessage(
+									folderMsg,
+									'Could not open Folder Picker: ' + (err.message || err),
+									'error'
+								);
+							}
+						},
+						function(errMsg) {
+							chooseBtn.disabled = false;
+							setInlineMessage(folderMsg, errMsg, 'error');
+						}
+					);
+				}
+
+				authorizeBtn.addEventListener('click', function() {
+					setInlineMessage(authMsg, '', '');
+					authorizeBtn.disabled = true;
+					google.script.run
+						.withSuccessHandler(openSpreadsheetAuthPicker)
+						.withFailureHandler(function(err) {
+							authorizeBtn.disabled = false;
+							setInlineMessage(
+								authMsg,
+								'Could not load Picker configuration: ' + (err.message || err),
+								'error'
+							);
+						})
+						.getDrivePickerConfig();
+				});
+
+				chooseBtn.addEventListener('click', function() {
+					setInlineMessage(folderMsg, '', '');
+					chooseBtn.disabled = true;
+					google.script.run
+						.withSuccessHandler(openExportFolderPicker)
+						.withFailureHandler(function(err) {
+							chooseBtn.disabled = false;
+							setInlineMessage(
+								folderMsg,
+								'Could not load Picker configuration: ' + (err.message || err),
+								'error'
+							);
+						})
+						.getDrivePickerConfig();
+				});
+
+				resetBtn.addEventListener('click', function() {
+					setInlineMessage(folderMsg, '', '');
+					resetBtn.disabled = true;
+					google.script.run
+						.withSuccessHandler(function() {
+							resetBtn.disabled = false;
+							setInlineMessage(folderMsg, 'Export folder reset to automatic default.', 'info');
+							refreshStatus();
+						})
+						.withFailureHandler(function(err) {
+							resetBtn.disabled = false;
+							setInlineMessage(
+								folderMsg,
+								'Failed to reset folder: ' + (err.message || err),
+								'error'
+							);
+						})
+						.clearExportFolder();
+				});
+
+				doneBtn.addEventListener('click', function() {
+					if (typeof google !== 'undefined' && google.script && google.script.host) {
+						google.script.host.close();
+					}
+				});
+
+				refreshStatus();
+			})();
+		</script>
+	</body>
+</html>

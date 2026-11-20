@@ -157,11 +157,13 @@ These enable dropdown validation across multiple sheets.
 The add-on requires the following OAuth scopes:
 - `spreadsheets.currentonly`: Read/write current spreadsheet
 - `spreadsheets`: Full spreadsheet access
-- `drive.file`: Create and manage files
-- `drive`: Drive access for file operations
+- `drive.file`: Create and manage add-on-created and Picker-selected files/folders
 - `userinfo.email`: User identification
 - `script.container.ui`: Display custom UI
 - `script.locale`: Localization support
+- `forms`: Create and sync Google Entry Forms
+
+To enable the **Choose Folder...** button in the export dialogs, set `GOOGLE_PICKER_API_KEY` and `GOOGLE_CLOUD_PROJECT_NUMBER` in the Apps Script project's **Script Properties** (with the Google Picker API enabled in your Google Cloud project).
 
 ## Development
 

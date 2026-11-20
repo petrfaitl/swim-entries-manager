@@ -352,6 +352,9 @@ function createConfiguredTables(tableNames, options) {
  * Opens the Meet Setup modal dialog.
  */
 function showMeetSetupDialog() {
+  if (typeof ensureSpreadsheetAuthorizedOrPrompt_ === 'function' && !ensureSpreadsheetAuthorizedOrPrompt_()) {
+    return;
+  }
   const html = HtmlService.createTemplateFromFile('meet-setup-ui')
                           .evaluate()
                           .setWidth(540)

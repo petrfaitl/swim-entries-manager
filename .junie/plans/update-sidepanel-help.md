@@ -5,75 +5,114 @@ sessionId: session-261117-091644-2mkw
 # Requirements
 
 ### Overview & Goals
-Update the **Help & Quick Start** card (`showHelpCard()` in `ui.js`) in the Google Sheets Add-on sidepanel so every workflow step, field requirement, exception report item, and best-practice tip matches the current functionality of **Swim Entries Manager**.
+Move Google Picker out of the SDIF and CSV export dialogs into a dedicated **Workspace & Export Setup** workflow anchored at the top of the **Swim Entries Manager** sidepanel (above **Meet Setup**) and in the Add-on menu. This enables two capabilities under non-sensitive OAuth scopes (`spreadsheets.currentonly` + `drive.file`):
+1. **One-Click Spreadsheet Authorization (Workaround 1):** Grant `drive.file` access to the active spreadsheet via Google Picker so `Sheets.Spreadsheets.batchUpdate` (`TableApp`) works without requiring the sensitive `https://www.googleapis.com/auth/spreadsheets` scope.
+2. **Reliable Export Destination Selection:** Choose a Google Drive / Shared Drive folder for `.sd3`, `.csv`, and `_ExceptionReport.txt` exports in a dedicated `720×560` modal dialog instead of resizing the `500×520` export dialogs.
 
 ### Scope
 - **In Scope:**
-  - Updating `quickStartSection`, `criticalFieldsSection`, `exceptionReportsSection`, and `tipsSection` inside `showHelpCard()` (`ui.js`).
-  - Aligning terminology with the current sidebar (`buildAdminSidebarCard` and `buildExportCard`) and Add-on menu (`onOpen`): **Meet Setup**, **Create Team Entry Sheets**, **Entry Form (Optional)**, **Create Relay Tables (Optional)**, **Export for Meet Manager**, and **Export to CSV**.
+  - Removing the sensitive `https://www.googleapis.com/auth/spreadsheets` scope from `appsscript.json` (retaining `spreadsheets.currentonly` and `drive.file`).
+  - Adding `isSpreadsheetAuthorized_(spreadsheetId)` and `getWorkspaceSetupStatus()` in `utils.js` (checking `Drive.Files.get` under `drive.file`).
+  - Adding a top-level **Workspace & Export Setup** status section at the top of `buildAdminSidebarCard()` in `ui.js` (above **Meet Setup**), plus menu items in `onOpen(e)` (`Workspace & Export Setup` at the top and `Set Export Destination` in the Export section).
+  - Adding a 403 / unauthorized guard in `ui.js` (`showMeetSetupDialog()`, `showCreateSheetsDialog()`, `showCreateRelayTablesDialog()`) and `TableApp_Local.js` (`batchUpdate_()`) to prompt the Picker authorization modal if a user tries to create/update tables before authorizing the spreadsheet.
+  - Creating `workspace-setup-ui.html` (dedicated `720×560` modal with Step 1: **Authorize This Spreadsheet** pre-filtered by `ss.getName()` and Step 2: **Export Destination Folder**).
+  - Simplifying `shared-drive-picker.html`, `SDIFCreator_Dialog.html`, and `export-csv-ui.html` to show a read-only Destination Folder summary with a **Change...** button that opens `showWorkspaceSetupDialog()`.
+  - Updating `tests.js`, `docs/SWIM_ENTRIES_MANAGER_SPEC.md`, and `docs/USER_GUIDE.md`.
 - **Out of Scope:**
-  - Modifying `buildAdminSidebarCard()`, `buildExportCard()`, or `showAboutCard()` in `ui.js`.
-  - Rewriting `docs/USER_GUIDE.md` or `docs/SWIM_ENTRIES_MANAGER_SPEC.md`.
+  - Changing SDIF/CSV data formatting or Google Form builder logic (`formBuilder.js`).
+  - Auto-opening a modal dialog directly inside `onHomepage(e)` (blocked by Google Workspace Add-on `CardService` runtime rules; handled instead via the prominent top-of-sidepanel status card and the 403 guard).
 
 ### Functional Requirements
-- **FR-1 (Quick Start Workflow):** Replace references to "Create Core Tables" with **Meet Setup (STEP 1)**, describing competition type selection (`School`, `College`, `Age Group`, `Open`, `Masters`) and auto-generated sheets (`Meet`, `AgeBrackets` for School/College, `Events`, `Schools`/`Teams`, `Individual Events Template`, and optional `Team Officials` / `How to fill entries`).
-- **FR-2 (Entry Collection & Relays):** Document both **Create Team Entry Sheets (STEP 2)** and **Entry Form (Optional)** (`Create / Sync Entry Form`), as well as **Create Relay Tables (STEP 3, Optional)**.
-- **FR-3 (Critical Data Requirements):** Reflect competition-type-aware requirements: `Date of Birth` is required for `Age Group`, `Open`, and `Masters`, whereas `School` and `College` meets accept `School Year` (mapped via `AgeBrackets` on `Meet`) when `Date of Birth` is omitted; team codes/names are validated against `Schools` (`School`/`College`) or `Teams` (`Age Group`/`Open`/`Masters`).
-- **FR-4 (Exception Reports & Best Practices):** Reference both `Schools` and `Teams` tables, include duplicate-event warnings, and advise re-syncing the Entry Form when `Events` or `Schools`/`Teams` change.
+- **FR-1 (Non-Sensitive OAuth Scopes):** `appsscript.json` shall remove `https://www.googleapis.com/auth/spreadsheets` and rely on `https://www.googleapis.com/auth/spreadsheets.currentonly` + `https://www.googleapis.com/auth/drive.file`.
+- **FR-2 (Top-of-Sidepanel Status & Launch UX):** `buildAdminSidebarCard()` in `ui.js` shall render **Workspace & Export Setup** as the first section above **Meet Setup**, showing either an amber **Action Required: Authorize Spreadsheet** prompt (when `Drive.Files.get` fails under `drive.file`) or a green **Workspace Ready** summary with the active export folder and a **Change Export Folder** button.
+- **FR-3 (Add-on Menu Access):** `onOpen(e)` in `ui.js` shall expose **Workspace & Export Setup** above **Meet Setup** and **Set Export Destination** above **Export for Meet Manager**, both opening `showWorkspaceSetupDialog()`.
+- **FR-4 (403 / Unauthorized Guard):** If `isSpreadsheetAuthorized_()` is `false` when launching **Meet Setup**, **Create Sheets from Template**, or **Create Relay Tables** (or if `batchUpdate_()` in `TableApp_Local.js` throws a `403`/`404` permission error), the add-on shall automatically launch `showWorkspaceSetupDialog()` (or surface a clear one-click authorization prompt) instead of failing with a raw API error.
+- **FR-5 (Dedicated `720×560` Picker Modal):** `workspace-setup-ui.html` shall open at `720×560` (no dynamic `setWidth`/`setHeight` resizing) and support:
+  - **Authorize This Spreadsheet:** `DocsView(ViewId.SPREADSHEETS)` pre-filtered by `SpreadsheetApp.getActiveSpreadsheet().getName()`, validating that the picked file ID matches the active spreadsheet ID.
+  - **Export Destination Folder:** `DocsView(ViewId.FOLDERS)` with `SUPPORT_DRIVES`, persisting `folderId`/`folderName` in `DocumentProperties` via `setExportFolder()`, plus **Reset** via `clearExportFolder()`.
+- **FR-6 (Clean Export Dialogs):** `SDIFCreator_Dialog.html` and `export-csv-ui.html` shall no longer embed or dynamically resize the Google Picker iframe; instead, they display the current Destination Folder status and a **Change...** button that opens `showWorkspaceSetupDialog()`.
 
 # Technical Design
 
 ### Current Implementation
-`showHelpCard()` in `ui.js` (lines 467–581) builds a `CardService` card with five sections:
-1. `quickStartSection` — still describes the removed "Create Core Tables (STEP 1)" dialog, omits `AgeBrackets`, omits the `Teams` table alternative, omits **Entry Form (Optional)** (`form-setup-ui.html` / `formBuilder.js`), and omits **Create Relay Tables (STEP 3)**.
-2. `criticalFieldsSection` — states `Date of Birth (DD/MM/YYYY)` is always required and only references the `Schools` table.
-3. `exceptionReportsSection` — only mentions missing teams in `Schools` table and omits duplicate-event warnings added in `SDIFCreator.js` / `EntryDataProcessor.js`.
-4. `tipsSection` — only mentions adding teams to the `Schools` table and does not mention re-syncing the Entry Form.
-5. `resourcesSection` — links to `docs/USER_GUIDE.md`, GitHub issues, and `recorder@lvwasc.co.nz` (already up to date).
+- `appsscript.json` declares both `spreadsheets.currentonly` and `spreadsheets` (Sensitive scope).
+- `ui.js` (`buildAdminSidebarCard()`) starts directly with `Meet Setup (STEP 1)` and has no menu item for export destination or sheet authorization.
+- `shared-drive-picker.html` embeds Google Picker JS inside `SDIFCreator_Dialog.html` and `export-csv-ui.html` (`500×520`) and calls `google.script.host.setWidth(720)` / `setHeight(560)`, which renders unreliably inside nested export modals.
+- `TableApp_Local.js` (`batchUpdate_()`) calls `Sheets.Spreadsheets.batchUpdate({ requests }, sid)` directly without checking `drive.file` authorization first.
 
-### Proposed Changes
-All changes are localized to `showHelpCard()` in `ui.js` using `CardService.newTextParagraph().setText(...)` with `CardService`-supported HTML (`<b>`, `<i>`, `<br>`):
+### Key Decisions
+1. **Top Sidepanel Section + 403 Guard instead of `onHomepage` Modal:** Google Workspace Add-ons cannot call `SpreadsheetApp.getUi().showModalDialog()` from `onHomepage(e)`. Placing **Workspace & Export Setup** at the top of `buildAdminSidebarCard()` gives immediate visibility on launch, while guarding `showMeetSetupDialog()` / `batchUpdate_()` ensures users are automatically prompted if they jump straight to table creation.
+2. **Unified Dedicated `720×560` Modal (`workspace-setup-ui.html`):** Separating Sheet Authorization and Export Folder Selection into one dedicated `720×560` modal (matching `relay-ui-full.html` sizing) eliminates dynamic resizing and iframe clipping in export dialogs.
+3. **Pre-filtered Spreadsheet Picker (`setQuery`):** Pre-filtering `DocsView(ViewId.SPREADSHEETS)` with `SpreadsheetApp.getActiveSpreadsheet().getName()` places the active spreadsheet at the top of the Picker list for one-click `drive.file` authorization.
 
-- **`quickStartSection` ("Quick Start Workflow"):**
-  - **1. Meet Setup (STEP 1):** Select Competition Type (`School`, `College`, `Age Group`, `Open`, `Masters`) and enter meet details to auto-generate `Meet` (with `AgeBrackets` for School/College), `Events`, `Schools` or `Teams`, and `Individual Events Template` (plus optional `Team Officials` and `How to fill entries` sample).
-  - **2. Review & Populate Tables:** Verify `Events` (`Distance` and `Discipline`; `Event` is auto-generated), add participating organisations to `Schools` or `Teams` (with `Code` and `Team Name`), and populate `Team Officials` if enabled.
-  - **3. Collect Entries (STEP 2 / Optional):** Duplicate `Individual Events Template` per school, cluster, or team via **Create Team Sheets**, or generate a public Google Form via **Create / Sync Entry Form** (responses land in `Form Entries`). Optionally run **Create Relay Tables (STEP 3)** for relay meets.
-  - **4. Fill Swimmer Entries:** **Required:** `First Name`, `Last Name`, `Gender`, valid `School`/`Team`/`Club`, plus `Date of Birth` (Age Group/Open/Masters) or `School Year` (School/College). **Recommended:** Entry times.
-  - **5. Export for Meet Manager (STEP 4):** Generate an SDIF (`.sd3`) file and review any Exception Report warnings/errors. Alternative: **Export to CSV**.
-- **`criticalFieldsSection` ("Critical Data Requirements"):**
-  - Clarify that `Date of Birth (DD/MM/YYYY)` is required for `Age Group`, `Open`, and `Masters`, while `School` and `College` meets can use `School Year` (mapped in `AgeBrackets`) when DOB is omitted.
-  - State that `Team Code` and `Team Name` must exist in the `Schools` or `Teams` table.
-  - Retain the existing `[Distance] [Stroke]` event format examples.
-- **`exceptionReportsSection` ("Understanding Exception Reports"):**
-  - Update `"Missing teams in Schools table"` to `"Missing teams in Schools / Teams table"`.
-  - Add `"Duplicate event entries (duplicates skipped, warning only)"`.
-- **`tipsSection` ("Best Practices"):**
-  - Update `"Add all teams to Schools table first"` to `"Add all teams/schools to the Schools or Teams table first"`.
-  - Add `"Re-sync your Entry Form after updating Events, Schools, or Teams"`.
+### Architecture Diagram
+```mermaid
+graph LR
+  Launch["onHomepage / Sidepanel Top"] -->|"getWorkspaceSetupStatus()"| Server["utils.js / Drive.Files.get"]
+  Launch -->|"Authorize / Change Folder"| SetupModal["workspace-setup-ui.html (720x560)"]
+  Menu["Addon Menu: Set Export Destination"] --> SetupModal
+  MeetGuard["Meet Setup / TableApp 403 Guard"] -->|"If unauthorized"| SetupModal
+  SetupModal -->|"Pick Active Sheet (setQuery)"| PickerSheet["Google Picker: SPREADSHEETS"]
+  SetupModal -->|"Pick Folder (SUPPORT_DRIVES)"| PickerFolder["Google Picker: FOLDERS"]
+  PickerSheet -->|"drive.file ACL"| BatchUpdate["Sheets.Spreadsheets.batchUpdate"]
+  PickerFolder -->|"setExportFolder()"| DocProps["DocumentProperties"]
+  ExportDialogs["SDIF / CSV Export Dialogs"] -->|"Read-only summary + Change..."| SetupModal
+```
+
+### Data Models / Contracts
+- **In `utils.js`:**
+  - `isSpreadsheetAuthorized_(spreadsheetId)` → `boolean`: calls `Drive.Files.get(spreadsheetId, { fields: 'id', supportsAllDrives: true })` in `try...catch`; returns `true` if accessible under `drive.file`, `false` on `403`/`404`.
+  - `getWorkspaceSetupStatus()` → `{ spreadsheetId: string, spreadsheetName: string, isAuthorized: boolean, exportFolder: { folderId, folderName, source, pickerConfigured } }`.
+  - `getDrivePickerConfig()` → `{ oauthToken, apiKey, projectNumber, spreadsheetId, spreadsheetName }` (extended with active spreadsheet ID/name for pre-filtering and match validation).
+- **In `ui.js`:**
+  - `showWorkspaceSetupDialog()` → opens `workspace-setup-ui.html` at `720×560` with title `"Workspace & Export Setup"`.
+  - `ensureSpreadsheetAuthorizedOrPrompt_()` → checks `isSpreadsheetAuthorized_()`; if `false`, opens `showWorkspaceSetupDialog()` and returns `false` so callers abort cleanly before running `batchUpdate`.
+- **In `TableApp_Local.js`:**
+  - `batchUpdate_(spreadsheetId, requests)` → wraps `Sheets.Spreadsheets.batchUpdate` error handling to throw a clear `SHEET_NOT_AUTHORIZED` message if status is `403`/`404` under `drive.file`.
+
+### File Structure
+- **Added:** `workspace-setup-ui.html`
+- **Modified:** `appsscript.json`, `utils.js`, `ui.js`, `TableApp_Local.js`, `shared-drive-picker.html`, `SDIFCreator_Dialog.html`, `export-csv-ui.html`, `tests.js`, `docs/SWIM_ENTRIES_MANAGER_SPEC.md`, `docs/USER_GUIDE.md`
+
+### Risks
+- **User Picks Wrong Spreadsheet in Picker:** In `DocsView(ViewId.SPREADSHEETS)`, a user could click a different file with a similar name. Mitigation: pre-filter by exact `spreadsheetName`, validate `doc.id === config.spreadsheetId` in `workspace-setup-ui.html`, and show an inline retry message if they select a different file.
+- **OAuth Re-consent:** Removing `spreadsheets` scope changes `appsscript.json` scopes. Mitigation: document `clasp push` + re-authorization in `docs/SWIM_ENTRIES_MANAGER_SPEC.md`.
 
 # Testing
 
 ### Validation Approach
-1. **Static & Runtime Check in Node.js:**
-   - Load `ui.js` in a Node.js `vm` context with a lightweight `CardService` mock (`newCardBuilder`, `newCardHeader`, `newCardSection`, `newTextParagraph`, `newButtonSet`, `newTextButton`, `newOpenLink`, `newNavigation`, `Icon`).
-   - Invoke `showHelpCard()` and assert that all text paragraphs render without runtime errors and that all `CardService` HTML tags (`<b>`, `<i>`, `<br>`) are balanced.
-2. **Parity & Regression Assertions:**
-   - Verify the rendered Help text no longer contains `"Create Core Tables"`.
-   - Verify the rendered Help text mentions `Meet Setup`, `Entry Form`, `Create Relay Tables`, `Schools` and `Teams`, `School Year` / `AgeBrackets`, and duplicate-event warnings.
+1. **Automated Node.js Diagnostic Suite (`tests.js`):**
+   - Assert `appsscript.json` excludes `https://www.googleapis.com/auth/spreadsheets` and includes `spreadsheets.currentonly` and `drive.file`.
+   - Assert `isSpreadsheetAuthorized_()` and `getWorkspaceSetupStatus()` return `true`/`false` accurately when `Drive.Files.get` succeeds or throws `403`/`404`.
+   - Assert `getDrivePickerConfig()` returns `spreadsheetId` and `spreadsheetName`.
+   - Assert `buildAdminSidebarCard()` renders the **Workspace & Export Setup** section above **Meet Setup** in both authorized and unauthorized states.
+2. **HTML Script Syntax & Template Check:**
+   - Validate inline `<script>` blocks in `workspace-setup-ui.html`, `shared-drive-picker.html`, `SDIFCreator_Dialog.html`, and `export-csv-ui.html` via `vm.Script`.
 
 # Delivery Steps
 
-### ✓ Step 1: Update Quick Start and Critical Data sections in showHelpCard
-The Quick Start Workflow and Critical Data Requirements sections of `showHelpCard()` in `ui.js` accurately reflect Meet Setup, Entry Forms, Relay Tables, and competition-type-aware swimmer fields.
+### ✓ Step 1: Update OAuth scopes, Drive authorization helpers, and 403 guard
+`appsscript.json` removes the sensitive `spreadsheets` scope, and `utils.js` + `TableApp_Local.js` expose `drive.file` authorization status and clean 403 handling.
 
-- Replace the legacy "Create Core Tables (STEP 1)" instructions in `quickStartSection` with **Meet Setup (STEP 1)**, covering competition types (`School`, `College`, `Age Group`, `Open`, `Masters`) and auto-generated sheets (`Meet` with `AgeBrackets`, `Events`, `Schools`/`Teams`, `Individual Events Template`, plus optional `Team Officials` and `How to fill entries`).
-- Update table population guidance in `quickStartSection` for `Events`, `Schools` / `Teams`, and optional `Team Officials`.
-- Update entry collection steps to cover both **Create Team Entry Sheets (STEP 2)** and **Entry Form (Optional)** (`Create / Sync Entry Form` -> `Form Entries`), and add **Create Relay Tables (STEP 3, Optional)**.
-- Update swimmer entry and `criticalFieldsSection` requirements to distinguish `Date of Birth` (`Age Group`, `Open`, `Masters`) vs `School Year` + `AgeBrackets` (`School`, `College`), and `Schools` vs `Teams` table lookups.
+- Remove `"https://www.googleapis.com/auth/spreadsheets"` from `oauthScopes` in `appsscript.json`.
+- Add `isSpreadsheetAuthorized_()` and `getWorkspaceSetupStatus()` in `utils.js`, and extend `getDrivePickerConfig()` to include `spreadsheetId` and `spreadsheetName`.
+- Update `batchUpdate_()` in `TableApp_Local.js` to catch `403`/`404` permission errors and throw an actionable authorization error.
 
-### ✓ Step 2: Update Exception Reports, Best Practices, and verify showHelpCard
-The Exception Reports and Best Practices sections of `showHelpCard()` in `ui.js` match current validation behavior, and the card renders cleanly without errors.
+### ✓ Step 2: Create the dedicated `720×560` Workspace & Export Setup modal
+Users can authorize the active spreadsheet and choose an export destination folder in a dedicated, reliably sized Picker modal.
 
-- Update `exceptionReportsSection` in `ui.js` to reference `Schools / Teams table` and include duplicate-event warnings alongside missing critical data, invalid event formats, and swimmers with no events.
-- Update `tipsSection` in `ui.js` to reference `Schools or Teams` tables and remind users to re-sync the Entry Form (`Create / Sync Entry Form`) after updating `Events`, `Schools`, or `Teams`.
-- Verify `showHelpCard()` in a Node.js check with a mocked `CardService` to confirm the card builds cleanly, all HTML tags (`<b>`, `<i>`, `<br>`) are valid, and no references to `Create Core Tables` remain.
+- Create `workspace-setup-ui.html` using `shared-dialog-styles.html` with two sections: **1. Authorize This Spreadsheet** (`DocsView(ViewId.SPREADSHEETS)` pre-filtered by `spreadsheetName`, validating `doc.id === config.spreadsheetId`) and **2. Export Destination Folder** (`DocsView(ViewId.FOLDERS)` with `SUPPORT_DRIVES`, `setExportFolder()`, and `clearExportFolder()`).
+- Add `showWorkspaceSetupDialog()` and `ensureSpreadsheetAuthorizedOrPrompt_()` in `ui.js`.
+
+### ✓ Step 3: Update sidepanel, Add-on menu, and export dialogs
+The sidepanel surfaces **Workspace & Export Setup** above **Meet Setup**, the menu exposes **Set Export Destination**, and export dialogs display a clean read-only folder bar.
+
+- Update `buildAdminSidebarCard()` in `ui.js` to render the **Workspace & Export Setup** status section above **Meet Setup** (showing authorization warning or ready state + active export folder).
+- Update `onOpen(e)` in `ui.js` to add **Workspace & Export Setup** and **Set Export Destination**, and wire `ensureSpreadsheetAuthorizedOrPrompt_()` into `showMeetSetupDialog()`, `showCreateSheetsDialog()`, and `showCreateRelayTablesDialog()`.
+- Simplify `shared-drive-picker.html` (removing inline Picker iframe/resizing and adding a **Change...** button calling `showWorkspaceSetupDialog()`) and verify `SDIFCreator_Dialog.html` and `export-csv-ui.html` render the read-only folder summary cleanly.
+
+### ✓ Step 4: Update diagnostic tests and documentation
+The Node.js diagnostic suite and documentation reflect the new non-sensitive scope and Workspace & Export Setup workflow.
+
+- Update `tests.js` (`testExportFolderResolutionAndFallback()` and `ui.js` sidebar assertions) and run `runAllDiagnosticTests()` plus `vm.Script` syntax checks on all HTML files.
+- Update `docs/SWIM_ENTRIES_MANAGER_SPEC.md` and `docs/USER_GUIDE.md` to document the removal of `spreadsheets` scope, the **Workspace & Export Setup** sidepanel section, **Set Export Destination** menu item, and one-click spreadsheet authorization flow.

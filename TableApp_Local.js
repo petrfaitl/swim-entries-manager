@@ -454,7 +454,18 @@ function batchUpdate_(spreadsheetId, requests) {
   // If the passed ID doesn't match the active ID, 'currentonly' will throw a 404.
   const sid = (spreadsheetId && spreadsheetId === activeId) ? spreadsheetId : activeId;
 
-  return Sheets.Spreadsheets.batchUpdate({ requests }, sid);
+  try {
+    return Sheets.Spreadsheets.batchUpdate({ requests }, sid);
+  } catch (e) {
+    const msg = String(e && e.message ? e.message : e);
+    if (/403|404|permission|not found|unauthorized|forbidden/i.test(msg)) {
+      throw new Error(
+        `SHEET_NOT_AUTHORIZED: Spreadsheet "${sid}" is not yet authorized for table operations under drive.file. ` +
+        `Please open Workspace & Export Setup from the Swim Entries Manager sidebar or menu to authorize this spreadsheet. (${msg})`
+      );
+    }
+    throw e;
+  }
 }
 
 /**

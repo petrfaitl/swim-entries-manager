@@ -76,19 +76,31 @@ function processSheetToCSV(sheetNameOrId, teamCodeTableName, fileName) {
     outputFileName = `${sheetName}.csv`;
   }
 
+  const folderId = typeof getSpreadsheetParentFolderId_ === 'function'
+    ? getSpreadsheetParentFolderId_(spreadsheetId)
+    : null;
+
+  if (typeof saveTextFileToDrive_ === 'function') {
+    return saveTextFileToDrive_(csvContent, MimeType.CSV, outputFileName, folderId);
+  }
+
   const blob = Utilities.newBlob(csvContent, MimeType.CSV, outputFileName);
-  
+  const fileMetadata = {
+    name: outputFileName,
+    mimeType: MimeType.CSV
+  };
+  if (folderId) {
+    fileMetadata.parents = [folderId];
+  }
+
   let fileId;
   try {
     // Use Advanced Drive Service for restricted scope compatibility
-    const file = Drive.Files.create({
-      name: outputFileName,
-      mimeType: MimeType.CSV
-    }, blob);
+    const file = Drive.Files.create(fileMetadata, blob, { supportsAllDrives: true });
     fileId = file.id;
     Logger.log(`CSV created via Advanced Drive Service: ${outputFileName} (ID: ${fileId})`);
   } catch (e) {
-    Logger.log(`Advanced Drive Service failed: ${e.message}. Falling back to DriveApp.`);
+    Logger.log(`Advanced Drive Service failed: ${e.message}. Falling back to DriveApp root.`);
     const file = DriveApp.createFile(blob);
     fileId = file.getId();
     Logger.log(`CSV created via DriveApp: ${outputFileName} (ID: ${fileId})`);
