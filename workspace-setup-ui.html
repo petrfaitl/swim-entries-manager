@@ -398,7 +398,7 @@
 												if (updated && updated.isAuthorized) {
 													setInlineMessage(
 														authMsg,
-														'Spreadsheet authorized successfully.',
+														'Spreadsheet authorized successfully. Click "Refresh Status" in the side panel after closing this dialog.',
 														'success'
 													);
 												} else {
@@ -469,7 +469,7 @@
 														chooseBtn.disabled = false;
 														setInlineMessage(
 															folderMsg,
-															'Export folder saved: ' + (saved.folderName || doc.name),
+															'Export folder saved: ' + (saved.folderName || doc.name) + '. Click "Refresh Status" in the side panel after closing this dialog.',
 															'success'
 														);
 														refreshStatus();

@@ -50,6 +50,20 @@ function showWorkspaceSetupDialog() {
 }
 
 /**
+ * Refreshes the main Admin sidepanel card in-place so changes made in the
+ * Workspace & Export Setup modal (authorization and export folder) are reflected.
+ *
+ * @returns {GoogleAppsScript.Card_Service.ActionResponse}
+ */
+function refreshWorkspaceSidebar() {
+	return CardService.newActionResponseBuilder()
+		.setNavigation(
+			CardService.newNavigation().updateCard(buildAdminSidebarCard()),
+		)
+		.build();
+}
+
+/**
  * Checks whether the active spreadsheet is authorized under `drive.file`.
  * If unauthorized, automatically opens the Workspace & Export Setup dialog
  * and returns false so the caller can abort cleanly before running `batchUpdate`.
@@ -135,17 +149,28 @@ function buildAdminSidebarCard() {
 				),
 			)
 			.addWidget(
-				CardService.newButtonSet().addButton(
-					CardService.newTextButton()
-						.setText("Authorize & Setup")
-						.setTextButtonStyle(CardService.TextButtonStyle.FILLED)
-						.setBackgroundColor("#D97706")
-						.setOnClickAction(
-							CardService.newAction().setFunctionName(
-								"showWorkspaceSetupDialog",
+				CardService.newButtonSet()
+					.addButton(
+						CardService.newTextButton()
+							.setText("Authorize & Setup")
+							.setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+							.setBackgroundColor("#D97706")
+							.setOnClickAction(
+								CardService.newAction().setFunctionName(
+									"showWorkspaceSetupDialog",
+								),
 							),
-						),
-				),
+					)
+					.addButton(
+						CardService.newTextButton()
+							.setText("Refresh Status")
+							.setTextButtonStyle(CardService.TextButtonStyle.TEXT)
+							.setOnClickAction(
+								CardService.newAction().setFunctionName(
+									"refreshWorkspaceSidebar",
+								),
+							),
+					),
 			);
 	} else {
 		workspaceSetupSection
@@ -164,16 +189,27 @@ function buildAdminSidebarCard() {
 				),
 			)
 			.addWidget(
-				CardService.newButtonSet().addButton(
-					CardService.newTextButton()
-						.setText("Change Export Folder")
-						.setTextButtonStyle(CardService.TextButtonStyle.TEXT)
-						.setOnClickAction(
-							CardService.newAction().setFunctionName(
-								"showWorkspaceSetupDialog",
+				CardService.newButtonSet()
+					.addButton(
+						CardService.newTextButton()
+							.setText("Change Export Folder")
+							.setTextButtonStyle(CardService.TextButtonStyle.TEXT)
+							.setOnClickAction(
+								CardService.newAction().setFunctionName(
+									"showWorkspaceSetupDialog",
+								),
 							),
-						),
-				),
+					)
+					.addButton(
+						CardService.newTextButton()
+							.setText("Refresh Status")
+							.setTextButtonStyle(CardService.TextButtonStyle.TEXT)
+							.setOnClickAction(
+								CardService.newAction().setFunctionName(
+									"refreshWorkspaceSidebar",
+								),
+							),
+					),
 			);
 	}
 

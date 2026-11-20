@@ -2144,11 +2144,12 @@ function testWorkspaceSetupAndSidebar() {
       }
     };
 
+    const docPropsStore = {};
     globalThis.PropertiesService = {
       getDocumentProperties: () => ({
-        getProperty: () => null,
-        setProperty: () => {},
-        deleteProperty: () => {}
+        getProperty: (k) => (k in docPropsStore ? docPropsStore[k] : null),
+        setProperty: (k, v) => { docPropsStore[k] = String(v); },
+        deleteProperty: (k) => { delete docPropsStore[k]; }
       }),
       getScriptProperties: () => ({
         getProperty: (k) => (k === 'GOOGLE_PICKER_API_KEY' ? 'KEY_123' : 'PROJ_456')
@@ -2229,10 +2230,15 @@ function testWorkspaceSetupAndSidebar() {
         },
         newCardHeader: () => makeChain({}),
         newCardSection: () => {
-          const sec = { header: '', texts: [], widgets: [] };
+          const sec = { header: '', texts: [], widgets: [], buttons: [] };
           const chain = {
             setHeader(h) { sec.header = h; return proxy; },
-            addWidget(w) { sec.widgets.push(w); if (w && w._text) sec.texts.push(w._text); return proxy; }
+            addWidget(w) {
+              sec.widgets.push(w);
+              if (w && w._text) sec.texts.push(w._text);
+              if (w && Array.isArray(w._buttons)) sec.buttons.push(...w._buttons);
+              return proxy;
+            }
           };
           const proxy = makeChain(Object.assign(sec, chain));
           return proxy;
@@ -2245,11 +2251,33 @@ function testWorkspaceSetupAndSidebar() {
           const w = { _text: '' };
           return makeChain(Object.assign(w, { setText(t) { w._text = t; return this; } }));
         },
-        newButtonSet: () => makeChain({}),
-        newTextButton: () => makeChain({}),
+        newButtonSet: () => {
+          const bs = { _buttons: [] };
+          return makeChain(Object.assign(bs, { addButton(b) { bs._buttons.push(b); return this; } }));
+        },
+        newTextButton: () => {
+          const b = { _text: '', _actionFn: '' };
+          return makeChain(Object.assign(b, {
+            setText(t) { b._text = t; return this; },
+            setOnClickAction(a) { b._actionFn = a && a._fn ? a._fn : ''; return this; }
+          }));
+        },
         newIconImage: () => makeChain({}),
         newMaterialIcon: () => makeChain({}),
-        newAction: () => makeChain({}),
+        newAction: () => {
+          const a = { _fn: '' };
+          return makeChain(Object.assign(a, { setFunctionName(fn) { a._fn = fn; return this; } }));
+        },
+        newNavigation: () => ({
+          updateCard(card) { return { _updatedCard: card }; }
+        }),
+        newActionResponseBuilder: () => {
+          const resp = { _nav: null };
+          return makeChain(Object.assign(resp, {
+            setNavigation(n) { resp._nav = n; return this; },
+            build() { return resp; }
+          }));
+        },
         newFixedFooter: () => makeChain({})
       };
     };
@@ -2267,11 +2295,22 @@ function testWorkspaceSetupAndSidebar() {
     if (!unauthCard.sections[0].texts.some(t => t.includes('Action Required: Authorize Spreadsheet'))) {
       throw new Error('Expected unauthorized sidebar section to show Action Required warning');
     }
+    if (!unauthCard.sections[0].buttons.some(b => b._text === 'Refresh Status' && b._actionFn === 'refreshWorkspaceSidebar')) {
+      throw new Error('Expected unauthorized sidebar section to include Refresh Status button');
+    }
 
     allowDriveGet = true;
-    const readyCard = buildAdminSidebarCard();
-    if (!readyCard.sections[0].texts.some(t => t.includes('Workspace Ready'))) {
-      throw new Error('Expected authorized sidebar section to show Workspace Ready');
+    setExportFolder('FOLDER_PICKED', 'Swim Exports 2026');
+    const refreshResp = refreshWorkspaceSidebar();
+    const readyCard = refreshResp && refreshResp._nav && refreshResp._nav._updatedCard;
+    if (!readyCard || !readyCard.sections[0].texts.some(t => t.includes('Workspace Ready'))) {
+      throw new Error('Expected refreshWorkspaceSidebar() to return updated card with Workspace Ready');
+    }
+    if (!readyCard.sections[0].texts.some(t => t.includes('Swim Exports 2026'))) {
+      throw new Error('Expected refreshed sidebar card to display Picker-selected export folder name');
+    }
+    if (!readyCard.sections[0].buttons.some(b => b._text === 'Refresh Status' && b._actionFn === 'refreshWorkspaceSidebar')) {
+      throw new Error('Expected authorized sidebar section to include Refresh Status button');
     }
   } finally {
     if (originalDrive) globalThis.Drive = originalDrive;
