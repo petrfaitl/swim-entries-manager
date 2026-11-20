@@ -130,7 +130,8 @@ function buildAdminSidebarCard() {
 	// Section 0: Workspace & Export Setup (Top-level status & launch)
 	const workspaceSetupSection = CardService.newCardSection()
 		.setHeader("Workspace & Export Setup")
-		.setCollapsible(false);
+		.setCollapsible(true)
+		.setNumUncollapsibleWidgets(1);
 
 	if (!workspaceStatus.isAuthorized) {
 		workspaceSetupSection
@@ -164,7 +165,8 @@ function buildAdminSidebarCard() {
 					.addButton(
 						CardService.newTextButton()
 							.setText("Refresh Status")
-							.setTextButtonStyle(CardService.TextButtonStyle.TEXT)
+							.setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+							.setBackgroundColor("#64748B")
 							.setOnClickAction(
 								CardService.newAction().setFunctionName(
 									"refreshWorkspaceSidebar",
@@ -193,7 +195,8 @@ function buildAdminSidebarCard() {
 					.addButton(
 						CardService.newTextButton()
 							.setText("Change Export Folder")
-							.setTextButtonStyle(CardService.TextButtonStyle.TEXT)
+							.setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+							.setBackgroundColor("#0397B3")
 							.setOnClickAction(
 								CardService.newAction().setFunctionName(
 									"showWorkspaceSetupDialog",
@@ -203,7 +206,8 @@ function buildAdminSidebarCard() {
 					.addButton(
 						CardService.newTextButton()
 							.setText("Refresh Status")
-							.setTextButtonStyle(CardService.TextButtonStyle.TEXT)
+							.setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+							.setBackgroundColor("#64748B")
 							.setOnClickAction(
 								CardService.newAction().setFunctionName(
 									"refreshWorkspaceSidebar",

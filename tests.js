@@ -2230,9 +2230,11 @@ function testWorkspaceSetupAndSidebar() {
         },
         newCardHeader: () => makeChain({}),
         newCardSection: () => {
-          const sec = { header: '', texts: [], widgets: [], buttons: [] };
+          const sec = { header: '', collapsible: false, numUncollapsibleWidgets: null, texts: [], widgets: [], buttons: [] };
           const chain = {
             setHeader(h) { sec.header = h; return proxy; },
+            setCollapsible(c) { sec.collapsible = Boolean(c); return proxy; },
+            setNumUncollapsibleWidgets(n) { sec.numUncollapsibleWidgets = n; return proxy; },
             addWidget(w) {
               sec.widgets.push(w);
               if (w && w._text) sec.texts.push(w._text);
@@ -2256,9 +2258,11 @@ function testWorkspaceSetupAndSidebar() {
           return makeChain(Object.assign(bs, { addButton(b) { bs._buttons.push(b); return this; } }));
         },
         newTextButton: () => {
-          const b = { _text: '', _actionFn: '' };
+          const b = { _text: '', _style: '', _backgroundColor: '', _actionFn: '' };
           return makeChain(Object.assign(b, {
             setText(t) { b._text = t; return this; },
+            setTextButtonStyle(s) { b._style = s; return this; },
+            setBackgroundColor(c) { b._backgroundColor = c; return this; },
             setOnClickAction(a) { b._actionFn = a && a._fn ? a._fn : ''; return this; }
           }));
         },
@@ -2295,6 +2299,15 @@ function testWorkspaceSetupAndSidebar() {
     if (!unauthCard.sections[0].texts.some(t => t.includes('Action Required: Authorize Spreadsheet'))) {
       throw new Error('Expected unauthorized sidebar section to show Action Required warning');
     }
+    if (!unauthCard.sections[0].collapsible || unauthCard.sections[0].numUncollapsibleWidgets !== 1) {
+      throw new Error('Expected Workspace & Export Setup section to be collapsible with 1 uncollapsible status widget');
+    }
+    if (!unauthCard.sections[0].widgets[0] || !String(unauthCard.sections[0].widgets[0]._text).includes('Action Required: Authorize Spreadsheet')) {
+      throw new Error('Expected first uncollapsible widget in unauthorized state to be Action Required status');
+    }
+    if (!unauthCard.sections[0].buttons.every(b => b._style === 'FILLED' && Boolean(b._backgroundColor))) {
+      throw new Error('Expected all buttons in unauthorized Workspace & Export Setup section to be FILLED with a background color');
+    }
     if (!unauthCard.sections[0].buttons.some(b => b._text === 'Refresh Status' && b._actionFn === 'refreshWorkspaceSidebar')) {
       throw new Error('Expected unauthorized sidebar section to include Refresh Status button');
     }
@@ -2305,6 +2318,15 @@ function testWorkspaceSetupAndSidebar() {
     const readyCard = refreshResp && refreshResp._nav && refreshResp._nav._updatedCard;
     if (!readyCard || !readyCard.sections[0].texts.some(t => t.includes('Workspace Ready'))) {
       throw new Error('Expected refreshWorkspaceSidebar() to return updated card with Workspace Ready');
+    }
+    if (!readyCard.sections[0].collapsible || readyCard.sections[0].numUncollapsibleWidgets !== 1) {
+      throw new Error('Expected ready Workspace & Export Setup section to be collapsible with 1 uncollapsible status widget');
+    }
+    if (!readyCard.sections[0].widgets[0] || !String(readyCard.sections[0].widgets[0]._text).includes('Workspace Ready')) {
+      throw new Error('Expected first uncollapsible widget in ready state to be Workspace Ready status');
+    }
+    if (!readyCard.sections[0].buttons.every(b => b._style === 'FILLED' && Boolean(b._backgroundColor))) {
+      throw new Error('Expected all buttons in ready Workspace & Export Setup section to be FILLED with a background color');
     }
     if (!readyCard.sections[0].texts.some(t => t.includes('Swim Exports 2026'))) {
       throw new Error('Expected refreshed sidebar card to display Picker-selected export folder name');
